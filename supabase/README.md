@@ -15,3 +15,6 @@ Before the first migration is created:
 
 The authoritative Phase 1 schema and tenant design is documented in
 `context/supabase_phase_1_foundation.md`.
+
+The first seed-free core migration and its validation checklist are documented
+in `context/supabase_phase_2_core_schema.md`.

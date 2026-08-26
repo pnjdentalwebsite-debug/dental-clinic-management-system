@@ -1,5 +1,12 @@
 # Walkthrough: Multi-Branch Subsystem Data Isolation, Personnel Designation & Platform Owner Control Center Modernization
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Added the first real database migration as a seed-free, branch-safe contract without changing local prototype records.
+- Added a typed browser client boundary that requires a configured public URL/key and scope utilities that reject unscoped branch operations.
+- RLS is now designed in executable SQL, but it has not been applied because this workstation does not yet have Docker or a linked development Supabase project. See `context/supabase_phase_2_core_schema.md` for the required test sequence.
+- Updated the vulnerable transitive DOMPurify package; the production-only dependency audit is clean.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - Initialized the local Supabase CLI project files without starting Docker, linking a cloud project, or changing any operational records.

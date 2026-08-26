@@ -1,5 +1,16 @@
 # Current Active Contract - August 25, 2026
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- [x] Create the first migration through the Supabase CLI, with no seeded business data.
+- [x] Define subscriber/clinic composite foreign keys for all core branch operations.
+- [x] Add a fail-closed browser client boundary and mandatory query scope helper.
+- [x] Enable foundation RLS policies for all created tables.
+- [ ] Create/link the development project and apply this migration only there.
+- [ ] Add and run Auth/RLS policy tests for platform admin, owner, assigned staff, assigned associate, and unassigned users.
+- [ ] Add repository adapters and cut over one module at a time after successful policy tests.
+- [x] Resolve the production dependency audit finding; `npm audit --omit=dev` reports zero vulnerabilities.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - [x] Initialize local `supabase/` CLI configuration and ignore generated CLI metadata.

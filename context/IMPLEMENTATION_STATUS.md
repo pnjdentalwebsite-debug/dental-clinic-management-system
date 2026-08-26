@@ -1,5 +1,14 @@
 # Implementation Status
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Created the first CLI-generated, seed-free migration for platform identities, registrations, subscribers, subscriptions, payments, clinics, personnel, laboratories, patients, clinical scheduling, billing, uploads, notifications, and audit events.
+- Every branch-operational table is tenant and clinic scoped. Composite foreign keys prevent cross-subscriber or cross-branch patient, tag, bill, recall, payment, and upload relationships.
+- Added a fail-closed browser Supabase client boundary and tenant/clinic scope helper. Existing modules remain localStorage-backed until tested adapters are introduced.
+- RLS is enabled for every table. The current conservative policy grants assigned staff/associates branch reads and reserves tenant management for owners until write permissions have module-specific policy tests.
+- Docker and a linked development project are still required to apply and test the migration; no cloud or local database records have been changed.
+- Updated the transitive DOMPurify dependency to a patched compatible release; `npm audit --omit=dev` now reports zero production vulnerabilities.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - Initialized the repository-owned Supabase CLI configuration in `supabase/config.toml` using the current CLI defaults.

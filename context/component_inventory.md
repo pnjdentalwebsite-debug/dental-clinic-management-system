@@ -1,5 +1,13 @@
 # Component Inventory
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- `supabase/migrations/20260826101055_core_tenant_identity_and_branch_scope.sql`: seed-free relational/RLS foundation for every current platform and clinical branch domain.
+- `src/infrastructure/supabase/client.ts`: optional browser client created only from `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- `src/infrastructure/supabase/scope.ts`: required subscriber/clinic query scope guard, with focused tests in `scope.test.ts`.
+- `context/supabase_phase_2_core_schema.md`: migration coverage, security boundaries, and the required linked-development-project validation runbook.
+- `package-lock.json`: refreshed transitive DOMPurify dependency to remove the prior production audit finding.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - `supabase/config.toml`: versioned local Supabase CLI configuration with deliberate API exposure defaults.

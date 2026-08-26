@@ -1,5 +1,12 @@
 # Modules
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Added the future database contract for platform onboarding, clinic owner, branch subsystem, staff, associate, laboratories, patients, appointments, recalls, progress notes, bills, payments, uploads, notifications, and audits.
+- Added `src/infrastructure/supabase/client.ts` and `scope.ts` as the only allowed starting point for future Supabase repositories. New adapters must pass an explicit subscriber and clinic scope.
+- No current UI module has been switched to Supabase, so existing workflows continue to use their tested prototype stores until RLS-backed adapters are completed.
+- Production dependency audit is clean after updating the transitive DOMPurify dependency.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - `supabase/config.toml` now defines the local CLI/API/database development contract; it does not connect the application to a live database yet.

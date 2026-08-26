@@ -1,5 +1,12 @@
 # Architecture
 
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- `supabase/migrations/20260826101055_core_tenant_identity_and_branch_scope.sql` is the first database authority contract. It defines Auth profiles, platform access, subscriber membership, clinic assignments, and branch-scoped operational tables.
+- Composite foreign keys enforce `clinic_id + subscriber_id` consistency for downstream patient and financial data. This supports owner-level all-clinic aggregation without leaking data between branches.
+- The browser connection layer is fail-closed when public Supabase configuration is missing. Service-role operations, payment approval provisioning, and first platform-admin setup remain server-side responsibilities.
+- The current production dependency audit is clean; bundle splitting remains a separate performance task.
+
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
 - The repository now owns a standard Supabase CLI configuration at `supabase/config.toml`; local API port `54321` and database port `54322` are reserved by the CLI when a Docker-backed local stack is later started.
