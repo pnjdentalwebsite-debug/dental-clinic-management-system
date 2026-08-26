@@ -1,17 +1,31 @@
 # Walkthrough: Multi-Branch Subsystem Data Isolation, Personnel Designation & Platform Owner Control Center Modernization
 
+## Supabase Local Validation - August 26, 2026
+
+- Started the local Supabase stack through Docker and applied the seed-free schema migrations successfully.
+- Verified migration history, schema lint, and security advisors. The public registration rule now blocks anonymous self-approval/payment/review/provisioning metadata.
+- Studio, analytics logging, vector, and image proxy are excluded for local memory efficiency; the application-critical database, Auth, REST, Realtime, Storage, Edge Runtime, and Mailpit services are available.
+- The next walkthrough stage is real Auth/server workflows and a measured repository-by-repository replacement of localStorage stores.
+
+## Supabase Development Project Link - August 26, 2026
+
+- Linked cloud development project `cuatwirdydarxvqqqoem` and pushed all three seed-free migrations after dry-run verification.
+- Confirmed local and cloud migration histories match; remote lint and security advisors return no issues.
+- The automatic-RLS security-definer helper is trigger-only and no longer executable through the public Data API.
+- Next: test role-specific Auth/RLS behavior and cut over one explicit tenant-and-branch scoped repository at a time.
+
 ## Supabase Phase 2 Core Schema - August 26, 2026
 
 - Added the first real database migration as a seed-free, branch-safe contract without changing local prototype records.
 - Added a typed browser client boundary that requires a configured public URL/key and scope utilities that reject unscoped branch operations.
-- RLS is now designed in executable SQL, but it has not been applied because this workstation does not yet have Docker or a linked development Supabase project. See `context/supabase_phase_2_core_schema.md` for the required test sequence.
+- RLS is executable SQL and has been applied/validated locally through Docker. See `context/supabase_phase_2_core_schema.md` for the cloud-link and role-test sequence.
 - Updated the vulnerable transitive DOMPurify package; the production-only dependency audit is clean.
 
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
-- Initialized the local Supabase CLI project files without starting Docker, linking a cloud project, or changing any operational records.
+- Initialized and started the local Supabase CLI project through Docker before linking the dedicated development project; no operational prototype records were changed.
 - The configuration is safe to version-control; generated CLI metadata is ignored.
-- The next walkthrough step requires a dedicated development Supabase project before schema migration and RLS verification can proceed.
+- The next walkthrough step is role-scoped Auth/RLS testing against the linked development project.
 
 ## Supabase Phase 1 Foundation - August 26, 2026
 

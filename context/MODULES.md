@@ -1,5 +1,15 @@
 # Modules
 
+## Supabase Local Validation - August 26, 2026
+
+- The local database now runs the complete seed-free tenant and branch schema plus the restricted public-registration policy.
+- The current UI remains intentionally localStorage-backed. A future module cutover must use `src/infrastructure/supabase/client.ts` and an explicit subscriber/clinic scope; no runtime module was silently switched.
+
+## Supabase Development Project Link - August 26, 2026
+
+- The environment is linked to the dedicated cloud development project and its remote schema matches the local migration set.
+- Browser configuration uses Git-ignored Vite public values only. Production secrets and all current operational module stores remain outside the browser bundle.
+
 ## Supabase Phase 2 Core Schema - August 26, 2026
 
 - Added the future database contract for platform onboarding, clinic owner, branch subsystem, staff, associate, laboratories, patients, appointments, recalls, progress notes, bills, payments, uploads, notifications, and audits.
@@ -9,7 +19,7 @@
 
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
 
-- `supabase/config.toml` now defines the local CLI/API/database development contract; it does not connect the application to a live database yet.
+- `supabase/config.toml` defines the local CLI/API/database development contract and now runs successfully through Docker.
 - CLI temporary metadata is excluded through `supabase/.gitignore`.
 - Module repositories remain localStorage-backed until their corresponding migrations, RLS policies, and adapters are implemented and verified against a linked development project.
 

@@ -1,20 +1,34 @@
 # Supabase Foundation
 
-This directory now contains the repository's Phase 2 local Supabase CLI
-bootstrap. It does not contain credentials, a linked project reference, a
-running Docker stack, or production migrations yet.
+This directory contains the repository's local Supabase CLI configuration and
+seed-free database migrations. It does not contain credentials or a linked
+cloud project reference.
 
-Before the first migration is created:
+## Local development
 
-1. Create a dedicated Supabase project for development, not production.
-2. Install and authenticate the Supabase CLI without committing credentials.
-3. Link the local project only after the owner confirms the project reference.
-4. Create migrations through `supabase migration new`, then apply and test them
-   against the development project.
-5. Enable RLS and write an operation-specific policy test for every exposed table.
+The local stack has been validated with Docker. On this workstation, use the
+lean command below because Docker Desktop currently has limited memory:
+
+```powershell
+npx --yes supabase@latest start --agent no --exclude studio --exclude logflare --exclude vector --exclude imgproxy
+```
+
+The database is available locally on port `54322`, and the API on port
+`54321`. Do not commit `.env.local` or any local API keys.
+
+## Cloud development handoff
+
+The project is linked to a dedicated development environment. Continue to keep
+cloud credentials out of the repository and use `supabase db push --linked
+--dry-run --skip-vault` before every remote migration push.
+
+1. Add role-scoped Auth and RLS integration tests.
+2. Push future migrations to development only after their local tests pass.
+3. Migrate localStorage modules one at a time through explicit
+   subscriber/clinic-scoped repositories.
 
 The authoritative Phase 1 schema and tenant design is documented in
 `context/supabase_phase_1_foundation.md`.
 
-The first seed-free core migration and its validation checklist are documented
-in `context/supabase_phase_2_core_schema.md`.
+The first seed-free core migration, the public-registration safeguard, and the
+validation checklist are documented in `context/supabase_phase_2_core_schema.md`.

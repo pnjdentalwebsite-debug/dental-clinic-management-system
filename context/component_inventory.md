@@ -1,5 +1,15 @@
 # Component Inventory
 
+## Supabase Local Validation - August 26, 2026
+
+- `supabase/migrations/20260826123036_restrict_public_registration_submission.sql`: prevents anonymous registration payloads from setting payment approval, review, or provisioning state.
+- Docker local stack: validated API, database, Auth, Realtime, Storage, Edge Runtime, and Mailpit services; Studio/logging/vector/image services are optionally excluded to suit the current local resource limit.
+
+## Supabase Development Project Link - August 26, 2026
+
+- `supabase/migrations/20260826125341_revoke_public_rls_auto_enable_execution.sql`: portable protection that revokes client RPC execution of the cloud automatic-RLS helper while retaining trigger behavior.
+- Cloud development project `cuatwirdydarxvqqqoem`: linked, migration-parity validated, schema-lint clean, and security-advisor clean.
+
 ## Supabase Phase 2 Core Schema - August 26, 2026
 
 - `supabase/migrations/20260826101055_core_tenant_identity_and_branch_scope.sql`: seed-free relational/RLS foundation for every current platform and clinical branch domain.

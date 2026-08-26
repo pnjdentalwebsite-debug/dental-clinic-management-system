@@ -1,12 +1,26 @@
 # Implementation Status
 
+## Supabase Local Validation - August 26, 2026
+
+- Docker-backed local Supabase is running with Auth, REST API, Realtime, Storage, Edge Runtime, database, and Mailpit. Resource-heavy Studio, analytics logging, vector, and image proxy are intentionally excluded on this workstation's current Docker memory limit.
+- Applied and verified both seed-free migrations locally: the core tenant/branch contract and `20260826123036_restrict_public_registration_submission.sql`.
+- Public registration can submit only an unpaid, pending-verification record. It cannot self-approve payment, review itself, or mark provisioning complete.
+- `supabase db lint --local` and local security advisors both report no issues. Existing UI modules remain localStorage-backed until scoped repositories are migrated one module at a time.
+
+## Supabase Development Project Link - August 26, 2026
+
+- Linked the dedicated development project `cuatwirdydarxvqqqoem`; it received the three reviewed seed-free migrations with no seed data, roles, or vault secrets pushed.
+- Remote migration history matches local. Remote schema lint and security advisors report no issues.
+- Added a portable safeguard for cloud projects that enable automatic RLS: `public.rls_auto_enable()` remains trigger infrastructure but is no longer callable by anon or authenticated clients.
+- `.env.local` contains only the Vite public development URL/publishable key and remains Git-ignored. No database password, service-role key, or secret is stored in the repository.
+
 ## Supabase Phase 2 Core Schema - August 26, 2026
 
 - Created the first CLI-generated, seed-free migration for platform identities, registrations, subscribers, subscriptions, payments, clinics, personnel, laboratories, patients, clinical scheduling, billing, uploads, notifications, and audit events.
 - Every branch-operational table is tenant and clinic scoped. Composite foreign keys prevent cross-subscriber or cross-branch patient, tag, bill, recall, payment, and upload relationships.
 - Added a fail-closed browser Supabase client boundary and tenant/clinic scope helper. Existing modules remain localStorage-backed until tested adapters are introduced.
 - RLS is enabled for every table. The current conservative policy grants assigned staff/associates branch reads and reserves tenant management for owners until write permissions have module-specific policy tests.
-- Docker and a linked development project are still required to apply and test the migration; no cloud or local database records have been changed.
+- The migration has been applied and validated against local Docker and the dedicated cloud development project; no existing prototype records were migrated or changed.
 - Updated the transitive DOMPurify dependency to a patched compatible release; `npm audit --omit=dev` now reports zero production vulnerabilities.
 
 ## Supabase Phase 2 Local Bootstrap - August 26, 2026
@@ -14,8 +28,8 @@
 - Initialized the repository-owned Supabase CLI configuration in `supabase/config.toml` using the current CLI defaults.
 - Added `supabase/.gitignore` so CLI-only `.temp/` metadata remains local while the safe, versioned configuration is tracked.
 - The local configuration keeps new public tables non-exposed by default; future migrations must grant API access deliberately and enable RLS before client access.
-- No Supabase cloud project is linked, no credentials are present, and no prototype or real data was migrated, deleted, or changed.
-- Next required handoff: create a dedicated Supabase development project, authenticate the CLI locally, and provide only its project reference for linking. Never commit or paste a service-role key.
+- The dedicated development project is linked, and only Git-ignored public development configuration is present locally. No prototype or real operational data was migrated, deleted, or changed.
+- Next required handoff: implement tested server/Auth workflows and migrate localStorage repositories incrementally. Never commit or paste a service-role key.
 
 ## Supabase Phase 1 Foundation - August 26, 2026
 

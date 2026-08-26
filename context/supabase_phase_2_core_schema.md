@@ -20,14 +20,22 @@
   service-role credential.
 - `src/infrastructure/supabase/scope.ts` requires `subscriberId` and `clinicId`
   for future branch data adapters.
+- `supabase/migrations/20260826123036_restrict_public_registration_submission.sql`
+  prevents a public sign-up from self-approving payment, review, or provisioning state.
+- `supabase/migrations/20260826125341_revoke_public_rls_auto_enable_execution.sql`
+  prevents client RPC execution of the cloud automatic-RLS helper while keeping
+  its trigger behavior intact.
+- All three migrations are applied to local Docker and cloud development
+  project `cuatwirdydarxvqqqoem`; migration parity, schema lint, and security
+  advisors are clean.
 
 ## Deliberate Safety Limits
 
 - Existing screens remain on localStorage until each module gets a tested
   repository adapter. There is no silent split-write or fallback to a live
   database.
-- The migration has not been applied: this workstation has no Docker runtime
-  and no linked Supabase development project.
+- Existing screens remain localStorage-backed even though the schema is
+  validated locally and in cloud development; this avoids unsafe split-writes.
 - Staff and associate clinical write permissions are intentionally not enabled
   by the foundation migration. They need module-specific RLS policies and role
   permission tests before frontend cutover.
@@ -35,13 +43,10 @@
   is available. No seeded administrator, clinic, staff member, associate,
   laboratory, patient, payment, or subscription is created by this migration.
 
-## Required Validation Before Applying
+## Required Validation Before UI Cutover
 
-1. Create a separate Supabase development project.
-2. Run `npx supabase login` locally, then link only the development project.
-3. Apply the migration to the development project.
-4. Provision test identities for platform admin, owner, assigned staff,
+1. Provision test identities for platform admin, owner, assigned staff,
    assigned associate, and an unassigned user.
-5. Verify RLS allows only same-subscriber and assigned-branch reads.
-6. Add and execute operation-specific write-policy tests before wiring any UI
+2. Verify RLS allows only same-subscriber and assigned-branch reads.
+3. Add and execute operation-specific write-policy tests before wiring any UI
    module to the client.
