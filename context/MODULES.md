@@ -1,5 +1,10 @@
 # Modules
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Added environment and data-layer preparation only. All current modules remain localStorage-backed until their future repository adapters are introduced after database/RLS migration.
+- The new foundation blueprint maps platform, subscriber, clinic, staff, associate, patient, clinical, payment, laboratory, notification, and audit modules to database ownership and scope.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Login, registration, platform, clinic owner, branch subsystem, staff, and associate flows are implemented as frontend/localStorage prototype workflows.

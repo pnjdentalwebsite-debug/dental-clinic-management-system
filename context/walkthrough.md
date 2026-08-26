@@ -1,5 +1,11 @@
 # Walkthrough: Multi-Branch Subsystem Data Isolation, Personnel Designation & Platform Owner Control Center Modernization
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Established a dedicated Git branch for production foundation work after the `prototype-baseline` tag was pushed.
+- Added a non-secret environment template and full Supabase handoff blueprint; no local prototype records were migrated or altered.
+- The next phase is restricted to development-project schema/RLS work after a Supabase project is explicitly created and linked.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Verified the production build is green and ran isolated browser smoke checks for login and staff workspace navigation/profile save.

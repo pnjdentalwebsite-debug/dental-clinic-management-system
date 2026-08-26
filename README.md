@@ -1,5 +1,15 @@
 # Dental Clinic Management System
 
+## Production Foundation
+
+The current application is a frontend prototype. Its data and session flows are
+still localStorage-backed until the planned Supabase migration is completed.
+The Phase 1 production foundation, tenant model, RLS rules, and migration order
+are documented in `context/supabase_phase_1_foundation.md`.
+
+For future local configuration, copy `.env.example` to `.env.local` and keep
+all secret server keys outside `VITE_*` variables and Git.
+
 ## Frontend Modules
 
 - Clinic Owner workspace

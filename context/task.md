@@ -1,5 +1,12 @@
 # Current Active Contract - August 25, 2026
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- [x] Push a clean GitHub baseline and tag it as `prototype-baseline`.
+- [x] Create `feature/supabase-foundation` for isolated preparation work.
+- [x] Add `.env.example`, Node 22 runtime contract, and Supabase schema/RLS/tenant blueprint.
+- [ ] Phase 2: Create and link a Supabase development project, then implement the first tested migration.
+
 ## Full-System Diagnostic Follow-up - August 26, 2026
 
 - [x] Run repository architecture and deployment readiness audit.

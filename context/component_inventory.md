@@ -1,5 +1,11 @@
 # Component Inventory
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- `.env.example`: public development placeholders for a future Vite/Supabase client. It explicitly excludes privileged service keys.
+- `supabase/README.md`: local Supabase workflow guardrails before migrations exist.
+- `context/supabase_phase_1_foundation.md`: authoritative domain-to-table, tenant scope, RLS, storage, and migration reference.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - `src/features/platformManagement/pages/UserDetailsPage.tsx` now keeps clinic selection hook state stable when the requested user is missing.

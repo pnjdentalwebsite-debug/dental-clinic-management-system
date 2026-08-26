@@ -1,5 +1,11 @@
 # Architecture
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- The production target is relational: `subscriber_id` is the tenant boundary and `clinic_id` is the branch boundary for operational and clinical rows.
+- Supabase Auth will own identities; application membership and assignment tables will own role authorization. RLS, not frontend route guards, will enforce production access.
+- See `context/supabase_phase_1_foundation.md` for the proposed table map, approval transaction boundary, storage plan, and policy matrix.
+
 ## Full-System Diagnostic Boundary - August 26, 2026
 
 - Current architecture has no Supabase client, SQL migrations, API/server layer, RLS policies, Docker deployment definition, or Vercel configuration.

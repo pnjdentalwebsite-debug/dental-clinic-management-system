@@ -1,5 +1,12 @@
 # Implementation Status
 
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Created the `feature/supabase-foundation` branch from the pushed `prototype-baseline` tag.
+- Added `.env.example` with public Vite Supabase placeholders only; secrets remain excluded from Git and browser variables.
+- Added `context/supabase_phase_1_foundation.md` as the authoritative mapping from mock localStorage domains to future relational tables, RLS policies, storage buckets, and migration sequence.
+- Declared Node 22 as the supported runtime in `package.json` and the lockfile. No Supabase package, credentials, linked project, live database, or migration is included in Phase 1.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Build passes with `npm run build` (0 errors); Vite reports a large main bundle warning.
