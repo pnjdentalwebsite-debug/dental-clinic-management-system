@@ -1,5 +1,12 @@
 # Current Active Contract - August 25, 2026
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- [x] Initialize local `supabase/` CLI configuration and ignore generated CLI metadata.
+- [x] Preserve secure-by-default API exposure settings for future tables.
+- [ ] Create and link a dedicated Supabase development project; do not use production credentials or a service-role key in the frontend.
+- [ ] Create the first SQL migration through `supabase migration new`, apply it only to development, and verify RLS with role-scoped test accounts.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - [x] Push a clean GitHub baseline and tag it as `prototype-baseline`.

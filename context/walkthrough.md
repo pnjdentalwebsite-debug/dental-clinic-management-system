@@ -1,5 +1,11 @@
 # Walkthrough: Multi-Branch Subsystem Data Isolation, Personnel Designation & Platform Owner Control Center Modernization
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- Initialized the local Supabase CLI project files without starting Docker, linking a cloud project, or changing any operational records.
+- The configuration is safe to version-control; generated CLI metadata is ignored.
+- The next walkthrough step requires a dedicated development Supabase project before schema migration and RLS verification can proceed.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - Established a dedicated Git branch for production foundation work after the `prototype-baseline` tag was pushed.

@@ -1,5 +1,11 @@
 # Component Inventory
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- `supabase/config.toml`: versioned local Supabase CLI configuration with deliberate API exposure defaults.
+- `supabase/.gitignore`: excludes generated `.temp/` metadata from Git.
+- No runtime Supabase client component has been added; all existing UI data adapters retain their current prototype storage implementation until a tested migration is available.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - `.env.example`: public development placeholders for a future Vite/Supabase client. It explicitly excludes privileged service keys.

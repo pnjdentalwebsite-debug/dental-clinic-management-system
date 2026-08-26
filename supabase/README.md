@@ -1,9 +1,10 @@
 # Supabase Foundation
 
-This directory is intentionally a planning boundary for Phase 1. It does not
-contain credentials, a linked project reference, or production migrations yet.
+This directory now contains the repository's Phase 2 local Supabase CLI
+bootstrap. It does not contain credentials, a linked project reference, a
+running Docker stack, or production migrations yet.
 
-Before Phase 2 creates migrations:
+Before the first migration is created:
 
 1. Create a dedicated Supabase project for development, not production.
 2. Install and authenticate the Supabase CLI without committing credentials.

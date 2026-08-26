@@ -1,5 +1,11 @@
 # Architecture
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- The repository now owns a standard Supabase CLI configuration at `supabase/config.toml`; local API port `54321` and database port `54322` are reserved by the CLI when a Docker-backed local stack is later started.
+- The CLI default intentionally does not auto-expose newly created public tables through the Data API. Future migrations must use explicit grants alongside RLS policies.
+- This is infrastructure preparation only. The current runtime still has no Supabase client, linked cloud project, or server-backed request path.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - The production target is relational: `subscriber_id` is the tenant boundary and `clinic_id` is the branch boundary for operational and clinical rows.

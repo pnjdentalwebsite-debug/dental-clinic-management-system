@@ -1,5 +1,11 @@
 # Modules
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- `supabase/config.toml` now defines the local CLI/API/database development contract; it does not connect the application to a live database yet.
+- CLI temporary metadata is excluded through `supabase/.gitignore`.
+- Module repositories remain localStorage-backed until their corresponding migrations, RLS policies, and adapters are implemented and verified against a linked development project.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - Added environment and data-layer preparation only. All current modules remain localStorage-backed until their future repository adapters are introduced after database/RLS migration.

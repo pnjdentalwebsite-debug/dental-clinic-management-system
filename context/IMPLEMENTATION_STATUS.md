@@ -1,5 +1,13 @@
 # Implementation Status
 
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- Initialized the repository-owned Supabase CLI configuration in `supabase/config.toml` using the current CLI defaults.
+- Added `supabase/.gitignore` so CLI-only `.temp/` metadata remains local while the safe, versioned configuration is tracked.
+- The local configuration keeps new public tables non-exposed by default; future migrations must grant API access deliberately and enable RLS before client access.
+- No Supabase cloud project is linked, no credentials are present, and no prototype or real data was migrated, deleted, or changed.
+- Next required handoff: create a dedicated Supabase development project, authenticate the CLI locally, and provide only its project reference for linking. Never commit or paste a service-role key.
+
 ## Supabase Phase 1 Foundation - August 26, 2026
 
 - Created the `feature/supabase-foundation` branch from the pushed `prototype-baseline` tag.
