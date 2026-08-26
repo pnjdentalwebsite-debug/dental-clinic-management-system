@@ -419,3 +419,11 @@ flowchart TD
 - Owner-controlled clinic IDs, privileges, tenant IDs, and role values are not exposed in the personnel edit form.
 ## Role Tab Header Spacing - August 26, 2026
 - Shared role workspace grid spacing is applied consistently across all role sections.
+
+## Supabase Phase 1 Onboarding Boundary - August 26, 2026
+- Public registration flow: `registration-submit -> registration-submit-payment -> platform-approve-registration`.
+- Privileged approval and personnel provisioning execute only in Supabase Edge Functions using the service role; the browser uses the publishable key and invokes functions only.
+- `approve_registration_provisioning` and `provision_member_account` are `SECURITY DEFINER` database operations, explicitly revoked from `anon` and `authenticated`, and granted only to `service_role`.
+- Every provisioned resource is linked by `subscriber_id`; every branch-facing assignment and domain record is additionally scoped by `clinic_id`.
+- Supabase Auth is now the intended identity authority. The current localStorage auth/services are a temporary UI compatibility layer and must be replaced incrementally with scoped repositories rather than merged with cloud data.
+- No seed rows are created by migrations or functions. A trusted platform-admin bootstrap and real subscription-plan setup are required in each environment before live onboarding.

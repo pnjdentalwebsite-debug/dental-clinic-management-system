@@ -493,3 +493,16 @@
 - `index.css`: role workspace spacing and profile form layout.
 ## August 26, 2026 Role Tab Header Spacing
 - `index.css`: applies consistent top spacing to the role workspace content grid.
+
+## August 26, 2026 Supabase Onboarding Foundation
+- `src/infrastructure/supabase/onboarding.ts`: typed client-side function invoker for secure onboarding operations.
+- `supabase/functions/_shared/http.ts`: CORS, validation, response, UUID, email, and cryptographic temporary-password helpers.
+- `supabase/functions/registration-submit`: public registration intake.
+- `supabase/functions/registration-submit-payment`: public payment-submission intake.
+- `supabase/functions/registration-status`: public, privacy-safe status lookup.
+- `supabase/functions/platform-approve-registration`: authenticated platform-admin approval and tenant provisioning.
+- `supabase/functions/complete-initial-password`: authenticated initial-password completion.
+- `supabase/functions/provision-member-account`: authenticated owner-only Staff/Associate Auth provisioning.
+- `supabase/migrations/20260826131159_secure_onboarding_and_provisioning.sql`: atomic provisioning functions and related schema.
+- `supabase/migrations/20260826132815_service_role_edge_function_access.sql`: server-only database access grants.
+- `supabase/migrations/20260826133242_lock_down_provisioning_rpcs.sql`: explicit browser-role revoke for privileged provisioning RPCs.

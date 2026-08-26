@@ -684,3 +684,12 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - `npm run build` passed.
 51. **Role Tab Header Spacing (August 26, 2026)**:
     - Added the same vertical gap below the role workspace hero for Schedule, Profile, and Clinical Work panels as Assigned Clinics.
+
+52. **Supabase Phase 1: Secure Onboarding and Provisioning Foundation (August 26, 2026)**:
+    - Added seed-free tenant, clinic, membership, payment, and branch-assignment provisioning migrations for the cloud database.
+    - Deployed server-side Edge Functions for registration submission, payment submission, email-only status checks, platform approval, initial-password completion, and Staff/Associate account provisioning.
+    - Platform approval now generates a one-time password server-side, creates the real Supabase Auth account, and provisions the subscriber, primary clinic, subscription, owner membership, and approved payment in one database transaction.
+    - Staff and Associate accounts are provisioned with validated owner-controlled clinic assignments and branch-scoped role records; browser clients cannot call provisioning RPCs directly.
+    - Added a browser-safe onboarding adapter at `src/infrastructure/supabase/onboarding.ts`. The existing legacy `App.tsx` localStorage workflow is intentionally not yet cut over; repository-by-repository UI migration is the next phase.
+    - Cloud validation: all six functions are active; security-advisor checks have no Security Definer exposure findings. The remaining database-advisor notes are pre-existing RLS-policy performance warnings.
+    - Verification: disposable local end-to-end registration, payment, approval, first-password, Staff provisioning/login, and Associate provisioning/login passed; the local database was reset after the test. `npm run build` and `scope.test.ts` pass.

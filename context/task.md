@@ -497,3 +497,13 @@
 - [x] Build passes.
 ## Role Tab Header Spacing - August 26, 2026
 - [x] Added consistent hero-to-content spacing for all role workspace tabs.
+
+## Supabase Phase 1: Secure Onboarding Foundation - August 26, 2026
+- [x] Added seed-free subscriber, membership, subscription, clinic, payment, and branch-assignment provisioning schema.
+- [x] Added and deployed secure registration, payment, approval, password-completion, status, and personnel-provisioning Edge Functions.
+- [x] Restricted provisioning RPC execution to `service_role`; no browser caller can run privileged provisioning directly.
+- [x] Added the typed browser onboarding adapter without exposing privileged credentials.
+- [x] Validated the complete disposable local provisioning flow and reset the local test database afterwards.
+- [x] `npm run build` and the tenant/clinic scope test pass.
+- [ ] Phase 2: replace each localStorage workflow with a subscriber/clinic-scoped Supabase repository, beginning with auth/onboarding UI and platform payment approval UI.
+- [ ] Before production: create a controlled platform-admin bootstrap process, create real subscription plans, configure production `ALLOWED_ORIGIN`, and complete browser E2E against the cloud project.

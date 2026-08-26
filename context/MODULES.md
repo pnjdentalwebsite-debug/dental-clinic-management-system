@@ -300,3 +300,13 @@
 - My Profile supports safe personal/contact edits for Staff and Associate records.
 ## Role Tab Header Spacing - August 26, 2026
 - Schedule, Profile, and Clinical Work panels now use the same top spacing as Assigned Clinics.
+
+## Supabase Secure Onboarding - August 26, 2026
+- `supabase/functions/registration-submit`: creates a pending registration from validated public input and resolves plan pricing server-side.
+- `supabase/functions/registration-submit-payment`: records a pending payment without trusting client-provided price or status.
+- `supabase/functions/registration-status`: supports privacy-safe email-only pending/ready account status checks.
+- `supabase/functions/platform-approve-registration`: platform-admin-only approval that creates the owner Auth account and atomically provisions the tenant and primary clinic.
+- `supabase/functions/complete-initial-password`: authenticated first-password completion; clears only the caller's password-change requirement.
+- `supabase/functions/provision-member-account`: owner-authorized Auth provisioning for Staff and Associate accounts with tenant and branch validation.
+- `src/infrastructure/supabase/onboarding.ts`: browser adapter for the Edge Function API. It contains no service-role credential or privileged database logic.
+- Current boundary: legacy screens still use prototype localStorage services until their individual scoped repositories are migrated.

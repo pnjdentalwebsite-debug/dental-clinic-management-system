@@ -1507,3 +1507,12 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 6. `npm run build` passes.
 ## Role Tab Header Spacing Validation - August 26, 2026
 - Verify Schedule, Profile, and Clinical Work have a visible gap below the hero card matching Assigned Clinics.
+
+## Supabase Onboarding Validation - August 26, 2026
+1. Submit a new clinic registration through `registration-submit`; confirm it is `pending_payment` and no clinic, Staff, Associate, laboratory, or patient is seeded.
+2. Submit its payment through `registration-submit-payment`; confirm it is pending platform verification.
+3. Sign in as an approved platform administrator and approve through `platform-approve-registration`; record the one-time password only in the approval response.
+4. Confirm the subscriber, active subscription, primary clinic, owner membership, and approved payment share the same registration/subscriber scope.
+5. Sign in as the owner, replace the one-time password through `complete-initial-password`, and confirm only that owner's `must_change_password` flag clears.
+6. Provision a Staff and an Associate with assigned clinic IDs; confirm each can authenticate and can only see assigned branches.
+7. Run `npm run build` and `npx vitest run src/infrastructure/supabase/scope.test.ts` before merging a backend change.
