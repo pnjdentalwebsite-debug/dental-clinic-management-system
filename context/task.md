@@ -1,5 +1,48 @@
 # Current Active Contract - August 25, 2026
 
+## Supabase Local Validation - August 26, 2026
+
+- [x] Start and validate the Docker-backed local Supabase stack.
+- [x] Apply both seed-free local migrations and verify migration history.
+- [x] Run local schema lint and security advisors with no remaining findings.
+- [x] Restrict public registration so anonymous users cannot set payment, approval, review, or provisioning state.
+- [ ] Create/link a dedicated cloud Supabase development project.
+- [ ] Add role-scoped RLS integration tests and migrate one scoped repository at a time from localStorage.
+
+## Supabase Development Project Link - August 26, 2026
+
+- [x] Link dedicated cloud development project `cuatwirdydarxvqqqoem` without committing credentials.
+- [x] Dry-run and push the three reviewed seed-free migrations with no seed data.
+- [x] Verify local/remote migration parity, remote lint, and remote security advisors.
+- [x] Revoke public execution of the cloud automatic-RLS helper.
+- [ ] Implement Auth/provisioning server workflows and role-scoped integration tests.
+- [ ] Migrate the first live tenant-and-branch-scoped repository from localStorage.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- [x] Create the first migration through the Supabase CLI, with no seeded business data.
+- [x] Define subscriber/clinic composite foreign keys for all core branch operations.
+- [x] Add a fail-closed browser client boundary and mandatory query scope helper.
+- [x] Enable foundation RLS policies for all created tables.
+- [x] Apply and validate this migration locally through Docker; create/link the cloud development project next.
+- [ ] Add and run Auth/RLS policy tests for platform admin, owner, assigned staff, assigned associate, and unassigned users.
+- [ ] Add repository adapters and cut over one module at a time after successful policy tests.
+- [x] Resolve the production dependency audit finding; `npm audit --omit=dev` reports zero vulnerabilities.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- [x] Initialize local `supabase/` CLI configuration and ignore generated CLI metadata.
+- [x] Preserve secure-by-default API exposure settings for future tables.
+- [ ] Create and link a dedicated Supabase development project; do not use production credentials or a service-role key in the frontend.
+- [x] Create and apply the first SQL migrations locally through Docker; verify cloud RLS with role-scoped test accounts next.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- [x] Push a clean GitHub baseline and tag it as `prototype-baseline`.
+- [x] Create `feature/supabase-foundation` for isolated preparation work.
+- [x] Add `.env.example`, Node 22 runtime contract, and Supabase schema/RLS/tenant blueprint.
+- [ ] Phase 2: Create and link a Supabase development project, then implement the first tested migration.
+
 ## Full-System Diagnostic Follow-up - August 26, 2026
 
 - [x] Run repository architecture and deployment readiness audit.
@@ -454,3 +497,13 @@
 - [x] Build passes.
 ## Role Tab Header Spacing - August 26, 2026
 - [x] Added consistent hero-to-content spacing for all role workspace tabs.
+
+## Supabase Phase 1: Secure Onboarding Foundation - August 26, 2026
+- [x] Added seed-free subscriber, membership, subscription, clinic, payment, and branch-assignment provisioning schema.
+- [x] Added and deployed secure registration, payment, approval, password-completion, status, and personnel-provisioning Edge Functions.
+- [x] Restricted provisioning RPC execution to `service_role`; no browser caller can run privileged provisioning directly.
+- [x] Added the typed browser onboarding adapter without exposing privileged credentials.
+- [x] Validated the complete disposable local provisioning flow and reset the local test database afterwards.
+- [x] `npm run build` and the tenant/clinic scope test pass.
+- [ ] Phase 2: replace each localStorage workflow with a subscriber/clinic-scoped Supabase repository, beginning with auth/onboarding UI and platform payment approval UI.
+- [ ] Before production: create a controlled platform-admin bootstrap process, create real subscription plans, configure production `ALLOWED_ORIGIN`, and complete browser E2E against the cloud project.

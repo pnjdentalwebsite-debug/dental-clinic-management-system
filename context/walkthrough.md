@@ -1,5 +1,38 @@
 # Walkthrough: Multi-Branch Subsystem Data Isolation, Personnel Designation & Platform Owner Control Center Modernization
 
+## Supabase Local Validation - August 26, 2026
+
+- Started the local Supabase stack through Docker and applied the seed-free schema migrations successfully.
+- Verified migration history, schema lint, and security advisors. The public registration rule now blocks anonymous self-approval/payment/review/provisioning metadata.
+- Studio, analytics logging, vector, and image proxy are excluded for local memory efficiency; the application-critical database, Auth, REST, Realtime, Storage, Edge Runtime, and Mailpit services are available.
+- The next walkthrough stage is real Auth/server workflows and a measured repository-by-repository replacement of localStorage stores.
+
+## Supabase Development Project Link - August 26, 2026
+
+- Linked cloud development project `cuatwirdydarxvqqqoem` and pushed all three seed-free migrations after dry-run verification.
+- Confirmed local and cloud migration histories match; remote lint and security advisors return no issues.
+- The automatic-RLS security-definer helper is trigger-only and no longer executable through the public Data API.
+- Next: test role-specific Auth/RLS behavior and cut over one explicit tenant-and-branch scoped repository at a time.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Added the first real database migration as a seed-free, branch-safe contract without changing local prototype records.
+- Added a typed browser client boundary that requires a configured public URL/key and scope utilities that reject unscoped branch operations.
+- RLS is executable SQL and has been applied/validated locally through Docker. See `context/supabase_phase_2_core_schema.md` for the cloud-link and role-test sequence.
+- Updated the vulnerable transitive DOMPurify package; the production-only dependency audit is clean.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- Initialized and started the local Supabase CLI project through Docker before linking the dedicated development project; no operational prototype records were changed.
+- The configuration is safe to version-control; generated CLI metadata is ignored.
+- The next walkthrough step is role-scoped Auth/RLS testing against the linked development project.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Established a dedicated Git branch for production foundation work after the `prototype-baseline` tag was pushed.
+- Added a non-secret environment template and full Supabase handoff blueprint; no local prototype records were migrated or altered.
+- The next phase is restricted to development-project schema/RLS work after a Supabase project is explicitly created and linked.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Verified the production build is green and ran isolated browser smoke checks for login and staff workspace navigation/profile save.
@@ -1474,3 +1507,12 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 6. `npm run build` passes.
 ## Role Tab Header Spacing Validation - August 26, 2026
 - Verify Schedule, Profile, and Clinical Work have a visible gap below the hero card matching Assigned Clinics.
+
+## Supabase Onboarding Validation - August 26, 2026
+1. Submit a new clinic registration through `registration-submit`; confirm it is `pending_payment` and no clinic, Staff, Associate, laboratory, or patient is seeded.
+2. Submit its payment through `registration-submit-payment`; confirm it is pending platform verification.
+3. Sign in as an approved platform administrator and approve through `platform-approve-registration`; record the one-time password only in the approval response.
+4. Confirm the subscriber, active subscription, primary clinic, owner membership, and approved payment share the same registration/subscriber scope.
+5. Sign in as the owner, replace the one-time password through `complete-initial-password`, and confirm only that owner's `must_change_password` flag clears.
+6. Provision a Staff and an Associate with assigned clinic IDs; confirm each can authenticate and can only see assigned branches.
+7. Run `npm run build` and `npx vitest run src/infrastructure/supabase/scope.test.ts` before merging a backend change.

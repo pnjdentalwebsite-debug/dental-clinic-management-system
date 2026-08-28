@@ -1,5 +1,43 @@
 # Implementation Status
 
+## Supabase Local Validation - August 26, 2026
+
+- Docker-backed local Supabase is running with Auth, REST API, Realtime, Storage, Edge Runtime, database, and Mailpit. Resource-heavy Studio, analytics logging, vector, and image proxy are intentionally excluded on this workstation's current Docker memory limit.
+- Applied and verified both seed-free migrations locally: the core tenant/branch contract and `20260826123036_restrict_public_registration_submission.sql`.
+- Public registration can submit only an unpaid, pending-verification record. It cannot self-approve payment, review itself, or mark provisioning complete.
+- `supabase db lint --local` and local security advisors both report no issues. Existing UI modules remain localStorage-backed until scoped repositories are migrated one module at a time.
+
+## Supabase Development Project Link - August 26, 2026
+
+- Linked the dedicated development project `cuatwirdydarxvqqqoem`; it received the three reviewed seed-free migrations with no seed data, roles, or vault secrets pushed.
+- Remote migration history matches local. Remote schema lint and security advisors report no issues.
+- Added a portable safeguard for cloud projects that enable automatic RLS: `public.rls_auto_enable()` remains trigger infrastructure but is no longer callable by anon or authenticated clients.
+- `.env.local` contains only the Vite public development URL/publishable key and remains Git-ignored. No database password, service-role key, or secret is stored in the repository.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Created the first CLI-generated, seed-free migration for platform identities, registrations, subscribers, subscriptions, payments, clinics, personnel, laboratories, patients, clinical scheduling, billing, uploads, notifications, and audit events.
+- Every branch-operational table is tenant and clinic scoped. Composite foreign keys prevent cross-subscriber or cross-branch patient, tag, bill, recall, payment, and upload relationships.
+- Added a fail-closed browser Supabase client boundary and tenant/clinic scope helper. Existing modules remain localStorage-backed until tested adapters are introduced.
+- RLS is enabled for every table. The current conservative policy grants assigned staff/associates branch reads and reserves tenant management for owners until write permissions have module-specific policy tests.
+- The migration has been applied and validated against local Docker and the dedicated cloud development project; no existing prototype records were migrated or changed.
+- Updated the transitive DOMPurify dependency to a patched compatible release; `npm audit --omit=dev` now reports zero production vulnerabilities.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- Initialized the repository-owned Supabase CLI configuration in `supabase/config.toml` using the current CLI defaults.
+- Added `supabase/.gitignore` so CLI-only `.temp/` metadata remains local while the safe, versioned configuration is tracked.
+- The local configuration keeps new public tables non-exposed by default; future migrations must grant API access deliberately and enable RLS before client access.
+- The dedicated development project is linked, and only Git-ignored public development configuration is present locally. No prototype or real operational data was migrated, deleted, or changed.
+- Next required handoff: implement tested server/Auth workflows and migrate localStorage repositories incrementally. Never commit or paste a service-role key.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Created the `feature/supabase-foundation` branch from the pushed `prototype-baseline` tag.
+- Added `.env.example` with public Vite Supabase placeholders only; secrets remain excluded from Git and browser variables.
+- Added `context/supabase_phase_1_foundation.md` as the authoritative mapping from mock localStorage domains to future relational tables, RLS policies, storage buckets, and migration sequence.
+- Declared Node 22 as the supported runtime in `package.json` and the lockfile. No Supabase package, credentials, linked project, live database, or migration is included in Phase 1.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Build passes with `npm run build` (0 errors); Vite reports a large main bundle warning.
@@ -646,3 +684,12 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - `npm run build` passed.
 51. **Role Tab Header Spacing (August 26, 2026)**:
     - Added the same vertical gap below the role workspace hero for Schedule, Profile, and Clinical Work panels as Assigned Clinics.
+
+52. **Supabase Phase 1: Secure Onboarding and Provisioning Foundation (August 26, 2026)**:
+    - Added seed-free tenant, clinic, membership, payment, and branch-assignment provisioning migrations for the cloud database.
+    - Deployed server-side Edge Functions for registration submission, payment submission, email-only status checks, platform approval, initial-password completion, and Staff/Associate account provisioning.
+    - Platform approval now generates a one-time password server-side, creates the real Supabase Auth account, and provisions the subscriber, primary clinic, subscription, owner membership, and approved payment in one database transaction.
+    - Staff and Associate accounts are provisioned with validated owner-controlled clinic assignments and branch-scoped role records; browser clients cannot call provisioning RPCs directly.
+    - Added a browser-safe onboarding adapter at `src/infrastructure/supabase/onboarding.ts`. The existing legacy `App.tsx` localStorage workflow is intentionally not yet cut over; repository-by-repository UI migration is the next phase.
+    - Cloud validation: all six functions are active; security-advisor checks have no Security Definer exposure findings. The remaining database-advisor notes are pre-existing RLS-policy performance warnings.
+    - Verification: disposable local end-to-end registration, payment, approval, first-password, Staff provisioning/login, and Associate provisioning/login passed; the local database was reset after the test. `npm run build` and `scope.test.ts` pass.

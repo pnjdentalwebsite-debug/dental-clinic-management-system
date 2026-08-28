@@ -1,5 +1,33 @@
 # Modules
 
+## Supabase Local Validation - August 26, 2026
+
+- The local database now runs the complete seed-free tenant and branch schema plus the restricted public-registration policy.
+- The current UI remains intentionally localStorage-backed. A future module cutover must use `src/infrastructure/supabase/client.ts` and an explicit subscriber/clinic scope; no runtime module was silently switched.
+
+## Supabase Development Project Link - August 26, 2026
+
+- The environment is linked to the dedicated cloud development project and its remote schema matches the local migration set.
+- Browser configuration uses Git-ignored Vite public values only. Production secrets and all current operational module stores remain outside the browser bundle.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- Added the future database contract for platform onboarding, clinic owner, branch subsystem, staff, associate, laboratories, patients, appointments, recalls, progress notes, bills, payments, uploads, notifications, and audits.
+- Added `src/infrastructure/supabase/client.ts` and `scope.ts` as the only allowed starting point for future Supabase repositories. New adapters must pass an explicit subscriber and clinic scope.
+- No current UI module has been switched to Supabase, so existing workflows continue to use their tested prototype stores until RLS-backed adapters are completed.
+- Production dependency audit is clean after updating the transitive DOMPurify dependency.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- `supabase/config.toml` defines the local CLI/API/database development contract and now runs successfully through Docker.
+- CLI temporary metadata is excluded through `supabase/.gitignore`.
+- Module repositories remain localStorage-backed until their corresponding migrations, RLS policies, and adapters are implemented and verified against a linked development project.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- Added environment and data-layer preparation only. All current modules remain localStorage-backed until their future repository adapters are introduced after database/RLS migration.
+- The new foundation blueprint maps platform, subscriber, clinic, staff, associate, patient, clinical, payment, laboratory, notification, and audit modules to database ownership and scope.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - Login, registration, platform, clinic owner, branch subsystem, staff, and associate flows are implemented as frontend/localStorage prototype workflows.
@@ -272,3 +300,13 @@
 - My Profile supports safe personal/contact edits for Staff and Associate records.
 ## Role Tab Header Spacing - August 26, 2026
 - Schedule, Profile, and Clinical Work panels now use the same top spacing as Assigned Clinics.
+
+## Supabase Secure Onboarding - August 26, 2026
+- `supabase/functions/registration-submit`: creates a pending registration from validated public input and resolves plan pricing server-side.
+- `supabase/functions/registration-submit-payment`: records a pending payment without trusting client-provided price or status.
+- `supabase/functions/registration-status`: supports privacy-safe email-only pending/ready account status checks.
+- `supabase/functions/platform-approve-registration`: platform-admin-only approval that creates the owner Auth account and atomically provisions the tenant and primary clinic.
+- `supabase/functions/complete-initial-password`: authenticated first-password completion; clears only the caller's password-change requirement.
+- `supabase/functions/provision-member-account`: owner-authorized Auth provisioning for Staff and Associate accounts with tenant and branch validation.
+- `src/infrastructure/supabase/onboarding.ts`: browser adapter for the Edge Function API. It contains no service-role credential or privileged database logic.
+- Current boundary: legacy screens still use prototype localStorage services until their individual scoped repositories are migrated.

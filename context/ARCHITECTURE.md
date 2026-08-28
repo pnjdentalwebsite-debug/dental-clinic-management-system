@@ -1,8 +1,39 @@
 # Architecture
 
+## Supabase Local Validation - August 26, 2026
+
+- Local infrastructure is validated through Docker: PostgreSQL, Auth, REST, Realtime, Storage, Edge Runtime, and Mailpit are healthy at the CLI's local endpoints.
+- The public registration RLS policy is deliberately constrained to an unpaid, pending-verification submission with no approval, review, or provisioning metadata. Platform provisioning stays server-side.
+- A cloud Supabase development project is linked, but no application route has been cut over; localStorage remains the active runtime data source until repository adapters and role-policy tests are introduced.
+
+## Supabase Development Project Link - August 26, 2026
+
+- Cloud development project `cuatwirdydarxvqqqoem` is linked and contains the same three seed-free migrations as local.
+- Automatic RLS helper execution has been revoked from public client roles. This preserves automatic RLS behavior while preventing exposed security-definer RPC execution.
+- The development cloud database is schema-ready; application persistence remains intentionally uncut-over until repository adapters and end-to-end role tests are implemented.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- `supabase/migrations/20260826101055_core_tenant_identity_and_branch_scope.sql` is the first database authority contract. It defines Auth profiles, platform access, subscriber membership, clinic assignments, and branch-scoped operational tables.
+- Composite foreign keys enforce `clinic_id + subscriber_id` consistency for downstream patient and financial data. This supports owner-level all-clinic aggregation without leaking data between branches.
+- The browser connection layer is fail-closed when public Supabase configuration is missing. Service-role operations, payment approval provisioning, and first platform-admin setup remain server-side responsibilities.
+- The current production dependency audit is clean; bundle splitting remains a separate performance task.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- The repository owns a standard Supabase CLI configuration at `supabase/config.toml`; the Docker-backed local stack is running on API port `54321` and database port `54322`.
+- The CLI default intentionally does not auto-expose newly created public tables through the Data API. Future migrations must use explicit grants alongside RLS policies.
+- This is development infrastructure validation. The current runtime has a fail-closed Supabase client boundary and a linked development cloud project, but no server-backed request path yet.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- The production target is relational: `subscriber_id` is the tenant boundary and `clinic_id` is the branch boundary for operational and clinical rows.
+- Supabase Auth will own identities; application membership and assignment tables will own role authorization. RLS, not frontend route guards, will enforce production access.
+- See `context/supabase_phase_1_foundation.md` for the proposed table map, approval transaction boundary, storage plan, and policy matrix.
+
 ## Full-System Diagnostic Boundary - August 26, 2026
 
-- Current architecture has no Supabase client, SQL migrations, API/server layer, RLS policies, Docker deployment definition, or Vercel configuration.
+- Current architecture has a local Supabase client boundary, SQL migrations, RLS policies, Docker-backed validation, and a linked cloud development project. It still lacks server workflows, repository cutovers, and deployment configuration.
 - Existing tenant and role isolation is enforced in client services and route guards only; production authorization must move to server-side policies.
 - Build succeeds, but the single bundled route shell is large and should be split before production rollout.
 
@@ -388,3 +419,11 @@ flowchart TD
 - Owner-controlled clinic IDs, privileges, tenant IDs, and role values are not exposed in the personnel edit form.
 ## Role Tab Header Spacing - August 26, 2026
 - Shared role workspace grid spacing is applied consistently across all role sections.
+
+## Supabase Phase 1 Onboarding Boundary - August 26, 2026
+- Public registration flow: `registration-submit -> registration-submit-payment -> platform-approve-registration`.
+- Privileged approval and personnel provisioning execute only in Supabase Edge Functions using the service role; the browser uses the publishable key and invokes functions only.
+- `approve_registration_provisioning` and `provision_member_account` are `SECURITY DEFINER` database operations, explicitly revoked from `anon` and `authenticated`, and granted only to `service_role`.
+- Every provisioned resource is linked by `subscriber_id`; every branch-facing assignment and domain record is additionally scoped by `clinic_id`.
+- Supabase Auth is now the intended identity authority. The current localStorage auth/services are a temporary UI compatibility layer and must be replaced incrementally with scoped repositories rather than merged with cloud data.
+- No seed rows are created by migrations or functions. A trusted platform-admin bootstrap and real subscription-plan setup are required in each environment before live onboarding.

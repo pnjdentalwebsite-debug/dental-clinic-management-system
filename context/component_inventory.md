@@ -1,5 +1,35 @@
 # Component Inventory
 
+## Supabase Local Validation - August 26, 2026
+
+- `supabase/migrations/20260826123036_restrict_public_registration_submission.sql`: prevents anonymous registration payloads from setting payment approval, review, or provisioning state.
+- Docker local stack: validated API, database, Auth, Realtime, Storage, Edge Runtime, and Mailpit services; Studio/logging/vector/image services are optionally excluded to suit the current local resource limit.
+
+## Supabase Development Project Link - August 26, 2026
+
+- `supabase/migrations/20260826125341_revoke_public_rls_auto_enable_execution.sql`: portable protection that revokes client RPC execution of the cloud automatic-RLS helper while retaining trigger behavior.
+- Cloud development project `cuatwirdydarxvqqqoem`: linked, migration-parity validated, schema-lint clean, and security-advisor clean.
+
+## Supabase Phase 2 Core Schema - August 26, 2026
+
+- `supabase/migrations/20260826101055_core_tenant_identity_and_branch_scope.sql`: seed-free relational/RLS foundation for every current platform and clinical branch domain.
+- `src/infrastructure/supabase/client.ts`: optional browser client created only from `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- `src/infrastructure/supabase/scope.ts`: required subscriber/clinic query scope guard, with focused tests in `scope.test.ts`.
+- `context/supabase_phase_2_core_schema.md`: migration coverage, security boundaries, and the required linked-development-project validation runbook.
+- `package-lock.json`: refreshed transitive DOMPurify dependency to remove the prior production audit finding.
+
+## Supabase Phase 2 Local Bootstrap - August 26, 2026
+
+- `supabase/config.toml`: versioned local Supabase CLI configuration with deliberate API exposure defaults.
+- `supabase/.gitignore`: excludes generated `.temp/` metadata from Git.
+- No runtime Supabase client component has been added; all existing UI data adapters retain their current prototype storage implementation until a tested migration is available.
+
+## Supabase Phase 1 Foundation - August 26, 2026
+
+- `.env.example`: public development placeholders for a future Vite/Supabase client. It explicitly excludes privileged service keys.
+- `supabase/README.md`: local Supabase workflow guardrails before migrations exist.
+- `context/supabase_phase_1_foundation.md`: authoritative domain-to-table, tenant scope, RLS, storage, and migration reference.
+
 ## Full-System Diagnostic - August 26, 2026
 
 - `src/features/platformManagement/pages/UserDetailsPage.tsx` now keeps clinic selection hook state stable when the requested user is missing.
@@ -463,3 +493,16 @@
 - `index.css`: role workspace spacing and profile form layout.
 ## August 26, 2026 Role Tab Header Spacing
 - `index.css`: applies consistent top spacing to the role workspace content grid.
+
+## August 26, 2026 Supabase Onboarding Foundation
+- `src/infrastructure/supabase/onboarding.ts`: typed client-side function invoker for secure onboarding operations.
+- `supabase/functions/_shared/http.ts`: CORS, validation, response, UUID, email, and cryptographic temporary-password helpers.
+- `supabase/functions/registration-submit`: public registration intake.
+- `supabase/functions/registration-submit-payment`: public payment-submission intake.
+- `supabase/functions/registration-status`: public, privacy-safe status lookup.
+- `supabase/functions/platform-approve-registration`: authenticated platform-admin approval and tenant provisioning.
+- `supabase/functions/complete-initial-password`: authenticated initial-password completion.
+- `supabase/functions/provision-member-account`: authenticated owner-only Staff/Associate Auth provisioning.
+- `supabase/migrations/20260826131159_secure_onboarding_and_provisioning.sql`: atomic provisioning functions and related schema.
+- `supabase/migrations/20260826132815_service_role_edge_function_access.sql`: server-only database access grants.
+- `supabase/migrations/20260826133242_lock_down_provisioning_rpcs.sql`: explicit browser-role revoke for privileged provisioning RPCs.
