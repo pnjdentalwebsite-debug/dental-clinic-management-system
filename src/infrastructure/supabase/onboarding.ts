@@ -113,7 +113,10 @@ export const onboardingApi = {
       account: { email: string; temporaryPassword: string; requiresPasswordChange: true };
       scope: { subscriberId: string; clinicId: string; membershipId: string; subscriberNumber: string; clinicNumber: string };
     }>('platform-approve-registration', { registrationId }),
-  completeInitialPassword: (password: string) => invoke<{ ok: true }>('complete-initial-password', { password }),
+  completeInitialPassword: (newPassword: string) => invoke<{ completed: true; mustChangePassword: false }>(
+    'complete-initial-password',
+    { newPassword },
+  ),
   provisionMemberAccount: (input: ProvisionMemberInput) =>
     invoke<{
       account: { email: string; temporaryPassword: string; requiresPasswordChange: true };
