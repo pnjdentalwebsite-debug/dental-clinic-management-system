@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "Dental_Webiste_Project"
+project_id = "p&j_dental_clinic_management_system"
 
 [api]
 enabled = true
@@ -431,6 +431,24 @@ import_map = "./functions/registration-submit-payment/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/registration-submit-payment/index.ts"
+
+[functions.registration-plans]
+enabled = true
+verify_jwt = false
+import_map = "./functions/registration-plans/deno.json"
+entrypoint = "./functions/registration-plans/index.ts"
+
+[functions.registration-request-otp]
+enabled = true
+verify_jwt = false
+import_map = "./functions/registration-request-otp/deno.json"
+entrypoint = "./functions/registration-request-otp/index.ts"
+
+[functions.registration-verify-otp]
+enabled = true
+verify_jwt = false
+import_map = "./functions/registration-verify-otp/deno.json"
+entrypoint = "./functions/registration-verify-otp/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/registration-submit-payment/*.html" ]
@@ -445,6 +463,12 @@ entrypoint = "./functions/platform-approve-registration/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/platform-approve-registration/*.html" ]
+
+[functions.platform-resend-initial-credential]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-resend-initial-credential/deno.json"
+entrypoint = "./functions/platform-resend-initial-credential/index.ts"
 
 [functions.complete-initial-password]
 enabled = true
@@ -478,3 +502,47 @@ entrypoint = "./functions/provision-member-account/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/provision-member-account/*.html" ]
+
+[functions.platform-registration-review-list]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-registration-review-list/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/platform-registration-review-list/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/platform-registration-review-list/*.html" ]
+
+[functions.platform-registration-review-detail]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-registration-review-detail/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/platform-registration-review-detail/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/platform-registration-review-detail/*.html" ]
+
+[functions.platform-review-payment]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-review-payment/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/platform-review-payment/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/platform-review-payment/*.html" ]
+
+[functions.platform-reject-registration]
+enabled = true
+verify_jwt = true
+import_map = "./functions/platform-reject-registration/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/platform-reject-registration/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/platform-reject-registration/*.html" ]

@@ -13,7 +13,15 @@ export default {
       const ownerEmail = email(payload.ownerEmail);
       const clinicEmail = email(payload.clinicEmail);
       const planIdentifier = text(payload.planCode ?? payload.planName, 'Plan', 120);
-      const billingCycle = payload.billingCycle === 'annual' ? 'annual' : 'monthly';
+      const billingCycle = payload.billingCycle === 'annual' || payload.billingCycle === 'yearly' ? 'annual' : 'monthly';
+      const count = (value: unknown, label: string): number | null => {
+        if (value === undefined || value === null || value === '') return null;
+        if (!Number.isInteger(value) || (value as number) < 0) throw new Error(`${label} must be a non-negative integer.`);
+        return value as number;
+      };
+      const worksWithLaboratory = payload.worksWithLaboratory === true;
+      const laboratoryName = optionalText(payload.laboratoryName, 180);
+      if (!worksWithLaboratory && laboratoryName) throw new Error('Laboratory name requires a laboratory partnership.');
 
       const planByCode = await ctx.supabaseAdmin
         .from('plans')
@@ -53,12 +61,23 @@ export default {
           clinic_email: clinicEmail,
           clinic_mobile: optionalText(payload.clinicMobile, 80),
           clinic_address: optionalText(payload.clinicAddress, 1000),
+          clinic_city: optionalText(payload.clinicCity, 180),
+          clinic_province: optionalText(payload.clinicProvince, 180),
+          clinic_postal_code: optionalText(payload.clinicPostalCode, 40),
+          dentist_count: count(payload.dentistCount, 'Dentist count'),
+          staff_count: count(payload.staffCount, 'Staff count'),
+          location_count: count(payload.locationCount, 'Location count'),
+          works_with_laboratory: worksWithLaboratory,
+          laboratory_name: worksWithLaboratory ? laboratoryName : null,
           owner_name: text(payload.ownerName, 'Owner name', 180),
           owner_email: ownerEmail,
           owner_mobile: optionalText(payload.ownerMobile, 80),
           owner_address: optionalText(payload.ownerAddress, 1000),
+          owner_city: optionalText(payload.ownerCity, 180),
+          owner_province: optionalText(payload.ownerProvince, 180),
+          owner_postal_code: optionalText(payload.ownerPostalCode, 40),
           payment_status: 'unpaid',
-          registration_status: 'pending_payment',
+          registration_status: 'pending_verification',
         })
         .select('id, registration_number, registration_status, payment_status')
         .single();

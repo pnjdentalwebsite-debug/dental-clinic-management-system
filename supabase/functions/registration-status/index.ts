@@ -1,6 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
-import { email, errorResponse, preflight, requestJson, response } from "../_shared/http.ts";
+import { email, errorResponse, preflight, requestJson, response, uuid } from "../_shared/http.ts";
 
 export default {
   fetch: withSupabase({ auth: "none" }, async (req, ctx) => {
@@ -10,20 +10,25 @@ export default {
 
     try {
       const payload = await requestJson(req);
+      const registrationId = uuid(payload.registrationId, 'registrationId');
       const ownerEmail = email(payload.ownerEmail);
       const { data: registration, error } = await ctx.supabaseAdmin
         .from('registrations')
-        .select('payment_status, registration_status, provisioned_at')
+        .select('registration_number, clinic_name, email_verified_at, payment_status, registration_status, plans(plan_code, name)')
+        .eq('id', registrationId)
         .eq('owner_email', ownerEmail)
-        .order('submitted_at', { ascending: false })
-        .limit(1)
         .maybeSingle();
       if (error) throw new Error('Unable to check registration status.');
-      if (!registration) return response(req, { state: 'not_found' });
-      if (registration.provisioned_at && registration.payment_status === 'approved') return response(req, { state: 'account_ready' });
-      if (registration.registration_status === 'rejected') return response(req, { state: 'rejected' });
-      if (registration.payment_status === 'pending_verification') return response(req, { state: 'payment_under_review' });
-      return response(req, { state: 'payment_pending' });
+      if (!registration) return errorResponse(req, 'Registration status is unavailable.', 404);
+      const plan = registration.plans as { plan_code: string; name: string } | null;
+      return response(req, {
+        registrationNumber: registration.registration_number,
+        clinicName: registration.clinic_name,
+        emailVerified: registration.email_verified_at !== null,
+        paymentStatus: registration.payment_status,
+        registrationStatus: registration.registration_status,
+        plan: plan ? { code: plan.plan_code, name: plan.name } : null,
+      });
     } catch (error) {
       return errorResponse(req, error instanceof Error ? error.message : 'Unable to check registration status.');
     }

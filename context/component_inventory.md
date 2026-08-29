@@ -506,3 +506,53 @@
 - `supabase/migrations/20260826131159_secure_onboarding_and_provisioning.sql`: atomic provisioning functions and related schema.
 - `supabase/migrations/20260826132815_service_role_edge_function_access.sql`: server-only database access grants.
 - `supabase/migrations/20260826133242_lock_down_provisioning_rpcs.sql`: explicit browser-role revoke for privileged provisioning RPCs.
+
+## August 29, 2026 Phase 1C Registration Backend
+- `supabase/migrations/20260829120000_registration_phase_1_backend_foundation.sql`: registration staging fields, OTP challenge table, browser-role lockdown, OTP verification RPC, and atomic payment RPC.
+- `registration-plans`: public-safe active plan catalog.
+- `registration-request-otp` / `registration-verify-otp`: provider-neutral, hash-only Registration email verification.
+- `registration-submit`, `registration-submit-payment`, and `registration-status`: public contracts consumed by the live Registration runtime through `onboardingApi`.
+
+## August 29, 2026 Development Plan Catalog
+- `supabase/migrations/20260829130000_phase_1_development_plan_catalog.sql`: idempotent `basic`/`plus`/`max` platform configuration upsert with approved centavo prices, canonical feature JSON, and canonical limit JSON.
+- `registration-plans` serializes only active display-safe plan fields for the live Registration Choose Plan UI.
+
+## August 29, 2026 Phase 1 Registration Frontend Cutover
+- `src/infrastructure/supabase/onboarding.ts`: typed, browser-safe Registration contract for the six public Edge Functions.
+- `src/App.tsx`: existing Registration handlers and plan/status projections now call `onboardingApi`; visual layout is preserved.
+- `src/infrastructure/supabase/registrationBackendContract.test.ts`: source-focused coverage for all six mappings, annual conversion, safe continuation state, and removal of runtime demo/mock paths.
+- Phase 1 Registration closure: live backend and browser E2E validation confirmed real Gmail OTP delivery, server-authoritative plan pricing, and Plus GCash payment staging at `850000` centavos. Platform Admin review/provisioning remains a subsequent phase.
+
+## August 29, 2026 Phase 2C.1 Database Components
+- `20260829142527_phase_2_platform_admin_review_provisioning_foundation.sql`: local additive schema/RPC foundation for profile display names, subscription snapshots, provisioning attempts, payment and registration decisions, retry failure recording, final provisioning, structured clinics, and audit events.
+- `phase2DatabaseFoundationContract.test.ts`: focused source contract covering additions, transitions, idempotency, mappings, audit events, and privileged grants.
+- Frontend component inventory is unchanged; no page, layout, table, form, modal, sidebar, navbar, or style component was modified.
+
+## August 29, 2026 Phase 2C.2A Review API Components
+- `_shared/platform-admin.ts`: central verified-claim plus `platform_admins` authorization and typed safe-error boundary.
+- `_shared/registration-review.ts`: safe, typed registration/payment review DTO mapping with server-derived applicable plan amounts.
+- `platform-registration-review-list`, `platform-registration-review-detail`, `platform-review-payment`, and `platform-reject-registration`: JWT-protected local Edge Function foundations.
+- `platformAdminReviewApiContract.test.ts`: source contract for authorization, DTO allowlists, mutation payload restrictions, no-provisioning boundary, and secret exclusion.
+- Frontend component inventory remains unchanged.
+
+## August 29, 2026 Phase 2C.2B Provisioning Components
+- `_shared/platform-provisioning.ts`: registration-only request guard, normalized Auth lookup, attempt loading, safe provisioned-scope DTO, credential state/audit writer, and typed provisioning RPC error mapping.
+- `_shared/registration-email.ts`: provider-neutral server gateway used by both Registration OTP and initial Clinic Owner credential messages; gateway secrets remain environment-only.
+- `platform-approve-registration`: updated local JWT-protected orchestration for attempt claim/retry, approved Auth identity resolution, current-invocation compensation, four-argument transactional provisioning, and post-commit credential delivery. No password is returned.
+- `platform-resend-initial-credential`: new local JWT-protected password rotation/delivery repair endpoint for attempt-created, active Clinic Owner identities; it performs no tenant provisioning writes.
+- `platformAdminProvisioningApiContract.test.ts`: focused authorization, input, idempotency, identity conflict, compensation, RPC, no-secret, delivery, resend, audit, first-login-state, and OTP-compatibility contracts.
+- `registration-request-otp`: received a type-only server-admin client annotation so the unchanged Phase 1 OTP flow passes the current Deno check with the generalized email adapter.
+- Frontend component inventory remains unchanged; `App.tsx`, layouts, navigation, forms, tables, modals, typography, and styles were not modified.
+
+## August 29, 2026 Phase 2C.2C-A First-Login RLS Components
+- `supabase/migrations/20260829155055_first_login_rls_access_gate.sql`: additive local redefinition of subscriber/member/clinic access helpers plus restricted `get_my_first_login_state()` routing RPC.
+- `supabase/tests/first_login_rls_access_gate.sql`: 43 live local pgTAP assertions covering pre/post-password access, tenant isolation, staff assignment bypass prevention, Platform Admin preservation, RPC minimization, conflict visibility, and grants.
+- `src/infrastructure/supabase/firstLoginRlsAccessGateContract.test.ts`: source-level migration, helper, RPC, grant, historical-migration, and completion-boundary contract.
+- Frontend component inventory remains unchanged; no UI, `App.tsx`, navigation, form, table, modal, typography, or style file was modified.
+
+## August 30, 2026 Phase 2C.2C-B Initial Password Components
+- `supabase/functions/complete-initial-password/index.ts`: unchanged JWT/CORS entry boundary delegating to the hardened completion handler.
+- `supabase/functions/complete-initial-password/logic.ts`: strict request/password policy, authoritative owner resolution, Auth-first update, conditional membership finalization, typed recovery, safe audit, exact response, and selective other-session revocation.
+- `supabase/functions/complete-initial-password/logic.test.ts`: 24 Deno runtime tests for request, authorization, cardinality, policy, ordering, recovery, audit, response, and session behavior.
+- `initialPasswordCompletionContract.test.ts`: source contract for JWT configuration, request allowlist, membership filters, ordering, safe errors, audit, session scope, RLS/login-state, provisioning/resend, and Phase 1 compatibility.
+- Existing first-login/provisioning source contracts now inspect the extracted hardened logic module. No frontend or visual component changed.

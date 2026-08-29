@@ -130,3 +130,8 @@ Current important lookup reuse:
 
 - All of the above is still local-state / mock-data behavior.
 - No backend persistence, Supabase storage, or production data integrity guarantees exist yet.
+
+## Phase 1C Registration Exception
+
+- The secure Supabase Registration backend foundation now exists for plan catalog, registration staging, OTP verification, atomic payment submission, and registration-bound status.
+- The visible Registration Wizard remains on the mock/localStorage contract until frontend cutover; backend readiness must not be described as live UI completion.

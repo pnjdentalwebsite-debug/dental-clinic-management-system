@@ -366,7 +366,7 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
         - Clinic Name: `{subscriber?.businessName || registration?.clinicName || pay.payerName}`
         - Payer Name & Email: `{pay.payerName || registration?.ownerName}` ({pay.payerEmail})
         - Initials Badge: Dynamic initials from clinic title (e.g. `DC`, `PD`, `AD`).
-        - Amount Due & Cleared: Computed real PHP price based on selected subscription plan (e.g. Basic ₱2,990, Plus ₱4,990, Max ₱7,990).
+        - Historical prototype pricing reference retired. Current Phase 1 development catalog is Basic ₱5,000/mo or ₱51,000/yr, Plus ₱8,500/mo or ₱86,700/yr, and Max ₱10,000/mo or ₱102,000/yr.
         - Plan Allocation Tag: Dynamic `● unallocated to {plan.name}`.
     - **Platform Dashboard Pending Reviews Live Sync (`PlatformDashboardPage.tsx`)**:
       * Table reads live registrations from `mockPlatformManagementService.listRegistrations()`, correctly displaying all registrations where `paymentStatus === 'pending_verification'` or `registrationStatus === 'payment_under_review'`.
@@ -693,3 +693,62 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - Added a browser-safe onboarding adapter at `src/infrastructure/supabase/onboarding.ts`. The existing legacy `App.tsx` localStorage workflow is intentionally not yet cut over; repository-by-repository UI migration is the next phase.
     - Cloud validation: all six functions are active; security-advisor checks have no Security Definer exposure findings. The remaining database-advisor notes are pre-existing RLS-policy performance warnings.
     - Verification: disposable local end-to-end registration, payment, approval, first-password, Staff provisioning/login, and Associate provisioning/login passed; the local database was reset after the test. `npm run build` and `scope.test.ts` pass.
+
+53. **Phase 1C Registration Supabase Backend Foundation (August 29, 2026)**:
+    - Added structured Registration staging fields without provisioning any tenant resources.
+    - Added server-only hashed OTP challenges with expiry, attempt limits, resend cooldown/hourly limits, and replay prevention.
+    - Added `registration-plans`, `registration-request-otp`, and `registration-verify-otp`; updated registration submit, payment, and status functions.
+    - Added service-role-only atomic/idempotent payment and OTP verification RPCs; removed direct anon Registration insert policy.
+    - Focused tests: 7 passed. `npm run build`: passed with 0 errors.
+    - Status: deployed and validated through the live Phase 1 Registration browser flow; platform approval/provisioning remains outside this phase.
+
+54. **Phase 1D Development/Test Plan Catalog (August 29, 2026)**:
+    - Added a tracked, idempotent `public.plans` configuration migration for active Basic, Plus, and Max plans using integer centavos, canonical feature/limit JSON, and the Registration UI's existing 15% annual calculation.
+    - Approved Plus quotas are 3 clinics and 6 associates; older 5-clinic/10-associate documentation values are stale.
+    - Status: deployed and verified in the development project; the Registration frontend now reads this catalog through `registration-plans`.
+
+55. **Phase 1 Registration Frontend Supabase Cutover (August 29, 2026)**:
+    - The existing six-step Registration UI now uses the browser-safe `onboardingApi` adapter and deployed `registration-plans`, `registration-submit`, `registration-request-otp`, `registration-verify-otp`, `registration-submit-payment`, and `registration-status` functions.
+    - The runtime no longer uses mock plans, mock registration/OTP/payment services, a hardcoded OTP, a demo payment bypass, or client-authoritative payment pricing.
+    - Registration persists only the public continuation ID, registration number, and owner email in session storage; Supabase remains the status authority.
+    - The flow stops at `pending_review` / `pending_verification`. Platform approval, provisioning, Auth creation, and temporary-password issuance remain out of scope.
+    - **Phase 1 Registration: COMPLETE.** Controlled live backend testing and complete browser E2E were manually validated, including Gmail OTP delivery and real Supabase payment staging.
+    - Verified browser registration `REG-2026-3339605B09` for Angelo Dental Clinic selected Plus and persisted the server-authoritative `850000` centavo monthly amount with `pending_review` / `pending_verification` statuses.
+    - Next phase: Platform Admin payment review and provisioning only.
+
+56. **Phase 2C.1 Platform Admin Database Foundation (August 29, 2026)**:
+    - Added one local-only additive migration for server-authoritative payment review/rejection, registration rejection, durable provisioning claims/retries, structured owner/clinic preservation, subscription billing/price snapshots, and transactional audit events.
+    - Privileged RPCs are `SECURITY DEFINER` with an empty `search_path`, unavailable to `PUBLIC`, `anon`, and `authenticated`, and executable only by `service_role`.
+    - Clinic Owner access continues through the active subscriber-owner membership; no Clinic Owner `clinic_assignments` row is created.
+    - Local rollback execution and `plpgsql_check` passed with zero findings; focused contracts passed 26/26 and `npm run build` passed.
+    - Status: implemented and validated locally only. The migration is not deployed, the Admin frontend remains mock-backed, and no Auth user or tenant was provisioned.
+
+57. **Phase 2C.2A Platform Admin Review API Foundation (August 29, 2026)**:
+    - Added JWT-protected, Platform Admin-authorized Edge Functions for review queue listing, review detail, payment accept/reject, and registration rejection.
+    - Every function derives actor identity from verified claims and checks `public.platform_admins` server-side before using privileged database access.
+    - Review responses are explicit safe DTOs; no browser amount, tenant, subscriber, or actor identifiers are accepted for mutation.
+    - Deno checks passed for all four functions, focused contracts passed 34/34, and `npm run build` passed.
+    - Status at the 2C.2A boundary: implemented locally only and undeployed; Auth/provisioning orchestration was deferred and is now implemented locally in Phase 2C.2B below. The Admin UI remains mock-backed.
+
+58. **Phase 2C.2B Platform Admin Auth, Provisioning, and Credential Orchestration (August 29, 2026)**:
+    - Updated the existing JWT-protected `platform-approve-registration` to reuse the shared `platform_admins` authorization boundary, accept only `registrationId`, claim the durable provisioning attempt, resolve Auth identities by the approved conflict/retry rules, and call the four-argument `approve_registration_provisioning` RPC.
+    - Auth users created by the current invocation are recorded against the attempt before tenant provisioning and are compensated only when database provisioning did not commit. A post-error ledger read protects committed provisioning from deletion or duplication after a lost response.
+    - Approval responses now contain only safe registration/tenant scope and credential-delivery status. Temporary passwords remain transient server memory and are never returned, persisted, audited, or logged.
+    - Generalized the existing Registration mail adapter without changing the Phase 1 OTP contract, added post-provisioning initial credential delivery, and added JWT-protected `platform-resend-initial-credential` password rotation without tenant reprovisioning.
+    - `subscriber_memberships.must_change_password` remains the authoritative first-login flag; no duplicate password-state field was added to Auth user metadata.
+    - Deno checks passed for approval, resend, and Registration OTP; focused Phase 1/2 contracts passed 58/58; `npm run build` passed with 0 errors.
+    - Status: implemented and validated locally only. No migration or Edge Function was deployed, no remote Auth/tenant record was created, the Platform Admin UI remains mock-backed, and first-login completion hardening remains separate. Phase 2 is incomplete.
+
+59. **Phase 2C.2C-A First-Login RLS Access Gate (August 29, 2026)**:
+    - Confirmed the database authorization defect: active membership/owner/clinic helpers did not consider the authoritative `subscriber_memberships.must_change_password` state.
+    - Added one local-only additive migration that requires `account_status = 'active'` and `must_change_password = false` for membership-derived subscriber, owner, and clinic-assignment access while preserving the Platform Admin bypass.
+    - Added restricted `get_my_first_login_state()` for authenticated users. It accepts no target identity and returns only the caller's minimal membership routing state plus an explicit multiple-active-owner conflict signal.
+    - Local migration reset, 43 pgTAP RLS assertions, schema lint, security advisors, 66 focused Phase 1/2 source contracts, and the production build passed. No migration was deployed and no remote data or Auth identity was changed.
+    - `complete-initial-password` hardening remains the next first-login backend step. Frontend login routing and all Phase 2 UI cutovers remain undone; Phase 2 is incomplete.
+
+60. **Phase 2C.2C-B Hardened Initial Password Completion (August 30, 2026)**:
+    - Hardened the existing JWT-protected `complete-initial-password` function locally. It accepts exactly `{ newPassword }`, derives the Auth user from verified claims, and requires exactly one active `clinic_owner` membership.
+    - Server password validation now requires 12-256 characters with at least one Unicode letter and digit. Already-completed, zero-membership, multiple-membership, Auth-failure, and conditional-finalization states return typed safe errors without provider details.
+    - Auth password replacement occurs before a membership-ID/user/role/status/flag conditional update. Success sets `must_change_password = false`, stamps `password_changed_at`, and records `account.initial_password.changed` without credential material.
+    - The current bearer token is passed to Supabase Admin `signOut(..., 'others')` after completion to preserve the current session where supported and revoke other refresh-token sessions. Revoked sessions' existing access JWTs can remain valid until expiry; revocation failure is safely audited and does not roll back the completed password transition.
+    - Deno check, 24 runtime tests, 80 focused Phase 1/2 contracts, 43 pgTAP RLS assertions, schema lint, security advisors, and the production build passed locally. Frontend login/change-password routing remains unwired, nothing was deployed, and Phase 2 remains incomplete.

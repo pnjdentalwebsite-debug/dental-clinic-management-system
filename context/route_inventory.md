@@ -127,3 +127,7 @@
 - `/platform/audit-logs`
 - `/platform/data-restore`
 - `/platform/settings`
+
+## Registration Route Backend Status - August 29, 2026
+- `/register/plan`, `/register/account`, `/register/clinic`, `/register/review`, `/register/verify-email`, `/register/payment`, and `/register/status/:id` retain their existing UI and local runtime.
+- Supabase backend contracts for catalog, registration, OTP, payment, and registration-bound status are ready but not yet wired into these routes.

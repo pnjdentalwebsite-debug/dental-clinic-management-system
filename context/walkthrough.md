@@ -1516,3 +1516,58 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 5. Sign in as the owner, replace the one-time password through `complete-initial-password`, and confirm only that owner's `must_change_password` flag clears.
 6. Provision a Staff and an Associate with assigned clinic IDs; confirm each can authenticate and can only see assigned branches.
 7. Run `npm run build` and `npx vitest run src/infrastructure/supabase/scope.test.ts` before merging a backend change.
+
+## Phase 1C Backend Validation - August 29, 2026
+1. Confirm `registration-plans` returns active display-safe plans only.
+2. Submit a registration and verify all structured staging fields persist without creating Auth/tenant/clinic records.
+3. Request and verify an OTP; confirm only its hash persists and `email_verified_at` changes only on success.
+4. Confirm unverified payment fails and verified payment creates exactly one pending payment atomically.
+5. Confirm status requires matching registration ID and owner email and returns no provisioning data.
+6. Source-focused tests and `npm run build` pass. Cloud deployment and live `App.tsx` cutover are complete; verify the flow stops before Platform Admin approval/provisioning.
+
+## Phase 1D Development Plan Catalog Validation - August 29, 2026
+1. Apply the tracked plan catalog migration only after confirming the target project and preceding migration history.
+2. Confirm active Basic/Plus/Max plans return from `registration-plans` with prices ₱5,000/₱51,000, ₱8,500/₱86,700, and ₱10,000/₱102,000 monthly/annual.
+3. Confirm Plus limits remain 3 clinics and 6 associates.
+4. The visible Registration Choose Plan UI consumes this catalog through `registration-plans`; pricing remains backend-owned and commercial pricing may still be revised later.
+
+## Phase 1 Registration Frontend Cutover Validation - August 29, 2026
+1. Open Registration and confirm the Choose Plan cards load from `registration-plans`; if loading fails, no mock plans appear.
+2. Complete owner, clinic, and review steps. Submit once and confirm `registration-submit` returns the continuation identifiers before the Email Verification screen opens.
+3. Obtain the six-digit code from the delivered email, request/resend only through the real gateway, and verify it through `registration-verify-otp`.
+4. Submit a user-provided payment reference. Confirm the browser sends no amount and the resulting registration status page shows backend status from ID plus owner-email lookup.
+5. Confirm the completed flow remains `pending_review` / `pending_verification`; do not approve, provision, or create an Auth user in this phase.
+6. Closure evidence: the manually validated browser registration `REG-2026-3339605B09` (Angelo Dental Clinic, Plus) delivered a real Gmail OTP and persisted one `pending_verification` GCash payment for the server-derived `850000` centavo amount.
+
+## Phase 2C.1 Database Foundation Validation - August 29, 2026
+1. Created one additive local migration for Platform Admin payment decisions, safe registration rejection, provisioning claims/retries, profile display names, subscription snapshots, structured clinic creation, and audit events.
+2. Executed the migration against local Supabase PostgreSQL inside a forced-rollback transaction; no local data or schema change was retained.
+3. All five privileged RPCs passed `plpgsql_check`, with execution denied to `anon`/`authenticated` and granted to `service_role`.
+4. Focused contracts passed 26/26 and the production build passed. No remote deployment, frontend cutover, Auth creation, registration approval, or tenant provisioning occurred.
+
+## Phase 2C.2A Review API Validation - August 29, 2026
+1. Added four JWT-required local Edge Functions for Platform Admin review queue/detail and payment/registration decisions.
+2. Verified each function uses the shared `platform_admins` check and no browser-supplied actor, amount, tenant, or subscriber authority.
+3. Deno type checks passed for every new function; the local function runtime returned `401` for an anonymous request before handler execution.
+4. Focused Phase 1/2 contracts passed 34/34 and the production build passed. No database migration/function was deployed and no review action was sent to the linked development project.
+
+## Phase 2C.2B Provisioning Orchestration Validation - August 29, 2026
+1. Updated the existing approval function to authorize through the shared Platform Admin helper, accept only a registration UUID, invoke `begin_registration_provisioning`, and use the revised four-argument final provisioning RPC.
+2. Verified source contracts for new Auth creation, typed existing-identity conflicts, same-attempt retry reuse, completed-state replay, post-error durable-state recheck, and compensation limited to an Auth user created by the current invocation before database commit.
+3. Verified initial credential email occurs only after tenant provisioning commits; delivery failure preserves the tenant and records safe status/code. The resend function rotates the password after validating attempt ownership, active Clinic Owner membership, and registration/profile/Auth email agreement, without invoking provisioning RPCs.
+4. Verified temporary passwords are absent from approval responses, provisioning-attempt fields, and audit metadata. `subscriber_memberships.must_change_password` remains authoritative.
+5. Deno checks passed for approval, resend, and Registration OTP; focused contracts passed 58/58; the production build passed. No migration/function deployment, remote Auth creation, remote tenant provisioning, UI cutover, or real registration approval occurred.
+
+## Phase 2C.2C-A First-Login RLS Gate Validation - August 29, 2026
+1. Reset the local Supabase database from tracked migrations and confirmed the additive first-login gate migration applied after the Phase 2C.1 foundation.
+2. Ran 43 pgTAP assertions proving gated owner denial across subscriber, clinic, patient, appointment, subscription, platform payment, patient billing, membership, and tenant-audit reads; owner and clinic helpers returned false.
+3. Confirmed completed owners regain existing scoped access, unrelated subscribers remain hidden, gated staff assignments cannot bypass the gate, users without membership gain nothing, and Platform Admin access remains intact.
+4. Confirmed the authenticated login-state RPC exposes only own minimal membership state and makes two active owner memberships explicitly detectable. Anonymous execution is denied.
+5. Local schema lint and security advisors reported no issues; 66 focused Phase 1/2 source contracts and the production build passed. Nothing was deployed or mutated remotely.
+
+## Phase 2C.2C-B Initial Password Completion Validation - August 30, 2026
+1. Confirmed the function remains JWT-required and accepts only `{ "newPassword": "..." }`; identity and tenant fields are rejected.
+2. Exercised 24 Deno runtime tests covering membership cardinality, repeat protection, 12-character letter/digit policy, Auth-before-DB ordering, conditional finalization, safe recovery, audit minimization, and selective other-session revocation.
+3. Ran 80 focused Phase 1/2 source contracts and all 43 live local pgTAP RLS assertions. Access remained denied while the flag was true and restored only after it became false.
+4. Local schema lint and security advisors reported no issues, and the production build passed. The success response is exactly `{ completed: true, mustChangePassword: false }`.
+5. No migration/function was deployed, no remote Auth password or data changed, and no Login, Change Password, Clinic Owner, Platform Admin, or `App.tsx` code was modified.

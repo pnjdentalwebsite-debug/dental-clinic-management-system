@@ -507,3 +507,84 @@
 - [x] `npm run build` and the tenant/clinic scope test pass.
 - [ ] Phase 2: replace each localStorage workflow with a subscriber/clinic-scoped Supabase repository, beginning with auth/onboarding UI and platform payment approval UI.
 - [ ] Before production: create a controlled platform-admin bootstrap process, create real subscription plans, configure production `ALLOWED_ORIGIN`, and complete browser E2E against the cloud project.
+
+## Phase 1C Registration Backend Foundation - August 29, 2026
+- [x] Add structured Registration staging fields.
+- [x] Add protected OTP challenge persistence and OTP request/verify endpoints.
+- [x] Add public-safe active plan catalog.
+- [x] Add atomic/idempotent payment RPC requiring verified email.
+- [x] Bind public status to registration ID plus owner email.
+- [x] Focused tests pass (7/7); production build passes.
+- [x] Deploy/configure the Phase 1 registration functions and server-side email secrets in the linked development project.
+- [x] Cut over the frozen Registration UI through the public Edge Function adapter.
+
+## Phase 1D Development/Test Plan Catalog - August 29, 2026
+- [x] Resolve annual pricing and Plus quota conflicts for development/testing.
+- [x] Create idempotent Basic/Plus/Max `public.plans` migration with canonical features and limits.
+- [x] Retire stale ₱2,990 / ₱4,990 / ₱7,990 development references.
+- [x] Apply and verify the plan configuration in the linked development project.
+- [x] Cut over the Registration frontend to the deployed plan catalog and public Phase 1 functions.
+
+## Phase 1 Registration Frontend Cutover - August 29, 2026
+- [x] Replace Registration runtime plan, submission, OTP, payment, and status mock calls with the deployed public Supabase Edge Function contracts.
+- [x] Keep only public-safe session continuation identifiers and remove hardcoded OTP/demo-payment runtime paths.
+- [x] Preserve the six-step UI and stop the flow at pending platform payment review.
+- [x] Perform controlled browser end-to-end validation against the configured development project, including Gmail OTP and Plus payment staging at `850000` centavos.
+- [ ] Platform Admin approval/provisioning and all post-approval modules remain later-phase work.
+- [x] **PHASE 1 REGISTRATION = COMPLETE.** The verified boundary remains `pending_review` / `pending_verification`.
+
+## Phase 2C.1 Platform Admin Database Foundation - August 29, 2026
+- [x] Add `profiles.display_name` and subscription billing/payment snapshot fields.
+- [x] Add one protected provisioning-attempt ledger per registration.
+- [x] Add atomic payment review and registration rejection RPCs.
+- [x] Add idempotent provisioning claim, failure recording, and revised final provisioning RPCs.
+- [x] Preserve structured clinic fields and subscriber-owner clinic access without an owner assignment row.
+- [x] Validate migration execution with rollback, `plpgsql_check`, focused contracts (26/26), and production build.
+- [ ] Manually push the migration after review.
+- [x] Implement authenticated Admin reads, Edge orchestration, and credential delivery locally in Phase 2C.2A/2C.2B.
+- [ ] Complete the frozen-UI frontend cutover in a later phase.
+
+## Phase 2C.2A Platform Admin Review API Foundation - August 29, 2026
+- [x] Add shared server-side Platform Admin authorization check.
+- [x] Add authenticated review queue and review-detail APIs with allowlisted DTOs.
+- [x] Add authenticated payment accept/reject and registration-rejection APIs using Phase 2 RPCs.
+- [x] Require JWT at function configuration and validate all four functions with Deno checks.
+- [x] Run focused contracts (34/34) and production build.
+- [ ] Deploy the reviewed migration and functions together only when the next approved deployment step authorizes it.
+- [x] Implement Auth/provisioning orchestration locally in Phase 2C.2B.
+- [ ] Wire the frozen Platform Admin UI in a later phase.
+
+## Phase 2C.2B Platform Admin Auth and Credential Orchestration - August 29, 2026
+- [x] Update the existing approval function to use shared Platform Admin authorization, registration-only input, durable begin-attempt handling, and the Phase 2C.1 four-argument provisioning RPC.
+- [x] Implement no-user creation, typed unassigned/assigned identity conflicts, same-failed-attempt identity reuse, completed-state replay, and pre-commit Auth compensation.
+- [x] Remove temporary credentials from the Admin response and keep password material out of Postgres, audit metadata, browser state, and logs.
+- [x] Generalize the server-only Registration mail adapter while preserving Phase 1 OTP delivery.
+- [x] Add post-commit initial credential delivery plus authenticated resend/rotation without tenant reprovisioning.
+- [x] Preserve `subscriber_memberships.must_change_password` as the authoritative first-login flag.
+- [x] Pass Deno checks for all affected functions, focused contracts (58/58), and the production build.
+- [ ] Deploy the Phase 2C.1 migration and all coordinated Phase 2 Edge Functions only in a separately authorized deployment step.
+- [ ] Cut over the frozen Platform Admin UI and harden/validate the first-login completion flow in later phases.
+- [ ] Phase 2 remains incomplete.
+
+## Phase 2C.2C-A First-Login RLS Access Gate - August 29, 2026
+- [x] Audit every tenant RLS policy and both owner/assignment clinic authorization paths.
+- [x] Add one historical-migration-safe correction requiring `must_change_password = false` for normal membership-derived access.
+- [x] Preserve Platform Admin authorization independently of subscriber membership state.
+- [x] Add a no-argument, own-user-only minimal login-state RPC with multiple-active-owner conflict detection.
+- [x] Pass a local migration reset, 43 pgTAP RLS assertions, schema lint, security advisors, 66 focused Phase 1/2 contracts, and the production build.
+- [ ] Harden `complete-initial-password` in the next explicitly approved backend step.
+- [ ] Deploy the coordinated Phase 2 migrations/functions only after separate authorization.
+- [ ] Wire login/change-password routing and the frozen Platform Admin UI in later phases.
+- [ ] Phase 2 remains incomplete.
+
+## Phase 2C.2C-B Harden `complete-initial-password` - August 30, 2026
+- [x] Restrict the request to `{ newPassword }` and derive target identity only from verified claims.
+- [x] Require exactly one active Clinic Owner membership and block already-completed replay before Auth rotation.
+- [x] Enforce the 12-256 character, letter-and-digit server password policy.
+- [x] Update Auth first, then conditionally finalize only the resolved membership and stamp `password_changed_at`.
+- [x] Add typed Auth/finalization recovery states and credential-free success/failure audit events.
+- [x] Revoke other refresh-token sessions with the supported `others` scope while preserving current-session continuation where supported.
+- [x] Pass Deno check, 24 runtime tests, 80 focused contracts, 43 pgTAP RLS assertions, schema lint, security advisors, and the production build.
+- [ ] Cut over the frozen Login/Change Password routing and frontend adapter in a later approved phase.
+- [ ] Deploy Phase 2 migrations/functions only in a separately authorized coordinated step.
+- [ ] Phase 2 remains incomplete.

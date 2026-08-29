@@ -58,3 +58,18 @@ Master File Directory should remain the reusable source for:
 Context documentation should reflect the current operational workflow, not just historical milestones.
 
 Older implementation archive notes may remain in some files for history, but they are no longer the primary source of truth for the live clinic continuation flow.
+
+## Phase 1C Registration Plan
+
+- [x] Add Registration staging schema, secure OTP persistence, protected plan catalog, OTP endpoints, atomic payment RPC, and registration-bound status.
+- [x] Verify focused backend contracts and production build.
+- [ ] Apply migration and deploy functions to the linked Supabase project.
+- [ ] Configure Registration email secrets and validate real delivery.
+- [ ] Cut over the frozen `App.tsx` Registration handlers in a separately approved phase.
+
+## Phase 1D Development Plan Catalog
+
+- [x] Create tracked Basic, Plus, and Max development/test plan configuration with annual totals matching the existing 15% UI calculation.
+- [ ] Apply the plan catalog migration to the confirmed Supabase project.
+- [ ] Keep commercial/public pricing subject to a later approved configuration change.
+- [ ] Registration frontend cutover remains a separate task.

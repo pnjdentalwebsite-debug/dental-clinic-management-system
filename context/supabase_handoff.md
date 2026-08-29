@@ -83,3 +83,13 @@ Do not implement Supabase from this document yet. It is a planning handoff from 
 ## Must Never Remain Frontend-Only
 - Role authorization, tenant isolation, payment verification, audit durability, destructive actions, backup/restore, maintenance enforcement, feature authorization, storage access, and all secret handling.
 
+## Phase 1C Registration Handoff - August 29, 2026
+- Apply `20260829120000_registration_phase_1_backend_foundation.sql`, then deploy `registration-plans`, `registration-request-otp`, `registration-verify-otp`, `registration-submit`, `registration-submit-payment`, and `registration-status`.
+- Configure `REGISTRATION_OTP_PEPPER`, `REGISTRATION_EMAIL_ENDPOINT`, `REGISTRATION_EMAIL_API_TOKEN`, `REGISTRATION_EMAIL_FROM`, and production `ALLOWED_ORIGIN` as Function secrets.
+- Verify browser roles cannot read OTP challenges or execute the protected RPCs.
+- The source implementation is verified by focused tests/build only; cloud deployment and frontend cutover are not complete.
+
+## Phase 1D Plan Catalog Handoff - August 29, 2026
+- Apply `20260829130000_phase_1_development_plan_catalog.sql` after the Phase 1 backend foundation migration.
+- It safely upserts active `basic`, `plus`, and `max` configuration by `plan_code`; it creates no tenant, Auth, clinic, or subscriber data.
+- Do not treat the migration as deployed until tracked migration push confirms it. The frontend Choose Plan runtime remains unchanged.

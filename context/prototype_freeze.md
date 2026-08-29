@@ -99,3 +99,8 @@ The prototype is ready for Supabase handoff planning, with no known blocker disc
 
 ## Freeze Decision
 CONDITIONALLY APPROVED for Supabase handoff preparation.
+
+## Phase 1C Freeze Note - August 29, 2026
+- Registration backend files were added/updated with zero visual changes.
+- Registration layouts, stepper, typography, spacing, controls, and navigation remain frozen.
+- `App.tsx` still uses the prototype Registration runtime until a separate cutover is approved.

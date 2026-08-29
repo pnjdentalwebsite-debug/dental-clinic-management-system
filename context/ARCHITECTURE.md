@@ -427,3 +427,56 @@ flowchart TD
 - Every provisioned resource is linked by `subscriber_id`; every branch-facing assignment and domain record is additionally scoped by `clinic_id`.
 - Supabase Auth is now the intended identity authority. The current localStorage auth/services are a temporary UI compatibility layer and must be replaced incrementally with scoped repositories rather than merged with cloud data.
 - No seed rows are created by migrations or functions. A trusted platform-admin bootstrap and real subscription-plan setup are required in each environment before live onboarding.
+
+## Phase 1C Registration Backend Foundation - August 29, 2026
+- Public flow foundation: `registration-plans -> registration-submit -> registration-request-otp -> registration-verify-otp -> registration-submit-payment -> registration-status`.
+- Plans remain unreadable directly by anon users; the catalog Edge Function returns only active display-safe fields.
+- Registration OTP hashes are server-only, registration/email-bound, expiring, attempt-limited, resend-limited, and consumed on success.
+- Payment insertion and registration transition are atomic and idempotent through `submit_registration_payment_atomic`, executable only by `service_role`.
+- The frozen Registration UI is cut over through `onboardingApi`; the Registration runtime has no mock/local status, OTP, payment, or plan source.
+
+## Phase 1D Development Plan Catalog - August 29, 2026
+- Tracked configuration defines active `basic`, `plus`, and `max` plans in `public.plans` by stable `plan_code`.
+- Development/test prices are ₱5,000/₱51,000, ₱8,500/₱86,700, and ₱10,000/₱102,000 monthly/annual; annual values match the existing Registration UI 15% calculation.
+- This catalog is platform configuration and is consumed by the Registration frontend only through the public-safe `registration-plans` Edge Function.
+
+## Phase 1 Registration Frontend Cutover - August 29, 2026
+- The approved UI now follows `existing registration screen -> onboardingApi -> public Edge Function -> Supabase` for all six registration steps.
+- Browser persistence is limited to a session-scoped continuation tuple of registration UUID, registration number, and normalized owner email; OTPs, hashes, secrets, and pricing authority are never persisted in the browser.
+- The backend owns active catalog data, OTP delivery/verification, payment pricing, payment idempotency, and status. The browser uses only the publishable key.
+- The boundary remains `registration_status = pending_review` and `payment_status = pending_verification`; privileged approval and provisioning stay separate.
+- Phase 1 is complete and manually validated against the linked development project. The verified Plus browser flow persisted the server-derived monthly amount of `850000` centavos; Gmail OTP delivery and public status lookup were confirmed.
+
+## Phase 2C.1 Platform Admin Database Foundation - August 29, 2026
+- Local target flow: `pending_review + approved payment -> begin_registration_provisioning -> later server-side Auth resolution -> approve_registration_provisioning -> profile/subscriber/owner membership/subscription/primary clinic/audit`.
+- Payment review is a separate atomic operation and never provisions tenant resources. Registration rejection is blocked after payment approval until a refund workflow exists.
+- `registration_provisioning_attempts.registration_id` is the durable idempotency anchor; existing subscriber/current-subscription/primary-clinic constraints and new payment/attempt constraints prevent duplicates.
+- The migration remains local and unapplied remotely. Admin reads and server orchestration are now implemented locally in Phase 2C.2A/2C.2B; coordinated deployment and frontend cutover remain subsequent work.
+
+## Phase 2C.2A Platform Admin Review API Foundation - August 29, 2026
+- Authenticated review flow: `verified user JWT -> shared platform_admins ledger check -> service-role server query/RPC -> safe DTO or typed error`.
+- Queue/detail endpoints expose only review fields. Mutation endpoints accept only review identifiers, decision, and bounded rejection reason; actor identity remains server-derived.
+- Payment acceptance ends at `payment approved + registration pending_review`; no API in this phase creates Auth, subscriber, membership, clinic, or subscription records.
+- These functions depend on the local Phase 2C.1 migration and are not deployed or connected to frontend runtime.
+
+## Phase 2C.2B Auth and Tenant Provisioning Orchestration - August 29, 2026
+- Local approval flow: `verified Admin JWT -> shared platform_admins check -> begin_registration_provisioning(registration, actor) -> ledger-proven Auth resolution -> approve_registration_provisioning(registration, attempt, owner user, actor) -> server-only credential email -> safe attempt delivery state/audit`.
+- `registration_id` remains the idempotency anchor. Completed/database-provisioned retries read existing scope; claimed attempts return an in-progress conflict; failed attempt reuse requires the exact recorded `auth_user_id`, `auth_user_created_by_attempt = true`, matching normalized email, and no subscriber membership.
+- A newly created Auth identity is compensatable only before database commit and only by the invocation that created it. The Edge Function re-reads durable attempt state after an RPC error before considering deletion.
+- Database tenant writes remain exclusively inside the transactional four-argument RPC. The Edge Function creates no subscriber, membership, subscription, clinic, payment, or clinic-assignment row directly.
+- Credential delivery is post-commit. Delivery failure records only bounded safe state/code and does not roll back tenant provisioning; resend rotates the password and updates the existing owner membership without reprovisioning.
+- `subscriber_memberships.must_change_password` is the authoritative first-login state. No password is stored in Postgres, responses, browser storage, metadata, or audit events.
+- This architecture is validated locally only and depends on the unapplied Phase 2C.1 migration; no Phase 2 function or frontend cutover is deployed.
+
+## Phase 2C.2C-A Database First-Login Authorization Gate - August 29, 2026
+- Tenant authorization remains database-owned: `is_subscriber_member`, `is_subscriber_owner`, and both branches of `can_access_clinic` require an active membership with `must_change_password = false`; Platform Admin authorization remains an independent bypass.
+- Existing tenant policies inherit the gate through those helpers, covering subscriber, clinic, patient, appointment, clinical, billing, payment, subscription, laboratory, assignment, and tenant-audit access without duplicating policy logic.
+- A gated session discovers its next route only through `public.get_my_first_login_state()`. The restricted no-argument `SECURITY DEFINER` RPC binds to `auth.uid()`, uses an empty search path and qualified relations, and returns no subscriber ID, user ID, permissions, or tenant record.
+- The correction is one unapplied additive migration. The service-role membership boundary used by `complete-initial-password` remains reachable, but that endpoint is not yet hardened and no frontend routing is cut over.
+
+## Phase 2C.2C-B First-Login Completion Boundary - August 30, 2026
+- Local flow: `verified user JWT -> own active Clinic Owner cardinality check -> server password validation -> Auth Admin password update -> conditional resolved-membership finalization -> safe audit -> revoke other refresh-token sessions`.
+- Auth failure leaves the membership gate true. A post-Auth conditional-update failure returns `PASSWORD_UPDATED_STATE_FINALIZATION_REQUIRED`; the old temporary password is never restored, and the still-true membership remains the authoritative repair signal.
+- The completion audit contains only actor, subscriber, membership, timestamp, and safe flag transition. Passwords and Authorization tokens never enter Postgres, response bodies, audit metadata, or logs.
+- Supabase Admin `signOut(accessToken, 'others')` preserves the current session where supported while revoking other refresh tokens. Already-issued JWTs remain valid until expiry, and revocation failure does not reverse the completed Auth/membership state.
+- `get_my_first_login_state()` and RLS remain the future routing/authorization pair. Browser routing and the stale frontend completion adapter are intentionally not cut over in this backend-only phase.

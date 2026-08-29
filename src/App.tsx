@@ -108,6 +108,7 @@ import { MasterFileDirectoryDashboardPage } from './features/clinic-subsystem/ma
 import { MasterFileDirectorySectionPage } from './features/clinic-subsystem/master-files/pages/MasterFileDirectorySectionPage';
 import { PDFDesignerPage } from './features/clinic-subsystem/pdf-designer/PDFDesignerPage';
 import { SubscriptionLockedScreen } from './features/clinic-owner/components/SubscriptionLockedScreen';
+import { onboardingApi, type RegistrationPlan, type RegistrationPublicStatus } from './infrastructure/supabase/onboarding';
 
 // Default Platform Owner credentials
 const DEFAULT_PLATFORM_OWNER = {
@@ -119,6 +120,32 @@ const DEFAULT_PLATFORM_OWNER = {
 };
 
 const DEMO_OTP = "482193";
+const REGISTRATION_CONTINUATION_KEY = 'pnj_registration_continuation';
+
+interface RegistrationContinuation {
+  registrationId: string;
+  registrationNumber: string;
+  ownerEmail: string;
+}
+
+const readRegistrationContinuation = (): RegistrationContinuation | null => {
+  try {
+    const raw = sessionStorage.getItem(REGISTRATION_CONTINUATION_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<RegistrationContinuation>;
+    return typeof value.registrationId === 'string'
+      && typeof value.registrationNumber === 'string'
+      && typeof value.ownerEmail === 'string'
+      ? { registrationId: value.registrationId, registrationNumber: value.registrationNumber, ownerEmail: value.ownerEmail }
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveRegistrationContinuation = (value: RegistrationContinuation) => {
+  sessionStorage.setItem(REGISTRATION_CONTINUATION_KEY, JSON.stringify(value));
+};
 
 // ----------------------------------------------------
 // CENTRALIZED MOCK STORAGE SERVICE LAYER
@@ -854,7 +881,17 @@ export default function App() {
 
   // Registration states
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [activeRegistrationId, setActiveRegistrationId] = useState<string>('');
+  const [activeRegistrationId, setActiveRegistrationId] = useState<string>(() => readRegistrationContinuation()?.registrationId ?? '');
+  const [activeRegistrationNumber, setActiveRegistrationNumber] = useState<string>(() => readRegistrationContinuation()?.registrationNumber ?? '');
+  const [registrationPlans, setRegistrationPlans] = useState<RegistrationPlan[]>([]);
+  const [registrationPlanError, setRegistrationPlanError] = useState<string>('');
+  const [isRegistrationPlansLoading, setIsRegistrationPlansLoading] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationPublicStatus | null>(null);
+  const [registrationStatusError, setRegistrationStatusError] = useState<string>('');
+  const [isRegistrationSubmitting, setIsRegistrationSubmitting] = useState(false);
+  const [isOtpRequesting, setIsOtpRequesting] = useState(false);
+  const [isOtpVerifying, setIsOtpVerifying] = useState(false);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
   // Selected registration for admin details view
   const [selectedRegAdmin, setSelectedRegAdmin] = useState<Registration | null>(null);
@@ -876,7 +913,7 @@ export default function App() {
   const [regBillingCycle, setRegBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [regFirstName, setRegFirstName] = useState<string>('');
   const [regLastName, setRegLastName] = useState<string>('');
-  const [regEmail, setRegEmail] = useState<string>('');
+  const [regEmail, setRegEmail] = useState<string>(() => readRegistrationContinuation()?.ownerEmail ?? '');
   const [regMobile, setRegMobile] = useState<string>('');
   const [regAddress, setRegAddress] = useState<string>('');
   const [regCity, setRegCity] = useState<string>('');
@@ -905,6 +942,8 @@ export default function App() {
   // Email verification inputs
   const [otpFields, setOtpFields] = useState<string[]>(['', '', '', '', '', '']);
   const [otpTimer, setOtpTimer] = useState<number>(180);
+  const [otpExpirySeconds, setOtpExpirySeconds] = useState<number>(180);
+  const [otpResendAfterSeconds, setOtpResendAfterSeconds] = useState<number>(0);
   const [otpError, setOtpError] = useState<string>('');
 
   // Payment form variables
@@ -950,6 +989,49 @@ export default function App() {
     }
     return () => clearInterval(interval);
   }, [currentRoute, otpTimer]);
+
+  useEffect(() => {
+    if (currentRoute !== '/register/plan') return;
+    let cancelled = false;
+    setIsRegistrationPlansLoading(true);
+    setRegistrationPlanError('');
+    onboardingApi.loadRegistrationPlans()
+      .then(({ plans }) => {
+        if (!cancelled) setRegistrationPlans(plans);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setRegistrationPlanError(error instanceof Error ? error.message : 'Unable to load registration plans.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsRegistrationPlansLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [currentRoute]);
+
+  const refreshRegistrationStatus = async () => {
+    const registrationId = currentRoute.includes('/register/status/')
+      ? decodeURIComponent(currentRoute.split('/').pop() || '')
+      : activeRegistrationId;
+    const continuation = readRegistrationContinuation();
+    const ownerEmail = regEmail || (continuation?.registrationId === registrationId ? continuation.ownerEmail : '');
+    if (!registrationId || !ownerEmail) {
+      setRegistrationStatus(null);
+      setRegistrationStatusError('Registration status is unavailable. Please continue from your registration session.');
+      return;
+    }
+    setRegistrationStatusError('');
+    try {
+      const status = await onboardingApi.checkRegistrationStatus(registrationId, ownerEmail);
+      setRegistrationStatus(status);
+    } catch (error) {
+      setRegistrationStatus(null);
+      setRegistrationStatusError(error instanceof Error ? error.message : 'Registration status is unavailable.');
+    }
+  };
+
+  useEffect(() => {
+    if (currentRoute.includes('/register/status/')) void refreshRegistrationStatus();
+  }, [currentRoute]);
 
   const handleLoadDemoCredentials = () => {
     setEmail(DEFAULT_PLATFORM_OWNER.email);
@@ -1356,103 +1438,131 @@ export default function App() {
   };
 
   // Onboarding submissions
-  const handleRegistrationSubmit = () => {
+  const handleRegistrationSubmit = async () => {
     if (!regDeclarationConfirmed) {
       showToast("Please confirm the details declaration checkbox first.", "warning");
       return;
     }
-
-    const regId = mockRegistrationService.createRegistration({
-      plan: regPlan,
-      ownerName: `${regFirstName} ${regLastName}`,
-      ownerEmail: regEmail,
-      ownerMobile: regMobile,
-      ownerAddress: `${regAddress}, ${regCity}, ${regProvince}, ${regPostalCode}`,
-      clinicName: regClinicName,
-      clinicEmail: regClinicEmail,
-      clinicMobile: regClinicMobile,
-      clinicAddress: `${regClinicAddress}, ${regClinicCity}, ${regClinicProvince}, ${regClinicPostalCode}`,
-      dentistsCount: regDentistsCount,
-      staffCount: regStaffCount,
-      locationsCount: regLocationsCount,
-      worksWithLab: regWorksWithLab,
-      labName: regWorksWithLab ? regLabName : undefined
-    });
-
-    setActiveRegistrationId(regId);
-    mockOtpService.generateOtp(regId);
-    setOtpTimer(180);
-    setOtpFields(['', '', '', '', '', '']);
-    showToast("Your registration has been submitted successfully.", "success");
-    setCurrentRoute('/register/verify-email');
-  };
-
-  const handleVerifyOtp = () => {
-    if (otpTimer === 0) {
-      setOtpError('The verification code has expired. Please request a new code.');
+    const plan = registrationPlans.find(item => item.name === regPlan);
+    if (!plan) {
+      showToast('Please select an active plan before submitting your registration.', 'error');
       return;
     }
 
+    setIsRegistrationSubmitting(true);
+    try {
+      const result = await onboardingApi.submitRegistration({
+        planCode: plan.code,
+        billingCycle: regBillingCycle === 'yearly' ? 'annual' : 'monthly',
+        ownerName: `${regFirstName} ${regLastName}`,
+        ownerEmail: regEmail,
+        ownerMobile: regMobile,
+        ownerAddress: regAddress,
+        ownerCity: regCity,
+        ownerProvince: regProvince,
+        ownerPostalCode: regPostalCode,
+        clinicName: regClinicName,
+        clinicEmail: regClinicEmail,
+        clinicMobile: regClinicMobile,
+        clinicAddress: regClinicAddress,
+        clinicCity: regClinicCity,
+        clinicProvince: regClinicProvince,
+        clinicPostalCode: regClinicPostalCode,
+        dentistCount: regDentistsCount,
+        staffCount: regStaffCount,
+        locationCount: regLocationsCount,
+        worksWithLaboratory: regWorksWithLab,
+        laboratoryName: regWorksWithLab ? regLabName : undefined,
+      });
+      const continuation = {
+        registrationId: result.registration.id,
+        registrationNumber: result.registration.registration_number,
+        ownerEmail: regEmail.trim().toLowerCase(),
+      };
+      saveRegistrationContinuation(continuation);
+      setActiveRegistrationId(continuation.registrationId);
+      setActiveRegistrationNumber(continuation.registrationNumber);
+      setRegEmail(continuation.ownerEmail);
+      setOtpFields(['', '', '', '', '', '']);
+      setOtpError('');
+      setCurrentRoute('/register/verify-email');
+      await requestRegistrationOtp(continuation.registrationId, continuation.ownerEmail);
+      showToast('Your registration has been submitted successfully. Check your email for the verification code.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to submit registration.';
+      setOtpError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsRegistrationSubmitting(false);
+    }
+  };
+
+  const requestRegistrationOtp = async (registrationId = activeRegistrationId, ownerEmail = regEmail) => {
+    if (!registrationId || !ownerEmail || isOtpRequesting) return;
+    setIsOtpRequesting(true);
+    setOtpError('');
+    try {
+      const result = await onboardingApi.requestRegistrationOtp(registrationId, ownerEmail);
+      setOtpTimer(result.expiresInSeconds);
+      setOtpExpirySeconds(result.expiresInSeconds);
+      setOtpResendAfterSeconds(result.resendAfterSeconds);
+      setOtpFields(['', '', '', '', '', '']);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to issue a verification code.';
+      setOtpError(message);
+      throw error;
+    } finally {
+      setIsOtpRequesting(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
     const code = otpFields.join('');
     setOtpError('');
     if (code.length < 6) {
       setOtpError('Please complete all 6 code boxes.');
       return;
     }
-
-    const res = mockOtpService.verifyOtp(activeRegistrationId, code);
-    if (res.success) {
+    if (!activeRegistrationId || isOtpVerifying) return;
+    setIsOtpVerifying(true);
+    try {
+      await onboardingApi.verifyRegistrationOtp(activeRegistrationId, regEmail, code);
       showToast("Email verified successfully!", "success");
       setCurrentRoute('/register/payment');
-    } else {
-      setOtpError(res.error || 'Incorrect OTP code.');
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : 'Verification failed.');
+    } finally {
+      setIsOtpVerifying(false);
     }
   };
 
-  const handleResendOtp = () => {
-    mockOtpService.generateOtp(activeRegistrationId);
-    setOtpTimer(180);
-    setOtpFields(['', '', '', '', '', '']);
-    setOtpError('');
-    showToast("A new verification code has been generated.", "success");
+  const handleResendOtp = async () => {
+    try {
+      await requestRegistrationOtp();
+      showToast('A new verification code has been sent.', 'success');
+    } catch {
+      // The backend error is displayed in the existing verification error banner.
+    }
   };
 
-  const handleCompleteDemoPayment = () => {
-    if (paymentMethod !== 'Demo Payment' && !paymentRef) {
+  const handleCompleteDemoPayment = async () => {
+    if (!paymentRef.trim()) {
       showToast("Please enter a payment Reference Number.", "error");
       return;
     }
-
-    const paymentResult = centralizedPaymentService.submitRegistrationPayment(activeRegistrationId, paymentMethod, paymentRef || 'DEMO-PAY-REF');
-    if (!paymentResult.ok) {
-      showToast(paymentResult.error || "Payment submission failed.", "error");
+    if (!activeRegistrationId || isPaymentSubmitting) {
       return;
     }
-    mockAuditService.appendAuditEvent({
-      action: 'payment.submitted',
-      category: 'payment',
-      module: 'payments',
-      targetType: 'payment',
-      targetId: activeRegistrationId,
-      targetLabel: paymentRef || 'DEMO-PAY-REF',
-      result: 'success',
-      severity: 'low',
-      summary: `Payment reference "${paymentRef || 'DEMO-PAY-REF'}" submitted for registration ${activeRegistrationId} awaiting admin verification.`,
-      afterSnapshot: { paymentStatus: 'pending_verification', paymentMethod, referenceNumber: paymentRef || 'DEMO-PAY-REF' }
-    });
-    mockNotificationService.createSystemNotification({
-      eventKey: `payment-pending-${activeRegistrationId}`,
-      category: 'payment',
-      sourceModule: 'payments',
-      sourceRecordId: activeRegistrationId,
-      title: 'Payment Verification Pending',
-      message: `Payment reference ${paymentRef || 'DEMO-PAY-REF'} submitted for registration ${activeRegistrationId}.`,
-      priority: 'high',
-      actionUrl: '/platform/payments',
-      actionLabel: 'Review Payment'
-    });
-    showToast("Payment submitted and awaiting admin verification.", "success");
-    setCurrentRoute(`/register/status/${activeRegistrationId}`);
+    setIsPaymentSubmitting(true);
+    try {
+      await onboardingApi.submitRegistrationPayment(activeRegistrationId, regEmail, paymentMethod, paymentRef.trim());
+      showToast('Payment submitted and awaiting admin verification.', 'success');
+      setCurrentRoute(`/register/status/${activeRegistrationId}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Payment submission failed.', 'error');
+    } finally {
+      setIsPaymentSubmitting(false);
+    }
   };
 
 
@@ -1935,10 +2045,17 @@ export default function App() {
   const statusRegistrationId = currentRoute.includes('/register/status/')
     ? decodeURIComponent(currentRoute.split('/').pop() || '')
     : activeRegistrationId;
-  const statusRegistration = statusRegistrationId
-    ? mockRegistrationService.getRegistrationById(statusRegistrationId)
+  const statusRegistration = statusRegistrationId ? registrationStatus : null;
+  const publicRegistrationPlans = registrationPlans;
+  const selectedRegistrationPlan = publicRegistrationPlans.find(plan => plan.name === regPlan) ?? null;
+  const selectedRegistrationAmountCentavos = selectedRegistrationPlan
+    ? (regBillingCycle === 'yearly'
+      ? selectedRegistrationPlan.annualAmountCentavos
+      : selectedRegistrationPlan.monthlyAmountCentavos)
     : null;
-  const publicRegistrationPlans = mockPlanService.getPublicRegistrationPlans();
+  const formatRegistrationAmount = (amountCentavos: number | null) => amountCentavos === null
+    ? 'PHP 0.00'
+    : `PHP ${(amountCentavos / 100).toLocaleString()}`;
 
   return (
     <div className="app-container">
@@ -2817,7 +2934,9 @@ export default function App() {
 
                   {publicRegistrationPlans.length === 0 && (
                     <div className="banner-alert warning" style={{ marginBottom: '1.5rem' }}>
-                      No active public plans are currently available for registration.
+                      {isRegistrationPlansLoading
+                        ? 'Loading available registration plans...'
+                        : registrationPlanError || 'No active public plans are currently available for registration.'}
                     </div>
                   )}
 
@@ -2825,13 +2944,13 @@ export default function App() {
                     {publicRegistrationPlans.map(plan => {
                       const isSelected = regPlan === plan.name;
                       const isRecommended = plan.name.toLowerCase().includes('plus') || plan.name.toLowerCase().includes('max');
-                      const finalPrice = regBillingCycle === 'yearly' && plan.monthlyPrice > 0
-                        ? Math.round(plan.monthlyPrice * 0.85)
-                        : plan.monthlyPrice;
+                      const finalAmountCentavos = regBillingCycle === 'yearly'
+                        ? plan.annualAmountCentavos
+                        : plan.monthlyAmountCentavos;
 
                       return (
                         <div
-                          key={plan.id}
+                          key={plan.code}
                           style={{
                             border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
                             borderRadius: '14px',
@@ -2871,14 +2990,14 @@ export default function App() {
                           </div>
 
                           <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 1rem 0', minHeight: '38px', lineHeight: '1.4' }}>
-                            {plan.shortDescription}
+                            {plan.features.find(feature => feature.enabled)?.description || 'Subscription features are configured by the platform.'}
                           </p>
 
                           <div style={{ margin: '0.5rem 0 1.25rem 0', paddingBottom: '1rem', borderBottom: '1px solid #f1f5f9' }}>
                             <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0f172a' }}>
-                              {finalPrice > 0 ? `PHP ${finalPrice.toLocaleString()}` : 'Custom Pricing'}
+                              {formatRegistrationAmount(finalAmountCentavos)}
                               <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b', marginLeft: '0.3rem' }}>
-                                / month {regBillingCycle === 'yearly' && '(billed annually)'}
+                                {regBillingCycle === 'yearly' ? '/ year' : '/ month'}
                               </span>
                             </div>
                           </div>
@@ -2887,10 +3006,10 @@ export default function App() {
                             <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                               Included Features:
                             </span>
-                            {plan.features.filter(f => f.enabled).slice(0, 5).map(f => (
-                              <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', color: '#334155' }}>
+                            {plan.features.filter(feature => feature.enabled).slice(0, 5).map(feature => (
+                              <div key={feature.key} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', color: '#334155' }}>
                                 <Check size={14} color="#16a34a" style={{ flexShrink: 0 }} />
-                                <span>{f.label}</span>
+                                <span>{feature.label}</span>
                               </div>
                             ))}
                           </div>
@@ -3386,12 +3505,9 @@ export default function App() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#334155', marginBottom: '0.5rem' }}>
                         <span>Base Subscription Fee ({regBillingCycle === 'yearly' ? '12 Months' : '1 Month'}):</span>
                         <strong style={{ color: '#0f172a' }}>
-                          {(() => {
-                            const planObj = publicRegistrationPlans.find(p => p.name === regPlan);
-                            const price = planObj ? planObj.monthlyPrice : 0;
-                            const total = regBillingCycle === 'yearly' ? Math.round(price * 12 * 0.85) : price;
-                            return total > 0 ? `PHP ${total.toLocaleString()}` : 'Free / Pending';
-                          })()}
+                          {selectedRegistrationAmountCentavos === null
+                            ? 'Free / Pending'
+                            : formatRegistrationAmount(selectedRegistrationAmountCentavos)}
                         </strong>
                       </div>
 
@@ -3412,12 +3528,9 @@ export default function App() {
                       }}>
                         <span>Total Payable Amount:</span>
                         <span style={{ color: '#2563eb' }}>
-                          {(() => {
-                            const planObj = publicRegistrationPlans.find(p => p.name === regPlan);
-                            const price = planObj ? planObj.monthlyPrice : 0;
-                            const total = regBillingCycle === 'yearly' ? Math.round(price * 12 * 0.85) : price;
-                            return total > 0 ? `PHP ${total.toLocaleString()}` : 'Free / Pending';
-                          })()}
+                          {selectedRegistrationAmountCentavos === null
+                            ? 'Free / Pending'
+                            : formatRegistrationAmount(selectedRegistrationAmountCentavos)}
                         </span>
                       </div>
                     </div>
@@ -3496,7 +3609,7 @@ export default function App() {
                       type="button"
                       className="btn btn-primary"
                       style={{ width: 'auto', height: '40px', padding: '0 1.75rem', fontSize: '0.875rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                      disabled={!regDeclarationConfirmed}
+                      disabled={!regDeclarationConfirmed || isRegistrationSubmitting}
                       onClick={handleRegistrationSubmit}
                     >
                       <span>Submit Registration</span>
@@ -3607,45 +3720,13 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 1-Click Demo OTP Helper */}
-                  <div style={{
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '10px',
-                    padding: '0.75rem 1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '1.75rem',
-                    textAlign: 'left'
-                  }}>
-                    <div>
-                      <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#64748b', display: 'block', textTransform: 'uppercase' }}>
-                        🧪 Development Testing Helper
-                      </span>
-                      <span style={{ fontSize: '0.8rem', color: '#0f172a' }}>
-                        Demo Passcode: <strong>{DEMO_OTP}</strong>
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      style={{ height: '30px', width: 'auto', fontSize: '0.75rem', padding: '0 0.6rem' }}
-                      onClick={() => {
-                        setOtpFields(DEMO_OTP.split(''));
-                        showToast("Demo OTP filled!", "info");
-                      }}
-                    >
-                      ⚡ Auto-Fill {DEMO_OTP}
-                    </button>
-                  </div>
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', alignItems: 'center' }}>
                     {otpTimer > 0 ? (
                       <button
                         type="button"
                         style={{ border: 'none', background: 'none', color: '#2563eb', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
-                        onClick={handleResendOtp}
+                      onClick={handleResendOtp}
+                      disabled={isOtpRequesting || otpTimer > Math.max(0, otpExpirySeconds - otpResendAfterSeconds)}
                       >
                         Resend Code
                       </button>
@@ -3655,6 +3736,7 @@ export default function App() {
                       className="btn btn-primary"
                       style={{ width: 'auto', height: '40px', padding: '0 1.75rem', fontSize: '0.875rem', fontWeight: 700 }}
                       onClick={handleVerifyOtp}
+                      disabled={isOtpVerifying}
                     >
                       Verify Email & Continue
                     </button>
@@ -3690,12 +3772,7 @@ export default function App() {
                           Total Subscription Amount Due
                         </span>
                         <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e3a8a' }}>
-                          {(() => {
-                            const planObj = publicRegistrationPlans.find(p => p.name === regPlan);
-                            const price = planObj ? planObj.monthlyPrice : 0;
-                            const total = regBillingCycle === 'yearly' ? Math.round(price * 12 * 0.85) : price;
-                            return total > 0 ? `PHP ${total.toLocaleString()}` : 'PHP 0.00';
-                          })()}
+                          {formatRegistrationAmount(selectedRegistrationAmountCentavos)}
                         </div>
                       </div>
                       <span style={{
@@ -3720,8 +3797,7 @@ export default function App() {
                         {[
                           { id: 'GCash', label: 'GCash', icon: '🟢', sub: 'Instant E-Wallet' },
                           { id: 'Maya', label: 'Maya', icon: '🟣', sub: 'E-Wallet & QR' },
-                          { id: 'Bank Transfer', label: 'Bank Transfer', icon: '🔵', sub: 'BDO / BPI Online' },
-                          { id: 'Demo Payment', label: 'Demo Bypass', icon: '⚡', sub: '1-Click Direct Approval' }
+                          { id: 'Bank Transfer', label: 'Bank Transfer', icon: '🔵', sub: 'BDO / BPI Online' }
                         ].map(m => (
                           <div
                             key={m.id}
@@ -3749,8 +3825,7 @@ export default function App() {
                     </div>
 
                     {/* Account Instructions Box */}
-                    {paymentMethod !== 'Demo Payment' && (
-                      <div style={{
+                    <div style={{
                         backgroundColor: '#f8fafc',
                         border: '1px solid #e2e8f0',
                         borderRadius: '12px',
@@ -3780,11 +3855,9 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                    </div>
 
-                    {paymentMethod !== 'Demo Payment' && (
-                      <div className="form-group" style={{ margin: 0 }}>
+                    <div className="form-group" style={{ margin: 0 }}>
                         <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.35rem' }}>
                           Official Reference / Transaction Number *
                         </label>
@@ -3796,8 +3869,7 @@ export default function App() {
                           onChange={(e) => setPaymentRef(e.target.value)}
                           style={{ height: '40px', borderRadius: '8px', fontSize: '0.85rem' }}
                         />
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', marginTop: '2rem' }}>
@@ -3814,6 +3886,7 @@ export default function App() {
                       className="btn btn-primary"
                       style={{ width: 'auto', height: '40px', padding: '0 1.75rem', fontSize: '0.875rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                       onClick={handleCompleteDemoPayment}
+                      disabled={isPaymentSubmitting}
                     >
                       <span>Complete & Submit Payment</span>
                       <Check size={16} />
@@ -3945,7 +4018,7 @@ export default function App() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: '#64748b' }}>Registration Reference ID:</span>
-                  <code style={{ fontWeight: 700, color: '#0f172a' }}>{statusRegistrationId || 'N/A'}</code>
+                  <code style={{ fontWeight: 700, color: '#0f172a' }}>{statusRegistration?.registrationNumber || activeRegistrationNumber || statusRegistrationId || 'N/A'}</code>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: '#64748b' }}>Clinic Facility Name:</span>
@@ -3953,7 +4026,7 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
                   <span style={{ color: '#64748b' }}>Primary Subscriber Email:</span>
-                  <span style={{ color: '#0f172a' }}>{statusRegistration?.ownerEmail || regEmail}</span>
+                  <span style={{ color: '#0f172a' }}>{regEmail}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#64748b' }}>Current Audit Clearance:</span>
@@ -3977,15 +4050,7 @@ export default function App() {
                   type="button"
                   className="btn btn-outline"
                   style={{ flex: 1, height: '40px', fontSize: '0.85rem' }}
-                  onClick={() => {
-                    const check = mockRegistrationService.getRegistrationById(statusRegistrationId);
-                    if (check && check.paymentStatus === 'approved') {
-                      showToast("Your account has been approved by Platform Admin!", "success");
-                      setCurrentRoute('/register/success');
-                    } else {
-                      showToast("Status refreshed: Audit clearance is in progress.", "info");
-                    }
-                  }}
+                  onClick={() => void refreshRegistrationStatus()}
                 >
                   <RefreshCw size={15} /> Check / Refresh Status
                 </button>
@@ -3998,6 +4063,11 @@ export default function App() {
                   Return to Login
                 </button>
               </div>
+              {registrationStatusError && (
+                <div className="banner-alert danger" style={{ marginTop: '1rem' }}>
+                  {registrationStatusError}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -4061,7 +4131,7 @@ export default function App() {
                   Clinic Workspace Ready!
                 </h2>
                 <p style={{ fontSize: '0.875rem', color: '#64748b', margin: 0 }}>
-                  Your subscription and clinic branches have been provisioned successfully.
+                  Platform approval and provisioning are handled in a later phase.
                 </p>
               </div>
 
@@ -4078,13 +4148,13 @@ export default function App() {
                     Registered Login Email:
                   </span>
                   <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>
-                    {statusRegistration?.ownerEmail || regEmail || ''}
+                    {regEmail || ''}
                   </strong>
                 </div>
 
                 <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                   <span style={{ color: '#64748b', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.35rem' }}>
-                    Temporary Access Password:
+                    Platform Review Status:
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <code style={{
@@ -4098,19 +4168,11 @@ export default function App() {
                       fontWeight: 700,
                       color: '#0f172a'
                     }}>
-                      {statusRegistration?.tempPassword || 'Awaiting issuance'}
+                      Awaiting Platform Admin review
                     </code>
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      style={{ height: '36px', width: 'auto', fontSize: '0.8rem' }}
-                      onClick={() => copyToClipboard(statusRegistration?.tempPassword || '')}
-                    >
-                      Copy Password
-                    </button>
                   </div>
                   <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.4rem', display: 'block' }}>
-                    ℹ️ For security, you will be prompted to define your personal password upon first sign-in.
+                    ℹ️ No account credentials are created during the Phase 1 registration flow.
                   </span>
                 </div>
               </div>

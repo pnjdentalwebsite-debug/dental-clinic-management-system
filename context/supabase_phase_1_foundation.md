@@ -140,3 +140,11 @@ file extension.
 - No service-role key is placed in `VITE_*` variables.
 - The first schema migration has policy tests for platform, owner, staff, and
   associate access before it is applied to production.
+
+## Phase 1C Registration Backend Foundation - August 29, 2026
+
+- Added additive Registration staging columns and a server-only OTP challenge store.
+- Added public-safe plan/OTP endpoints and strengthened existing registration/payment/status functions.
+- Added service-role-only OTP verification and atomic/idempotent payment RPCs.
+- Direct anon Registration insertion is retired in favor of the Edge Function path.
+- Source tests and production build pass; CLI migration validation, deployment, email configuration, and frontend cutover remain outstanding.

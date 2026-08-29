@@ -84,3 +84,9 @@
   - branches
   - laboratories
   - associate dentists
+
+## Phase 1C Registration Remaining Items
+
+- Supabase CLI is unavailable on the current host, so the new migration was not applied or database-linted locally.
+- Registration email delivery requires server secrets: `REGISTRATION_OTP_PEPPER`, `REGISTRATION_EMAIL_ENDPOINT`, `REGISTRATION_EMAIL_API_TOKEN`, and `REGISTRATION_EMAIL_FROM`.
+- The live `App.tsx` Registration Wizard still uses mock/localStorage services until the separately approved frontend cutover.

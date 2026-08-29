@@ -304,9 +304,56 @@
 ## Supabase Secure Onboarding - August 26, 2026
 - `supabase/functions/registration-submit`: creates a pending registration from validated public input and resolves plan pricing server-side.
 - `supabase/functions/registration-submit-payment`: records a pending payment without trusting client-provided price or status.
-- `supabase/functions/registration-status`: supports privacy-safe email-only pending/ready account status checks.
+- `supabase/functions/registration-status`: supports privacy-safe status checks bound to registration ID plus normalized owner email.
 - `supabase/functions/platform-approve-registration`: platform-admin-only approval that creates the owner Auth account and atomically provisions the tenant and primary clinic.
 - `supabase/functions/complete-initial-password`: authenticated first-password completion; clears only the caller's password-change requirement.
 - `supabase/functions/provision-member-account`: owner-authorized Auth provisioning for Staff and Associate accounts with tenant and branch validation.
 - `src/infrastructure/supabase/onboarding.ts`: browser adapter for the Edge Function API. It contains no service-role credential or privileged database logic.
 - Current boundary: legacy screens still use prototype localStorage services until their individual scoped repositories are migrated.
+
+## Registration Backend Foundation - August 29, 2026
+- Public plan catalog is Edge Function-backed without anon table reads.
+- Registration intake preserves structured owner/clinic staging data and creates no active tenant resources.
+- Registration OTP is server-generated, hash-only, expiring, attempt/rate-limited, and does not create an Auth user.
+- Payment submission requires verified email and uses a service-role-only atomic/idempotent RPC.
+- Status lookup requires registration ID plus normalized owner email. The frozen Registration frontend is cut over and browser E2E validated.
+
+## Development/Test Subscription Plan Catalog - August 29, 2026
+- Canonical development plans: Basic ₱5,000 monthly / ₱51,000 annual, Plus ₱8,500 / ₱86,700, Max ₱10,000 / ₱102,000.
+- Annual totals match the existing Registration UI's 15% discount calculation. Plus is limited to 3 clinics and 6 associates.
+- The development catalog is deployed in the linked Supabase project and commercial pricing may be revised later; Registration is its current public catalog consumer.
+
+## Phase 1 Registration Frontend Cutover - August 29, 2026
+- The frozen six-step Registration UI loads Basic/Plus/Max from `registration-plans` and submits the selected plan code to `registration-submit`.
+- Email verification invokes the real OTP request/verify functions; payment invokes the atomic backend submission without an amount; status lookup always uses registration ID plus normalized owner email.
+- The public registration flow ends at payment verification pending. Platform Admin review/provisioning is not part of this UI module.
+- Phase 1 Registration is complete: live backend and browser E2E validation confirmed Gmail OTP delivery, server-authoritative pricing, and the Plus monthly payment staging amount of `850000` centavos.
+
+## Phase 2C.1 Platform Admin Database Foundation - August 29, 2026
+- The database module now has a local tracked foundation for distinct payment review, payment rejection, registration rejection, provisioning claims, retry/failure recording, and final transactional tenant provisioning.
+- Subscription provisioning snapshots `billing_cycle`, approved `amount_centavos`, and `source_payment_id`; owner names are preserved in `profiles.display_name`, and primary clinics use structured Registration address fields.
+- Existing Platform Admin screens are not connected to these RPCs and retain their current runtime behavior until the later frontend cutover.
+
+## Phase 2C.2A Platform Admin Review API Foundation - August 29, 2026
+- `platform-registration-review-list` and `platform-registration-review-detail` provide authenticated, allowlisted access to real registration/payment review data after a server-side `platform_admins` check.
+- `platform-review-payment` calls the Phase 2 atomic payment-review RPC; `platform-reject-registration` calls the safe registration-rejection RPC. Neither endpoint provisions identities or tenant resources.
+- APIs are local-only and unconnected to the frozen Platform Admin UI. Remote migration/function deployment and frontend cutover remain later work.
+
+## Phase 2C.2B Platform Admin Provisioning Orchestration - August 29, 2026
+- The existing `platform-approve-registration` now performs shared Platform Admin authorization, durable attempt claiming, ledger-proven Auth identity resolution, retry-safe compensation, the Phase 2C.1 four-argument provisioning RPC, and safe credential-delivery state handling.
+- `_shared/registration-email.ts` remains the server-only gateway boundary for Phase 1 OTP and now also supports initial Clinic Owner credentials. Approval never returns the temporary password.
+- `platform-resend-initial-credential` verifies the completed attempt, attempt-created Auth identity, active Clinic Owner membership, and matching registration/profile/Auth emails before rotating and emailing a new temporary credential. It never repeats tenant provisioning.
+- The authoritative initial-password flag is `subscriber_memberships.must_change_password`; `complete-initial-password` hardening and frontend routing remain separate work.
+- All Phase 2C.2B functions are local-only. The migration/functions are not deployed and the frozen Platform Admin UI remains mock-backed.
+
+## Phase 2C.2C-A First-Login RLS Access Gate - August 29, 2026
+- Normal subscriber, Clinic Owner, and clinic-assignment authorization now requires the active membership's authoritative `must_change_password` value to be false.
+- Platform Admin access remains membership-independent. Gated owner/staff/associate memberships cannot reach normal subscriber, clinic, clinical, billing, payment, subscription, or tenant-audit rows through existing helper-backed policies.
+- `get_my_first_login_state()` is the narrow authenticated routing contract: no arguments, own memberships only, minimal fields only, and an explicit multiple-active-owner count/conflict indicator.
+- This correction is local-only and undeployed. `complete-initial-password` and frontend first-login routing are still separate next work.
+
+## Phase 2C.2C-B Initial Password Completion - August 30, 2026
+- `complete-initial-password` now accepts only `{ newPassword }`, targets `ctx.userClaims.id`, and resolves exactly one active Clinic Owner membership before any Auth change.
+- The server requires 12-256 characters with a letter and digit. Auth is updated first; only the resolved membership can transition from `must_change_password=true` to false with `password_changed_at` stamped.
+- Success records `account.initial_password.changed`, returns only `{ completed: true, mustChangePassword: false }`, and attempts Admin `signOut(accessToken, 'others')` without exposing the bearer token.
+- The RLS gate remains authoritative before/after completion. Frontend routing and adapter cutover remain later work; the function and Phase 2 migrations are local-only and undeployed.
