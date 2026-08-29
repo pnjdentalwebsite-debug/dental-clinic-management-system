@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ShieldAlert, 
   Eye, 
@@ -109,6 +109,15 @@ import { MasterFileDirectorySectionPage } from './features/clinic-subsystem/mast
 import { PDFDesignerPage } from './features/clinic-subsystem/pdf-designer/PDFDesignerPage';
 import { SubscriptionLockedScreen } from './features/clinic-owner/components/SubscriptionLockedScreen';
 import { onboardingApi, type RegistrationPlan, type RegistrationPublicStatus } from './infrastructure/supabase/onboarding';
+import {
+  completeClinicOwnerInitialPassword,
+  resolveClinicOwnerAccess,
+  signInClinicOwner,
+  signOutClinicOwner,
+  validateInitialPassword,
+  type ClinicOwnerAccess,
+} from './infrastructure/supabase/clinicOwnerAuth';
+import { getSupabaseClient } from './infrastructure/supabase/client';
 
 // Default Platform Owner credentials
 const DEFAULT_PLATFORM_OWNER = {
@@ -238,23 +247,6 @@ interface Toast {
   message: string;
   type: 'success' | 'info' | 'warning' | 'error';
 }
-
-type AccountStatusCheck =
-  | {
-      kind: 'ready';
-      title: string;
-      message: string;
-      clinicName?: string;
-      ownerName?: string;
-      tempPassword?: string;
-    }
-  | {
-      kind: 'pending' | 'rejected' | 'not_found';
-      title: string;
-      message: string;
-      clinicName?: string;
-      ownerName?: string;
-    };
 
 // LocalStorage helpers to load safe defaults
 const SESSION_STORAGE_KEY = 'pnj_mock_session';
@@ -533,24 +525,7 @@ export const mockAuthService = {
     mockStorage.setSession(null);
   },
 
-  getCurrentSession: () => mockStorage.getSession(),
-  
-  updatePassword: (email: string, oldPass: string, newPass: string): boolean => {
-    const users = mockStorage.getUsers();
-    let updated = false;
-    const nextUsers = users.map(u => {
-      if (u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === oldPass) {
-        updated = true;
-        return { ...u, passwordHash: newPass, mustChangePassword: false };
-      }
-      return u;
-    });
-    if (updated) {
-      mockStorage.setUsers(nextUsers);
-      mockActivityService.logEvent('Password Reset', `Password changed successfully for ${email}.`, 'clinic_owner');
-    }
-    return updated;
-  }
+  getCurrentSession: () => mockStorage.getSession()
 };
 
 export const mockRegistrationService = {
@@ -808,6 +783,7 @@ export default function App() {
   const [loggedUserName, setLoggedUserName] = useState<string>('');
   const [loggedClinicName, setLoggedClinicName] = useState<string>('');
   const [loggedPlanName, setLoggedPlanName] = useState<string>('');
+  const [clinicOwnerAccess, setClinicOwnerAccess] = useState<ClinicOwnerAccess>({ kind: 'loading' });
 
   // Subsystem Router Context
   let currentClinic: any = null;
@@ -825,13 +801,15 @@ export default function App() {
     }
   }
   const isOwnerMasterFileRoute = currentRoute === '/clinic/directory' || currentRoute.startsWith('/clinic/directory/');
-  const authenticatedRoleUser = loggedUserEmail
+  const usesRealClinicOwnerAuthority = clinicOwnerAccess.kind === 'password_change_required' || clinicOwnerAccess.kind === 'ready';
+  const authenticatedRoleUser = !usesRealClinicOwnerAuthority && loggedUserEmail
     ? mockStorage.getUsers().find((user) => user.email.toLowerCase() === loggedUserEmail.toLowerCase())
     : undefined;
   const assignedClinicIds = authenticatedRoleUser?.clinicIds || [];
 
   // Check active subscription status for Clinic routes
   const subscriberRecord = React.useMemo(() => {
+    if (usesRealClinicOwnerAuthority) return null;
     if (!loggedUserEmail) return null;
     const subs = mockPlatformManagementService.listSubscribers();
     const platformUser = mockPlatformManagementService.listUsers()
@@ -841,7 +819,7 @@ export default function App() {
       subs.find(s => s.email?.toLowerCase() === loggedUserEmail?.toLowerCase()) ||
       null
     );
-  }, [loggedUserEmail, currentRoute]);
+  }, [loggedUserEmail, currentRoute, usesRealClinicOwnerAuthority]);
 
   if (
     isSubsystemRoute &&
@@ -966,11 +944,9 @@ export default function App() {
   const [emailError, setEmailError] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string>('');
   const [authError, setAuthError] = useState<string>('');
-  const [accountStatusCheck, setAccountStatusCheck] = useState<AccountStatusCheck | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
 
   // Clinic Owner Reset state variables
-  const [tempPasswordInput, setTempPasswordInput] = useState<string>('');
   const [newPasswordInput, setNewPasswordInput] = useState<string>('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
   const [passwordChangeError, setPasswordChangeError] = useState<string>('');
@@ -1042,36 +1018,6 @@ export default function App() {
     showToast("Platform Administrator credentials loaded.", "info");
   };
 
-  const handleLoadClinicOwnerCredentials = () => {
-    const regs = mockStorage.getRegistrations();
-    const approvedRegs = regs.filter(r => r.paymentStatus === 'approved' && r.tempPassword);
-    const approvedReg = approvedRegs[approvedRegs.length - 1];
-    if (approvedReg && approvedReg.tempPassword) {
-      setEmail(approvedReg.ownerEmail);
-      setPassword(approvedReg.tempPassword);
-      setEmailError('');
-      setPasswordError('');
-      setAuthError('');
-      showToast(`Clinic Owner (${approvedReg.clinicName}) credentials loaded.`, "info");
-      return;
-    }
-
-    const platformUsers = mockPlatformManagementService.listUsers();
-    const ownerUsers = platformUsers.filter(u => u.role === 'clinic_owner' && (u as any).tempPassword);
-    const latestOwner = ownerUsers[ownerUsers.length - 1];
-    if (latestOwner && (latestOwner as any).tempPassword) {
-      setEmail(latestOwner.email);
-      setPassword((latestOwner as any).tempPassword);
-      setEmailError('');
-      setPasswordError('');
-      setAuthError('');
-      showToast(`Clinic Owner (${latestOwner.fullName}) credentials loaded.`, "info");
-      return;
-    }
-
-    showToast("No approved clinic owner account found yet. Please register or approve a registration first.", "info");
-  };
-
   const handleOpenForgotPassword = () => {
     setForgotEmailInput(email || '');
     setForgotSubmitted(false);
@@ -1085,7 +1031,7 @@ export default function App() {
       return;
     }
     setForgotSubmitted(true);
-    showToast(`Password reset code dispatched to ${forgotEmailInput}.`, "success");
+    showToast('Password recovery is handled by platform support. No credential is displayed in this browser.', "info");
   };
 
   const validateAccountInfo = () => {
@@ -1130,12 +1076,84 @@ export default function App() {
     }
   };
 
-  // Sync state data on refresh
+  const refreshClinicOwnerAccess = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setClinicOwnerAccess({ kind: 'signed_out' });
+      return;
+    }
+    setClinicOwnerAccess({ kind: 'loading' });
+    setClinicOwnerAccess(await resolveClinicOwnerAccess(client));
+  }, []);
+
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setClinicOwnerAccess({ kind: 'signed_out' });
+      return;
+    }
+
+    void refreshClinicOwnerAccess();
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (!session) {
+          setClinicOwnerAccess({ kind: 'signed_out' });
+          return;
+        }
+        void refreshClinicOwnerAccess();
+      }, 0);
+    });
+    return () => subscription.unsubscribe();
+  }, [refreshClinicOwnerAccess]);
+
+  // Sync mock-only non-Clinic-Owner sessions while the Clinic Owner path is
+  // derived exclusively from the Supabase session and membership state.
   const syncStateFromStorage = () => {
     const list = mockStorage.getRegistrations();
     setRegistrations(list);
-    
+
+    if (clinicOwnerAccess.kind === 'loading') return;
+    if (clinicOwnerAccess.kind === 'password_change_required') {
+      setLoggedUserEmail(clinicOwnerAccess.email);
+      setLoggedUserName(clinicOwnerAccess.email);
+      setLoggedClinicName('');
+      setLoggedPlanName('');
+      setUserRole('clinic_owner');
+      if (currentRoute !== '/clinic/change-password') {
+        setCurrentRoute('/clinic/change-password');
+      }
+      return;
+    }
+    if (clinicOwnerAccess.kind === 'ready') {
+      setLoggedUserEmail(clinicOwnerAccess.email);
+      setLoggedUserName(clinicOwnerAccess.email);
+      setLoggedClinicName('');
+      setLoggedPlanName('');
+      setUserRole('clinic_owner');
+      if (!currentRoute.startsWith('/clinic/')) {
+        setCurrentRoute('/clinic/dashboard');
+        setActiveModule('Dashboard');
+      }
+      return;
+    }
+    if (clinicOwnerAccess.kind === 'error') {
+      setUserRole('guest');
+      setLoggedUserEmail('');
+      setLoggedUserName('');
+      setLoggedClinicName('');
+      setLoggedPlanName('');
+      if (currentRoute !== '/unauthorized') setCurrentRoute('/unauthorized');
+      return;
+    }
+
     const session = mockStorage.getSession();
+    if (session?.role === 'clinic_owner') {
+      // A legacy browser session is not authority for Clinic Owner access.
+      mockStorage.setSession(null);
+      setUserRole('guest');
+      if (currentRoute !== '/login') setCurrentRoute('/login');
+      return;
+    }
     if (session) {
       setLoggedUserEmail(session.email);
       setLoggedUserName(session.name);
@@ -1148,36 +1166,6 @@ export default function App() {
         if (!currentRoute.startsWith('/platform/')) {
           setCurrentRoute('/platform/dashboard');
           setActiveModule('Dashboard');
-        }
-      } else if (session.role === 'clinic_owner') {
-        const users = mockStorage.getUsers();
-        const curUser = users.find(u => u.email.toLowerCase() === session.email.toLowerCase());
-        if (currentRoute.startsWith('/platform/')) {
-          mockAuditService.appendAuditEvent({
-            eventKey: `denied-${session.email}-${currentRoute}`,
-            action: 'auth.route_access_denied',
-            category: 'authorization',
-            module: 'route_guard',
-            actorType: 'subscriber_user',
-            actorId: session.email,
-            actorName: session.name,
-            actorRole: 'clinic_owner',
-            targetType: 'route',
-            targetId: currentRoute,
-            targetLabel: currentRoute,
-            result: 'denied',
-            severity: 'medium',
-            summary: `Access denied to ${currentRoute}.`
-          });
-        }
-        
-        if (curUser && curUser.mustChangePassword) {
-          setCurrentRoute('/clinic/change-password');
-        } else {
-          if (!currentRoute.startsWith('/clinic/')) {
-            setCurrentRoute('/clinic/dashboard');
-            setActiveModule('Dashboard');
-          }
         }
       } else if (session.role === 'associate' || session.role === 'staff') {
         // Personnel may enter only an assigned branch workspace. Clinic-owner
@@ -1226,7 +1214,7 @@ export default function App() {
     mockPlatformSettingsService.initializeSettings();
     syncStateFromStorage();
     setActiveModule(getModuleNameFromRoute(currentRoute));
-  }, [currentRoute]);
+  }, [currentRoute, clinicOwnerAccess]);
 
   useEffect(() => {
     if (window.location.pathname !== currentRoute) {
@@ -1242,103 +1230,11 @@ export default function App() {
     }, 4500);
   };
 
-  const resolveEmailOnlyAccountStatus = (rawEmail: string): AccountStatusCheck => {
-    const normalizedEmail = rawEmail.trim().toLowerCase();
-    const registrations = mockPlatformManagementService.listRegistrations();
-    const registration = registrations.find(reg => String(reg.ownerEmail || '').toLowerCase() === normalizedEmail);
-    const subscribers = mockPlatformManagementService.listSubscribers();
-    const subscriber = subscribers.find(sub => String(sub.email || '').toLowerCase() === normalizedEmail);
-    const users = mockPlatformManagementService.listUsers();
-    const ownerUser = users.find(user => String(user.email || '').toLowerCase() === normalizedEmail && user.role === 'clinic_owner');
-    const authUser = mockStorage.getUsers().find(user => String(user.email || '').toLowerCase() === normalizedEmail);
-
-    if (!registration && !subscriber && !ownerUser) {
-      return {
-        kind: 'not_found',
-        title: 'No registration found',
-        message: 'We could not find a clinic owner registration for this email. Please check the email spelling or register a clinic first.'
-      };
-    }
-
-    if (registration?.paymentStatus === 'rejected') {
-      return {
-        kind: 'rejected',
-        title: 'Registration needs attention',
-        message: registration.rejectionReason
-          ? `Your payment verification was rejected: ${registration.rejectionReason}`
-          : 'Your payment verification was rejected. Please contact the platform administrator for the next steps.',
-        clinicName: registration.clinicName,
-        ownerName: registration.ownerName
-      };
-    }
-
-    const tempPassword = registration?.tempPassword || (authUser?.mustChangePassword ? authUser.passwordHash : '');
-    const hasProvisionedAuth = Boolean(authUser && (tempPassword || !authUser.mustChangePassword));
-    const hasActivePlatformIdentity = subscriber?.accountStatus === 'active' && ownerUser?.accountStatus === 'active';
-    const isApproved = registration?.registrationStatus === 'account_ready' || registration?.paymentStatus === 'approved';
-    const isReady = (isApproved || hasActivePlatformIdentity) && hasProvisionedAuth;
-
-    if (isReady) {
-      return {
-        kind: 'ready',
-        title: 'Account approved and ready',
-        message: tempPassword
-          ? 'Your clinic owner account is approved. Sign in using your email and the temporary password issued by the platform.'
-          : 'Your clinic owner account is active. Sign in using your email and current password.',
-        clinicName: registration?.clinicName || subscriber?.primaryClinicName || subscriber?.businessName,
-        ownerName: registration?.ownerName || ownerUser?.fullName,
-        tempPassword
-      };
-    }
-
-    if (isApproved || hasActivePlatformIdentity) {
-      return {
-        kind: 'pending',
-        title: 'Account approved, setup incomplete',
-        message: 'Your payment is approved, but the login credential was not provisioned cleanly yet. Please ask the platform administrator to re-run payment approval so a fresh temporary password is issued.',
-        clinicName: registration?.clinicName || subscriber?.primaryClinicName || subscriber?.businessName,
-        ownerName: registration?.ownerName || ownerUser?.fullName
-      };
-    }
-
-    return {
-      kind: 'pending',
-      title: 'Registration still under review',
-      message: registration?.paymentStatus === 'unpaid'
-        ? 'Your clinic registration is saved, but payment has not been submitted or verified yet.'
-        : 'Your clinic registration/payment is still awaiting platform approval. A temporary password will be issued once approved.',
-      clinicName: registration?.clinicName || subscriber?.primaryClinicName || subscriber?.businessName,
-      ownerName: registration?.ownerName || ownerUser?.fullName
-    };
-  };
-
-  const handleEmailOnlyAccountStatusCheck = () => {
-    const status = resolveEmailOnlyAccountStatus(email);
-    setAccountStatusCheck(status);
-    showToast(status.title, status.kind === 'ready' ? 'success' : status.kind === 'rejected' ? 'error' : status.kind === 'pending' ? 'warning' : 'info');
-    mockAuditService.appendAuditEvent({
-      action: 'auth.email_status_check',
-      category: 'authentication',
-      module: 'auth',
-      actorType: 'anonymous',
-      actorId: email || 'unknown-email',
-      actorName: 'Anonymous Prototype Actor',
-      actorRole: 'anonymous',
-      targetType: 'registration',
-      targetId: email || 'unknown-email',
-      result: status.kind === 'not_found' ? 'failure' : 'success',
-      severity: status.kind === 'rejected' ? 'medium' : 'low',
-      summary: `Email-only account status check returned: ${status.title}`,
-      metadata: { email, status: status.kind }
-    });
-  };
-
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError('');
     setPasswordError('');
     setAuthError('');
-    setAccountStatusCheck(null);
 
     // Validations
     let hasError = false;
@@ -1351,18 +1247,18 @@ export default function App() {
     }
 
     if (!password) {
-      if (!hasError) {
-        handleEmailOnlyAccountStatusCheck();
-        return;
-      }
       setPasswordError('Password is required.');
       hasError = true;
     }
 
     if (hasError) return;
 
+    const legacyMockUser = mockStorage.getUsers().find((user) => (
+      user.email.toLowerCase() === email.trim().toLowerCase() && user.role !== 'clinic_owner'
+    ));
+
     setIsLoggingIn(true);
-    setTimeout(() => {
+    if (legacyMockUser) {
       const res = mockAuthService.login(email, password);
       setIsLoggingIn(false);
       if (res.success && res.user) {
@@ -1411,14 +1307,61 @@ export default function App() {
           summary: 'Login failed.',
           description: res.error || 'Authentication failed.',
           errorMessage: res.error,
-          metadata: { email, password }
+          metadata: { email }
         });
         setAuthError(res.error || 'Authentication failed.');
       }
-    }, 1000);
+      return;
+    }
+
+    const client = getSupabaseClient();
+    if (!client) {
+      setIsLoggingIn(false);
+      setAuthError('Secure sign-in is not configured for this environment. Please contact platform support.');
+      return;
+    }
+
+    try {
+      const access = await signInClinicOwner(email.trim(), password, client);
+      setClinicOwnerAccess(access);
+      if (access.kind === 'password_change_required') {
+        setCurrentRoute('/clinic/change-password');
+      } else if (access.kind === 'ready') {
+        setCurrentRoute('/clinic/dashboard');
+        setActiveModule('Dashboard');
+      } else if (access.kind === 'error') {
+        setAuthError(access.message);
+        setCurrentRoute('/unauthorized');
+      }
+    } catch {
+      setAuthError('Unable to sign in right now. Please check your connection and try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
+    const isRealClinicOwner = clinicOwnerAccess.kind === 'password_change_required'
+      || clinicOwnerAccess.kind === 'ready'
+      || clinicOwnerAccess.kind === 'error';
+    if (isRealClinicOwner) {
+      try {
+        const client = getSupabaseClient();
+        if (client) await signOutClinicOwner(client);
+      } catch {
+        showToast('Sign out could not be confirmed. Please close the browser and try again.', 'warning');
+        return;
+      }
+      setClinicOwnerAccess({ kind: 'signed_out' });
+      setLogoutModalOpen(false);
+      setEmail('');
+      setPassword('');
+      setNewPasswordInput('');
+      setConfirmPasswordInput('');
+      setCurrentRoute('/login');
+      showToast('You have signed out successfully.', 'success');
+      return;
+    }
     mockAuditService.appendAuditEvent({
       action: 'auth.logout',
       category: 'authentication',
@@ -1672,29 +1615,28 @@ export default function App() {
     showToast("Payment details rejected.", "error");
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordChangeError('');
 
-    const currentPassword = tempPasswordInput;
     const nextPassword = newPasswordInput;
     const confirmedPassword = confirmPasswordInput;
-    const passwordHasMinimums = nextPassword.length >= 8 && /[A-Za-z]/.test(nextPassword) && /\d/.test(nextPassword);
 
-    if (!loggedUserEmail) {
+    if (clinicOwnerAccess.kind !== 'password_change_required') {
       setPasswordChangeError('Your sign-in session was not found. Please sign in again using your temporary password.');
       showToast('Session expired. Please sign in again.', 'warning');
       setCurrentRoute('/login');
       return;
     }
 
-    if (!currentPassword || !nextPassword || !confirmedPassword) {
-      setPasswordChangeError('Please complete the temporary password, new password, and confirmation fields.');
+    if (!nextPassword || !confirmedPassword) {
+      setPasswordChangeError('Please complete the new password and confirmation fields.');
       return;
     }
 
-    if (!passwordHasMinimums) {
-      setPasswordChangeError('Use at least 8 characters with at least one letter and one number.');
+    const passwordPolicyError = validateInitialPassword(nextPassword);
+    if (passwordPolicyError) {
+      setPasswordChangeError(passwordPolicyError);
       return;
     }
 
@@ -1703,54 +1645,42 @@ export default function App() {
       return;
     }
 
-    if (currentPassword === nextPassword) {
-      setPasswordChangeError('Your new password must be different from the temporary password.');
-      return;
-    }
-
     setIsChangingPassword(true);
-    const res = mockAuthService.updatePassword(loggedUserEmail, currentPassword, nextPassword);
-    if (res) {
-      const syncResult = mockPlatformManagementService.completePasswordChangeByEmail(loggedUserEmail);
-      mockAuditService.appendAuditEvent({
-        action: 'auth.password_change',
-        category: 'authentication',
-        module: 'auth',
-        targetType: 'user',
-        targetId: loggedUserEmail,
-        targetLabel: loggedUserName,
-        result: 'success',
-        severity: 'medium',
-        summary: `${userRole} password changed after temporary password sign-in.`,
-        metadata: { email: loggedUserEmail, platformSync: syncResult.ok ? 'synced' : 'missing-platform-user' }
-      });
-      setTempPasswordInput('');
+    try {
+      const client = getSupabaseClient();
+      if (!client) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      const completion = await completeClinicOwnerInitialPassword(nextPassword, client);
+      if (!completion.ok) {
+        setPasswordChangeError(completion.message);
+        return;
+      }
+      const refreshedAccess = await resolveClinicOwnerAccess(client);
+      setClinicOwnerAccess(refreshedAccess);
+      if (refreshedAccess.kind !== 'ready') {
+        setPasswordChangeError(
+          refreshedAccess.kind === 'error'
+            ? refreshedAccess.message
+            : 'Your password was updated, but your Clinic Owner access could not be confirmed.',
+        );
+        return;
+      }
       setNewPasswordInput('');
       setConfirmPasswordInput('');
-      setIsChangingPassword(false);
       showToast("Password updated. Welcome to your workspace.", "success");
-      setCurrentRoute(userRole === 'associate' || userRole === 'staff' ? `/${userRole}/workspace` : '/clinic/dashboard');
+      setCurrentRoute('/clinic/dashboard');
       setActiveModule('Dashboard');
-    } else {
+    } catch {
+      setPasswordChangeError('Unable to update your password right now. Please check your connection and try again.');
+    } finally {
       setIsChangingPassword(false);
-      setPasswordChangeError('Could not change password. Please verify the temporary password issued by the platform.');
-      showToast('Temporary password did not match.', 'error');
     }
   };
 
   const handleCancelPasswordChange = () => {
-    setTempPasswordInput('');
     setNewPasswordInput('');
     setConfirmPasswordInput('');
     setPasswordChangeError('');
-    mockAuthService.logout();
-    setUserRole('guest');
-    setLoggedUserEmail('');
-    setLoggedUserName('');
-    setLoggedClinicName('');
-    setLoggedPlanName('');
-    setCurrentRoute('/login');
-    showToast('Password change is required before entering the clinic console.', 'warning');
+    void handleLogoutConfirm();
   };
 
   // Dev bypass triggers
@@ -1801,11 +1731,6 @@ export default function App() {
     setActiveModule(name);
     setCurrentRoute(route);
     setMobileSidebarOpen(false);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    showToast("Copied to clipboard!", "success");
   };
 
   const renderMasterFileDirectoryContent = (routeBase: string, clinicContext: any) => {
@@ -2056,6 +1981,9 @@ export default function App() {
   const formatRegistrationAmount = (amountCentavos: number | null) => amountCentavos === null
     ? 'PHP 0.00'
     : `PHP ${(amountCentavos / 100).toLocaleString()}`;
+  const firstLoginRouteGateActive = clinicOwnerAccess.kind === 'loading'
+    || clinicOwnerAccess.kind === 'password_change_required';
+  const clinicOwnerAccessError = clinicOwnerAccess.kind === 'error' ? clinicOwnerAccess : null;
 
   return (
     <div className="app-container">
@@ -2287,26 +2215,6 @@ export default function App() {
                   >
                     <span>👑</span> Platform Admin
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleLoadClinicOwnerCredentials}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.3rem 0.65rem',
-                      borderRadius: '8px',
-                      fontSize: '0.76rem',
-                      fontWeight: 600,
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <span>🏥</span> Clinic Owner
-                  </button>
                 </div>
               </div>
 
@@ -2341,7 +2249,6 @@ export default function App() {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      setAccountStatusCheck(null);
                     }}
                     style={{
                       height: '42px',
@@ -2378,7 +2285,6 @@ export default function App() {
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
-                        setAccountStatusCheck(null);
                       }}
                       onKeyDown={(e) => {
                         if (e.getModifierState && e.getModifierState('CapsLock')) {
@@ -2430,102 +2336,7 @@ export default function App() {
                       <AlertTriangle size={12} /> {passwordError}
                     </div>
                   )}
-                  <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '0.35rem', lineHeight: 1.45 }}>
-                    No temporary password yet? Enter your email only, then press Sign In to check your registration approval status.
-                  </div>
                 </div>
-
-                {accountStatusCheck && (
-                  <div
-                    style={{
-                      borderRadius: '14px',
-                      padding: '0.85rem',
-                      display: 'grid',
-                      gap: '0.65rem',
-                      background:
-                        accountStatusCheck.kind === 'ready' ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%)' :
-                        accountStatusCheck.kind === 'pending' ? 'linear-gradient(135deg, #fffbeb 0%, #fff7ed 100%)' :
-                        accountStatusCheck.kind === 'rejected' ? 'linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%)' :
-                        'linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)',
-                      border:
-                        accountStatusCheck.kind === 'ready' ? '1px solid #a7f3d0' :
-                        accountStatusCheck.kind === 'pending' ? '1px solid #fde68a' :
-                        accountStatusCheck.kind === 'rejected' ? '1px solid #fecaca' :
-                        '1px solid #bfdbfe',
-                      color:
-                        accountStatusCheck.kind === 'ready' ? '#065f46' :
-                        accountStatusCheck.kind === 'pending' ? '#92400e' :
-                        accountStatusCheck.kind === 'rejected' ? '#991b1b' :
-                        '#1e3a8a'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
-                      <div
-                        style={{
-                          width: '34px',
-                          height: '34px',
-                          borderRadius: '12px',
-                          display: 'grid',
-                          placeItems: 'center',
-                          backgroundColor: 'rgba(255,255,255,0.72)',
-                          border: '1px solid rgba(255,255,255,0.9)',
-                          flexShrink: 0
-                        }}
-                      >
-                        {accountStatusCheck.kind === 'ready' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <strong style={{ display: 'block', fontSize: '0.88rem', color: '#0f172a', marginBottom: '0.2rem' }}>
-                          {accountStatusCheck.title}
-                        </strong>
-                        <p style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.5 }}>
-                          {accountStatusCheck.message}
-                        </p>
-                        {(accountStatusCheck.clinicName || accountStatusCheck.ownerName) && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.6rem' }}>
-                            {accountStatusCheck.clinicName && (
-                              <span style={{ padding: '0.22rem 0.5rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.7)', fontSize: '0.7rem', fontWeight: 700 }}>
-                                Clinic: {accountStatusCheck.clinicName}
-                              </span>
-                            )}
-                            {accountStatusCheck.ownerName && (
-                              <span style={{ padding: '0.22rem 0.5rem', borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.7)', fontSize: '0.7rem', fontWeight: 700 }}>
-                                Owner: {accountStatusCheck.ownerName}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {accountStatusCheck.kind === 'ready' && accountStatusCheck.tempPassword && (
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', paddingLeft: '44px' }}>
-                        <code style={{ padding: '0.35rem 0.55rem', borderRadius: '9px', backgroundColor: '#ffffff', border: '1px solid #d1fae5', color: '#0f172a', fontSize: '0.76rem', fontWeight: 800 }}>
-                          {accountStatusCheck.tempPassword}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(accountStatusCheck.tempPassword || '');
-                            showToast('Temporary password copied.', 'success');
-                          }}
-                          style={{
-                            border: '1px solid #99f6e4',
-                            backgroundColor: '#0f766e',
-                            color: '#ffffff',
-                            borderRadius: '9px',
-                            padding: '0.35rem 0.65rem',
-                            fontSize: '0.73rem',
-                            fontWeight: 800,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Copy Temp Password
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.825rem' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#475569', cursor: 'pointer' }}>
@@ -2651,7 +2462,7 @@ export default function App() {
                 {!forgotSubmitted ? (
                   <form onSubmit={handleSendPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: '1.5' }}>
-                      Enter your registered email address below. We will dispatch a temporary recovery access code to restore your login.
+                      Enter your registered email address below. Platform support will provide the appropriate recovery instructions.
                     </p>
 
                     <div className="form-group" style={{ margin: 0 }}>
@@ -2698,64 +2509,21 @@ export default function App() {
                       lineHeight: '1.5'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, marginBottom: '0.35rem' }}>
-                        <Check size={16} /> Reset Code Dispatched
+                        <Check size={16} /> Recovery Request Recorded
                       </div>
-                      If an account matches <strong>{forgotEmailInput}</strong>, recovery instructions have been sent.
+                      If an account matches <strong>{forgotEmailInput}</strong>, contact platform support for secure recovery instructions.
                     </div>
-
-                    {(() => {
-                      const targetUser = mockStorage.getUsers().find(u => u.email.toLowerCase() === forgotEmailInput.toLowerCase());
-                      const userPass = targetUser?.passwordHash || 'No record found';
-                      return (
-                        <div style={{
-                          backgroundColor: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '10px',
-                          padding: '1rem',
-                          fontSize: '0.825rem'
-                        }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.35rem' }}>
-                            Temporary Access Password:
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <code style={{
-                              flex: 1,
-                              backgroundColor: '#ffffff',
-                              padding: '0.4rem 0.6rem',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              fontFamily: 'monospace',
-                              fontSize: '0.85rem',
-                              fontWeight: 700,
-                              color: '#0f172a'
-                            }}>
-                              {userPass}
-                            </code>
-                            <button
-                              type="button"
-                              className="btn btn-outline"
-                              style={{ height: '32px', width: 'auto', fontSize: '0.75rem' }}
-                              onClick={() => copyToClipboard(userPass)}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
 
                     <button
                       type="button"
                       className="btn btn-primary"
                       style={{ height: '38px', width: '100%', fontSize: '0.85rem' }}
                       onClick={() => {
-                        const targetUser = mockStorage.getUsers().find(u => u.email.toLowerCase() === forgotEmailInput.toLowerCase());
                         setEmail(forgotEmailInput);
-                        if (targetUser?.passwordHash) setPassword(targetUser.passwordHash);
                         setForgotModalOpen(false);
                       }}
                     >
-                      Use Credentials & Return to Sign In
+                      Return to Sign In
                     </button>
                   </div>
                 )}
@@ -4197,18 +3965,24 @@ export default function App() {
               {currentRoute === '/account-suspended' || currentRoute === '/maintenance' ? <AlertTriangle size={44} /> : <ShieldAlert size={44} />}
             </div>
             <h1 style={{ marginBottom: '0.75rem' }}>
-              {currentRoute === '/unauthorized' && 'Unauthorized Access'}
+              {currentRoute === '/unauthorized' && (clinicOwnerAccessError ? 'Clinic Owner Access Unavailable' : 'Unauthorized Access')}
               {currentRoute === '/account-suspended' && 'Account Suspended'}
               {currentRoute === '/maintenance' && (platformSettings.maintenance.title || 'Scheduled Maintenance')}
               {currentRoute === '/not-found' && 'Page Not Found'}
             </h1>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-              {currentRoute === '/unauthorized' && 'This mock account does not have access to the requested workspace.'}
+              {currentRoute === '/unauthorized' && (clinicOwnerAccessError?.message || 'This account does not have access to the requested workspace.')}
               {currentRoute === '/account-suspended' && 'This prototype account is suspended. Contact platform support in a production build.'}
               {currentRoute === '/maintenance' && (platformSettings.maintenance.message || 'The prototype is temporarily unavailable for maintenance.')}
               {currentRoute === '/not-found' && 'The requested prototype route is not available.'}
             </p>
-            <button type="button" className="btn btn-primary" onClick={() => setCurrentRoute('/login')}>Return to Login</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => clinicOwnerAccessError ? void handleLogoutConfirm() : setCurrentRoute('/login')}
+            >
+              {clinicOwnerAccessError ? 'Sign Out' : 'Return to Login'}
+            </button>
           </div>
         </main>
       )}
@@ -4276,9 +4050,9 @@ export default function App() {
 
               <div style={{ display: 'grid', gap: '0.85rem', marginTop: '2rem' }}>
                 {[
-                  'Temporary password is verified first.',
-                  'New password is saved to the mock auth ledger.',
-                  'Platform user reset flags are cleared after success.'
+                  'Your signed-in session is verified first.',
+                  'Your new password is saved through the secure account service.',
+                  'Authoritative first-login access is refreshed after success.'
                 ].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#e0f2fe', fontSize: '0.9rem' }}>
                     <CheckCircle2 size={18} color="#5eead4" />
@@ -4336,15 +4110,10 @@ export default function App() {
 
               <form onSubmit={handleChangePassword} style={{ display: 'grid', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Temporary Password</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    value={tempPasswordInput}
-                    onChange={(e) => setTempPasswordInput(e.target.value)}
-                    placeholder="Enter platform-issued temporary password"
-                    autoComplete="current-password"
-                  />
+                  <label className="form-label">Signed-in Session</label>
+                  <div className="form-input" style={{ display: 'flex', alignItems: 'center', color: '#475569', backgroundColor: '#f8fafc' }}>
+                    Temporary credential verified during secure sign-in.
+                  </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">New Password</label>
@@ -4353,7 +4122,7 @@ export default function App() {
                     className="form-input"
                     value={newPasswordInput}
                     onChange={(e) => setNewPasswordInput(e.target.value)}
-                    placeholder="At least 8 characters with letters and numbers"
+                    placeholder="12–256 characters with letters and numbers"
                     autoComplete="new-password"
                   />
                 </div>
@@ -4380,7 +4149,7 @@ export default function App() {
                     lineHeight: 1.55
                   }}
                 >
-                  Password must be different from the temporary password. After saving, the system clears the first-login reset flag and opens the clinic dashboard.
+                  Use 12–256 characters with at least one letter and one number. After saving, the system refreshes your authoritative first-login access before opening the clinic dashboard.
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.25rem' }}>
@@ -4409,7 +4178,7 @@ export default function App() {
       )}
 
       {/* DASHBOARD AND INTERNAL PANELS */}
-      {currentRoute !== '/login' && !currentRoute.startsWith('/register/') && currentRoute !== '/clinic/change-password' && !['/unauthorized', '/account-suspended', '/maintenance', '/not-found'].includes(currentRoute) && (
+      {currentRoute !== '/login' && !currentRoute.startsWith('/register/') && currentRoute !== '/clinic/change-password' && !firstLoginRouteGateActive && !['/unauthorized', '/account-suspended', '/maintenance', '/not-found'].includes(currentRoute) && (
         currentRoute.startsWith('/clinic/') && isSubscriptionLocked ? (
           <SubscriptionLockedScreen
             subscription={activeSubscription}

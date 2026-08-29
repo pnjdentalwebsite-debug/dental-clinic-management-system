@@ -1571,3 +1571,11 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 3. Ran 80 focused Phase 1/2 source contracts and all 43 live local pgTAP RLS assertions. Access remained denied while the flag was true and restored only after it became false.
 4. Local schema lint and security advisors reported no issues, and the production build passed. The success response is exactly `{ completed: true, mustChangePassword: false }`.
 5. No migration/function was deployed, no remote Auth password or data changed, and no Login, Change Password, Clinic Owner, Platform Admin, or `App.tsx` code was modified.
+
+## Phase 2E.1 Clinic Owner Browser First-Login Validation - August 30, 2026
+1. Open `/login` and sign in with the already provisioned Clinic Owner email and the delivered temporary credential.
+2. Confirm the real Supabase session is established and the app immediately calls `get_my_first_login_state()`.
+3. While `mustChangePassword` is true, refresh and attempt Clinic Owner navigation; only the existing Change Password page and logout remain available, with RLS continuing to deny tenant data.
+4. Enter a 12-256 character password containing at least one Unicode letter and one Unicode number. Confirm the browser sends only `{ newPassword }` to `complete-initial-password`.
+5. Confirm success refreshes the authoritative first-login state, which returns `mustChangePassword=false`, before `/clinic/dashboard` opens. Verify normal tenant access is restored only then.
+6. Sign out, refresh, and confirm the real Supabase session is removed. Do not perform Platform Admin frontend actions in this phase.

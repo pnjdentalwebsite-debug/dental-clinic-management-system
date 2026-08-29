@@ -556,3 +556,9 @@
 - `supabase/functions/complete-initial-password/logic.test.ts`: 24 Deno runtime tests for request, authorization, cardinality, policy, ordering, recovery, audit, response, and session behavior.
 - `initialPasswordCompletionContract.test.ts`: source contract for JWT configuration, request allowlist, membership filters, ordering, safe errors, audit, session scope, RLS/login-state, provisioning/resend, and Phase 1 compatibility.
 - Existing first-login/provisioning source contracts now inspect the extracted hardened logic module. No frontend or visual component changed.
+
+## August 30, 2026 Phase 2E.1 First-Login Frontend Components
+- `src/infrastructure/supabase/clinicOwnerAuth.ts`: typed browser adapter for real Clinic Owner sign-in, authoritative first-login state, safe membership/tenant resolution, initial-password completion, and Supabase sign-out.
+- `src/App.tsx`: existing Login and Change Password screens are wired to that adapter; Clinic Owner mock credential/status paths are bypassed while Platform Admin, Staff, and Associate prototype paths remain untouched.
+- `src/infrastructure/supabase/clinicOwnerAuth.test.ts` and `src/App.firstLoginAuthContract.test.ts`: focused authentication, first-login gate, request-shape, session, sign-out, storage-safety, and preserved-UI-anchor coverage.
+- No visual component, layout, navigation design, typography, spacing, or responsive styling was redesigned.

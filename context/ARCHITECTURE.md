@@ -480,3 +480,9 @@ flowchart TD
 - The completion audit contains only actor, subscriber, membership, timestamp, and safe flag transition. Passwords and Authorization tokens never enter Postgres, response bodies, audit metadata, or logs.
 - Supabase Admin `signOut(accessToken, 'others')` preserves the current session where supported while revoking other refresh tokens. Already-issued JWTs remain valid until expiry, and revocation failure does not reverse the completed Auth/membership state.
 - `get_my_first_login_state()` and RLS remain the future routing/authorization pair. Browser routing and the stale frontend completion adapter are intentionally not cut over in this backend-only phase.
+
+## Phase 2E.1 Browser First-Login Boundary - August 30, 2026
+- Browser path: `Supabase Auth session -> get_my_first_login_state() -> mandatory Change Password when required -> complete-initial-password({ newPassword }) -> refreshed get_my_first_login_state() -> RLS-scoped Clinic Owner routing`.
+- `subscriber_memberships.must_change_password` and the deployed RLS gate remain authoritative. The browser gate prevents tenant UX navigation during first login but never replaces database authorization.
+- Tenant scope is derived from the authenticated owner membership after the gate clears; it is not derived from email, registration records, mock users, or browser storage. SDK-managed Supabase session storage is the only session persistence used by this path.
+- Platform Admin frontend data remains outside this cutover and is the Phase 2E.2 boundary.

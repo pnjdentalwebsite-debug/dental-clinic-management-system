@@ -357,3 +357,9 @@
 - The server requires 12-256 characters with a letter and digit. Auth is updated first; only the resolved membership can transition from `must_change_password=true` to false with `password_changed_at` stamped.
 - Success records `account.initial_password.changed`, returns only `{ completed: true, mustChangePassword: false }`, and attempts Admin `signOut(accessToken, 'others')` without exposing the bearer token.
 - The RLS gate remains authoritative before/after completion. Frontend routing and adapter cutover remain later work; the function and Phase 2 migrations are local-only and undeployed.
+
+## Phase 2E.1 Clinic Owner First-Login Frontend Auth Cutover - August 30, 2026
+- Clinic Owner `/login` now uses real Supabase password authentication and immediately reads the caller-scoped `get_my_first_login_state()` result.
+- A single active owner membership with `mustChangePassword=true` is restricted to `/clinic/change-password`; completion invokes `complete-initial-password` with only `{ newPassword }`, then refreshes the RPC before normal Clinic Owner routing.
+- Zero/multiple active owner memberships and invalid/expired sessions fail safely without selecting a tenant. The ready path resolves the membership's RLS-scoped `subscriber_id` only after the first-login gate clears.
+- Platform Admin real-data frontend cutover is deliberately not included; it remains Phase 2E.2. The deployed Phase 2 backend and first-login RLS/completion contracts are live-validated.

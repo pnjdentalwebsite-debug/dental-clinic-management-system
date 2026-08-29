@@ -588,3 +588,12 @@
 - [ ] Cut over the frozen Login/Change Password routing and frontend adapter in a later approved phase.
 - [ ] Deploy Phase 2 migrations/functions only in a separately authorized coordinated step.
 - [ ] Phase 2 remains incomplete.
+
+## Phase 2E.1 Clinic Owner First-Login Frontend Auth Cutover - August 30, 2026
+- [x] Replace Clinic Owner runtime sign-in with Supabase Auth and authenticated first-login-state resolution.
+- [x] Gate Clinic Owner routes on authoritative `mustChangePassword` and refresh the state after deployed initial-password completion.
+- [x] Remove Clinic Owner mock credential comparison, email-only mock account lookup, and local password-change authority from this runtime path.
+- [x] Preserve the approved Login and Change Password visual structure; add only safe loading/error handling.
+- [x] Add focused frontend/adapter contract coverage and run the production build.
+- [ ] Perform the separately controlled real browser validation using the existing provisioned Clinic Owner account.
+- [ ] Phase 2E.2: cut over Platform Admin frontend data/actions. Do not start it automatically.
