@@ -364,7 +364,7 @@ export function PlatformSettingsPage({ showToast, refreshShell }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
             <Server size={14} color="#2563eb" />
-            <strong>Environment:</strong> {settings.general.environmentLabel || 'Prototype Mode'}
+            <strong>Environment:</strong> {settings.general.environmentLabel || 'Development Environment'}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
             <Globe size={14} color="#16a34a" />
@@ -2446,6 +2446,5 @@ function HistoryLedgerTab({
     </div>
   );
 }
-
 
 

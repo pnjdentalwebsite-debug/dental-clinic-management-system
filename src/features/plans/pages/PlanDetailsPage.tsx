@@ -7,7 +7,8 @@ import {
   DollarSign
 } from 'lucide-react';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
-import { mockPlanService } from '../services/mockPlanService';
+import { platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { PlanActionMenu } from '../components/PlanActionMenu';
 
 interface PlanDetailsPageProps {
@@ -20,10 +21,12 @@ const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}
 const limitText = (type: string, value?: number) => type === 'number' ? String(value ?? 0) : type.replace('_', ' ');
 
 export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPageProps) {
+  usePlatformAdminDetail('plans', planId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'features' | 'limits' | 'subscribers' | 'history'>('overview');
   const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate' | 'archive' | 'restore' | 'delete' | null>(null);
   const plan = mockPlanService.getPlanById(planId);
+  const showReadOnlyNotice = () => showToast('Plan configuration is read-only until an approved secure plan mutation contract is deployed.', 'info');
 
   if (!plan) {
     return (
@@ -37,7 +40,6 @@ export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPage
     );
   }
 
-  const subscribers = mockPlanService.getPlanSubscribers(plan);
   const history = mockPlanService.getPlanHistory(plan.id);
 
   const duplicate = () => {
@@ -176,13 +178,13 @@ export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPage
           <button
             className="btn btn-primary"
             style={{ width: 'auto', padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}
-            onClick={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}/edit`)}
+            onClick={showReadOnlyNotice}
           >
             Edit Configuration
           </button>
           <PlanActionMenu
             plan={plan}
-            onEdit={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}/edit`)}
+            onEdit={showReadOnlyNotice}
             onDuplicate={duplicate}
             onActivate={() => setConfirmAction('activate')}
             onDeactivate={() => setConfirmAction('deactivate')}
@@ -257,7 +259,7 @@ export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPage
               {item === 'overview' ? 'Overview & Pricing' :
                item === 'features' ? `Features (${plan.features.filter(f => f.enabled).length})` :
                item === 'limits' ? `Usage Quotas (${plan.limits.length})` :
-               item === 'subscribers' ? `Enrolled Subscribers (${subscribers.length})` : 'Audit History'}
+               item === 'subscribers' ? `Enrolled Subscribers (${plan.subscriberCount})` : 'Audit History'}
             </button>
           ))}
         </div>
@@ -347,46 +349,9 @@ export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPage
         )}
 
         {tab === 'subscribers' && (
-          <div>
-            {subscribers.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {subscribers.map(sub => (
-                  <div
-                    key={sub.id}
-                    style={{
-                      padding: '1rem 1.25rem',
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      backgroundColor: '#ffffff',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '0.75rem'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>{sub.businessName}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        Owner: <strong style={{ color: '#1e293b' }}>Angelo Mhyr Lagsac</strong> ({sub.email})
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-outline"
-                      style={{ width: 'auto', padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
-                      onClick={() => navigate(`/platform/subscribers/${sub.id}`)}
-                    >
-                      View Subscriber Dossier
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '2.5rem', textAlign: 'center', color: '#94a3b8' }}>
-                <Users size={32} style={{ margin: '0 auto 0.5rem auto', opacity: 0.4 }} />
-                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569' }}>No subscribers enrolled in this plan</div>
-              </div>
-            )}
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: '#94a3b8' }}>
+            <Users size={32} style={{ margin: '0 auto 0.5rem auto', opacity: 0.4 }} />
+            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569' }}>Subscriber identities are not included in the approved plan detail contract. Aggregate enrollment: {plan.subscriberCount}.</div>
           </div>
         )}
 

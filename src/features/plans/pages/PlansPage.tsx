@@ -15,7 +15,8 @@ import {
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import { PlanActionMenu } from '../components/PlanActionMenu';
-import { mockPlanService } from '../services/mockPlanService';
+import { platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import type { Plan, PlanFilters, PlanSort } from '../types';
 
 interface PlansPageProps {
@@ -34,19 +35,26 @@ const tabs = [
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function PlansPage({ navigate, showToast }: PlansPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [confirmPlan, setConfirmPlan] = useState<Plan | null>(null);
   const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate' | 'archive' | 'restore' | 'delete' | null>(null);
   const [filters, setFilters] = useState<PlanFilters>({ search: '', status: 'all', visibility: 'all', tab: 'all' });
   const [sort, setSort] = useState<PlanSort>({ field: 'displayOrder', direction: 'asc' });
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : filters.visibility === 'public' ? 'active' : undefined;
+  const { refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('plans', {
+    page: 1, pageSize: 25, search: filters.search.trim() || undefined, status: requestedStatus,
+  });
 
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey]);
-  const summary = useMemo(() => mockPlanService.getPlanSummary(), [refreshKey]);
-  const filteredPlans = useMemo(() => mockPlanService.sortPlans(mockPlanService.filterPlans(plans, filters), sort), [plans, filters, sort]);
+  const plans = directoryPage.items as Plan[];
+  const summary = { total: directoryPage.total, active: plans.filter(item => item.status === 'active').length, draft: plans.filter(item => item.status === 'draft').length, inactive: plans.filter(item => item.status === 'inactive').length, archived: plans.filter(item => item.status === 'archived').length, subscriberUsage: plans.reduce((sum, item) => sum + item.subscriberCount, 0) };
+  const filteredPlans = useMemo(() => mockPlanService.sortPlans(plans, sort), [plans, sort]);
+  const entryPlan = useMemo(() => [...plans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0] ?? null, [plans]);
+  const showReadOnlyNotice = () => showToast('Plan configuration is read-only until an approved secure plan mutation contract is deployed.', 'info');
 
   const setFilter = (key: keyof PlanFilters, value: string) => setFilters(prev => ({ ...prev, [key]: value }));
   const refresh = () => {
+    void refreshRealData();
     setRefreshKey(prev => prev + 1);
     showToast('Plan tiers refreshed.', 'info');
   };
@@ -119,7 +127,7 @@ export function PlansPage({ navigate, showToast }: PlansPageProps) {
     <PlanActionMenu
       plan={plan}
       onView={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}`)}
-      onEdit={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}/edit`)}
+      onEdit={showReadOnlyNotice}
       onDuplicate={() => duplicate(plan)}
       onActivate={() => requestAction(plan, 'activate')}
       onDeactivate={() => requestAction(plan, 'deactivate')}
@@ -139,7 +147,7 @@ export function PlansPage({ navigate, showToast }: PlansPageProps) {
         primaryAction={{
           label: 'Add Subscription Plan',
           icon: Plus,
-          onClick: () => navigate('/platform/plans/new')
+          onClick: showReadOnlyNotice
         }}
         secondaryAction={{
           label: 'Refresh Plans',
@@ -190,8 +198,8 @@ export function PlansPage({ navigate, showToast }: PlansPageProps) {
               <Sparkles size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#c026d3' }}>Free Starter</div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>₱0.00 / starting clinics</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#c026d3' }}>{entryPlan?.name ?? 'No active plan'}</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>{entryPlan ? `${formatMoney(entryPlan.monthlyPrice)} / month` : 'No catalog pricing available'}</div>
         </div>
       </div>
 

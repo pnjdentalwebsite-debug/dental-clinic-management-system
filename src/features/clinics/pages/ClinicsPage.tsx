@@ -11,10 +11,10 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
+import { platformAdminClinicService as mockClinicService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ClinicActionDialog, type ClinicDialogAction } from '../components/ClinicActionDialog';
 import { ClinicActionMenu } from '../components/ClinicActionMenu';
-import { mockClinicService } from '../services/mockClinicService';
 import type { Clinic, ClinicFilters, ClinicSort } from '../types';
 
 interface Props {
@@ -40,34 +40,38 @@ const defaultFilters: ClinicFilters = {
 };
 
 export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
+  const showReadOnlyNotice = () => showToast('Clinic editing is unavailable until an approved secure mutation contract is deployed.', 'info');
   const [filters, setFilters] = useState<ClinicFilters>(defaultFilters);
   const [sort, setSort] = useState<ClinicSort>({ field: 'createdAt', direction: 'desc' });
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
   const [action, setAction] = useState<ClinicDialogAction | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : undefined;
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('clinics', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
+    subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
+  });
 
-  const clinics = useMemo(() => mockClinicService.listClinics(), [refreshKey]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey]);
-  const users = useMemo(() => mockPlatformManagementService.listUsers(), [refreshKey]);
-  const summary = useMemo(() => mockClinicService.getClinicSummary(), [refreshKey]);
-  const displayed = useMemo(() => mockClinicService.sortClinics(mockClinicService.filterClinics(clinics, filters), sort), [clinics, filters, sort]);
-  const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
-  const paged = mockClinicService.paginateClinics(displayed, page, PAGE_SIZE);
+  const clinics = directoryPage.items as Clinic[];
+  const subscribers = Array.from(new Map(clinics.map(clinic => [clinic.subscriberId, { id: clinic.subscriberId, subscriberNumber: clinic.subscriberNumber, businessName: clinic.subscriberName || 'Subscriber unavailable', email: clinic.ownerEmail || '' }])).values());
+  const users: never[] = [];
+  const summary = platformSummary.clinicSummary;
+  const displayed = useMemo(() => mockClinicService.sortClinics(clinics, sort), [clinics, sort]);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const paged = displayed;
 
   const refresh = () => { 
+    void refreshRealData();
     setRefreshKey(prev => prev + 1); 
     refreshShell(); 
     showToast('Clinics registry refreshed.', 'info');
   };
 
-  const getSubscriber = (id: string) => subscribers.find(item => item.id === id || item.subscriberNumber === id) || subscribers[0];
+  const getSubscriber = (id: string) => subscribers.find(item => item.id === id || item.subscriberNumber === id);
   
-  const ownerName = (id?: string) => {
-    const user = users.find(item => item.id === id || item.userNumber === id);
-    return user?.fullName || 'Angelo Mhyr Lagsac';
-  };
+  const ownerName = (clinic: Clinic) => clinic.ownerDisplayName || 'Owner identity unavailable';
 
   const setFilter = (key: keyof ClinicFilters, value: string) => { 
     setPage(1); 
@@ -114,7 +118,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
     <ClinicActionMenu 
       clinic={clinic} 
       onView={() => navigate(`/platform/clinics/${clinic.id}`)} 
-      onEdit={() => navigate(`/platform/clinics/${clinic.id}/edit`)} 
+      onEdit={showReadOnlyNotice}
       onViewSubscriber={() => navigate(`/platform/subscribers/${clinic.subscriberId}`)} 
       onManageUsers={() => navigate(`/platform/clinics/${clinic.id}`)} 
       onViewLabs={() => showToast('Open the Partner Laboratories module to view real laboratory connections.', 'info')} 
@@ -342,7 +346,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
                           {sub?.businessName || clinic.name || 'Clinic'}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '0.15rem' }}>
-                          <span style={{ color: '#64748b' }}>Owner:</span> <strong style={{ color: '#0f172a' }}>{ownerName(clinic.primaryOwnerUserId)}</strong>
+                          <span style={{ color: '#64748b' }}>Owner:</span> <strong style={{ color: '#0f172a' }}>{ownerName(clinic)}</strong>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 600, marginTop: '0.1rem' }}>
                           {sub?.email || clinic.email || ''}
@@ -437,7 +441,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
 
           {/* PAGINATION */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: '0.85rem', color: '#64748b' }}>
-            <div>Showing <strong>{paged.length}</strong> of <strong>{displayed.length}</strong> clinic branches</div>
+            <div>Showing <strong>{paged.length}</strong> of <strong>{directoryPage.total}</strong> clinic branches</div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <button
                 disabled={page === 1}
@@ -533,10 +537,10 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '10px' }}>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>Subscriber:</strong> {sub?.businessName || 'Angelo Dental Clinic'}
+                      <strong style={{ color: '#0f172a' }}>Subscriber:</strong> {sub?.businessName || 'Not available'}
                     </div>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>Clinic Owner:</strong> {ownerName(clinic.primaryOwnerUserId)} ({sub?.email || 'gelomhyr@gmail.com'})
+                      <strong style={{ color: '#0f172a' }}>Clinic Owner:</strong> {ownerName(clinic)} ({clinic.ownerEmail || 'Email unavailable'})
                     </div>
                     <div>
                       <strong style={{ color: '#0f172a' }}>Location:</strong> {clinic.addressLine1 ? `${clinic.addressLine1}, ` : ''}{clinic.city}, {clinic.province}

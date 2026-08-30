@@ -34,24 +34,21 @@ import { SubscriberDetailsPage } from './features/platformManagement/pages/Subsc
 import { UsersPage } from './features/platformManagement/pages/UsersPage';
 import { UserDetailsPage } from './features/platformManagement/pages/UserDetailsPage';
 import { PlatformDashboardPage } from './features/platformManagement/pages/PlatformDashboardPage';
+import { PlatformAdminReadNotice, PlatformAdminReadProvider } from './features/platformManagement/realData/PlatformAdminReadProvider';
 import { mockPlatformManagementService, generateSecureTemporaryPassword } from './features/platformManagement/services/mockPlatformManagementService';
 import { ConfirmationDialog } from './components/overlays/ConfirmationDialog';
 import { Modal } from './components/overlays/Modal';
 import { PlansPage } from './features/plans/pages/PlansPage';
 import { PlanDetailsPage } from './features/plans/pages/PlanDetailsPage';
-import { PlanFormPage } from './features/plans/pages/PlanFormPage';
 import { mockPlanService } from './features/plans/services/mockPlanService';
 import { SubscriptionsPage } from './features/subscriptions/pages/SubscriptionsPage';
 import { SubscriptionDetailsPage } from './features/subscriptions/pages/SubscriptionDetailsPage';
-import { SubscriptionFormPage } from './features/subscriptions/pages/SubscriptionFormPage';
 import { mockSubscriptionService } from './features/subscriptions/services/mockSubscriptionService';
 import { PaymentsPage } from './features/payments/pages/PaymentsPage';
 import { PaymentDetailsPage } from './features/payments/pages/PaymentDetailsPage';
-import { PaymentFormPage } from './features/payments/pages/PaymentFormPage';
 import { mockPaymentService as centralizedPaymentService } from './features/payments/services/mockPaymentService';
 import { ClinicsPage } from './features/clinics/pages/ClinicsPage';
 import { ClinicDetailsPage } from './features/clinics/pages/ClinicDetailsPage';
-import { ClinicFormPage } from './features/clinics/pages/ClinicFormPage';
 import { mockClinicService } from './features/clinics/services/mockClinicService';
 import { LaboratoriesPage } from './features/laboratories/pages/LaboratoriesPage';
 import { LaboratoryDetailsPage } from './features/laboratories/pages/LaboratoryDetailsPage';
@@ -112,12 +109,13 @@ import { onboardingApi, type RegistrationPlan, type RegistrationPublicStatus } f
 import {
   completeClinicOwnerInitialPassword,
   resolveClinicOwnerAccess,
-  signInClinicOwner,
   signOutClinicOwner,
   validateInitialPassword,
   type ClinicOwnerAccess,
 } from './infrastructure/supabase/clinicOwnerAuth';
 import { getSupabaseClient } from './infrastructure/supabase/client';
+import { resolvePlatformAdminAccess, type PlatformAdminAccess } from './infrastructure/supabase/platformAdminAuth';
+import { platformAdminApi, type PlatformReviewRegistration } from './infrastructure/supabase/platformAdminApi';
 
 // Default Platform Owner credentials
 const DEFAULT_PLATFORM_OWNER = {
@@ -183,6 +181,7 @@ interface Registration {
   updatedDate: string;
   referenceNumber?: string;
   paymentMethod?: string;
+  paymentId?: string;
   tempPassword?: string;
   rejectionReason?: string;
   subscriberId?: string;
@@ -747,6 +746,19 @@ export const mockPaymentService = {
 // MAIN APP CONTROLLER
 // ----------------------------------------------------
 
+function PlatformReadOnlyRoute({ resource, onBack }: { resource: string; onBack: () => void }) {
+  return (
+    <main className="main-content">
+      <div className="dashboard-panel">
+        <LockKeyhole size={28} color="var(--primary)" />
+        <h1 style={{ marginTop: '0.75rem' }}>{resource} is read-only</h1>
+        <p className="page-title-desc">This write action is unavailable until an approved secure Platform Administrator mutation contract is deployed.</p>
+        <button type="button" className="btn btn-outline" style={{ width: 'auto', marginTop: '1rem' }} onClick={onBack}>Back to {resource}</button>
+      </div>
+    </main>
+  );
+}
+
 export default function App() {
   // Routing & Session State
   const [currentRoute, setCurrentRoute] = useState<string>(getInitialRoute);
@@ -756,8 +768,6 @@ export default function App() {
   const [logoutModalOpen, setLogoutModalOpen] = useState<boolean>(false);
   const [resetMockModalOpen, setResetMockModalOpen] = useState<boolean>(false);
   const [resetMockConfirmation, setResetMockConfirmation] = useState<string>('');
-  const [staleSafePurgeModalOpen, setStaleSafePurgeModalOpen] = useState<boolean>(false);
-  const [staleSafePurgeConfirmation, setStaleSafePurgeConfirmation] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
   // Platform Sidebar Collapsible Dropdown Sections State (Default: all closed)
@@ -784,6 +794,7 @@ export default function App() {
   const [loggedClinicName, setLoggedClinicName] = useState<string>('');
   const [loggedPlanName, setLoggedPlanName] = useState<string>('');
   const [clinicOwnerAccess, setClinicOwnerAccess] = useState<ClinicOwnerAccess>({ kind: 'loading' });
+  const [platformAdminAccess, setPlatformAdminAccess] = useState<PlatformAdminAccess>({ kind: 'loading' });
 
   // Subsystem Router Context
   let currentClinic: any = null;
@@ -871,6 +882,52 @@ export default function App() {
   const [isOtpVerifying, setIsOtpVerifying] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
 
+  const toPlatformReviewRegistration = (record: PlatformReviewRegistration): Registration => ({
+    id: record.registrationId,
+    plan: record.plan?.name ?? 'Unknown',
+    ownerName: record.ownerName,
+    ownerEmail: record.ownerEmail,
+    ownerMobile: record.ownerMobile ?? '',
+    ownerAddress: '',
+    clinicName: record.clinicName,
+    clinicEmail: record.clinicEmail,
+    clinicMobile: record.clinicMobile ?? '',
+    clinicAddress: '',
+    dentistsCount: 0,
+    staffCount: 0,
+    locationsCount: 0,
+    worksWithLab: false,
+    emailVerified: Boolean(record.emailVerifiedAt),
+    paymentStatus: record.paymentStatus as Registration['paymentStatus'],
+    registrationStatus: record.registrationStatus === 'pending_review'
+      ? 'payment_under_review'
+      : record.registrationStatus === 'approved'
+        ? 'account_ready'
+        : record.registrationStatus === 'pending_payment'
+          ? 'payment_pending'
+          : 'email_verification_pending',
+    submittedDate: record.submittedAt,
+    updatedDate: record.createdAt,
+    referenceNumber: record.payment?.referenceNumber ?? undefined,
+    paymentMethod: record.payment?.method ?? undefined,
+    paymentId: record.payment?.id,
+  });
+
+  const refreshPlatformReviewRecords = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client || platformAdminAccess.kind !== 'ready') return;
+    try {
+      const result = await platformAdminApi.listAllReview({ registrationStatus: 'pending_review' }, client);
+      setRegistrations(result.items.map(toPlatformReviewRegistration));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Registration review records are unavailable.', 'error');
+    }
+  }, [platformAdminAccess]);
+
+  useEffect(() => {
+    void refreshPlatformReviewRecords();
+  }, [refreshPlatformReviewRecords]);
+
   // Selected registration for admin details view
   const [selectedRegAdmin, setSelectedRegAdmin] = useState<Registration | null>(null);
   const [approvePaymentModalOpen, setApprovePaymentModalOpen] = useState<boolean>(false);
@@ -882,7 +939,6 @@ export default function App() {
     ownerName: string;
     ownerEmail: string;
     plan: string;
-    tempPassword: string;
     subscriberId?: string;
   } | null>(null);
 
@@ -1009,15 +1065,6 @@ export default function App() {
     if (currentRoute.includes('/register/status/')) void refreshRegistrationStatus();
   }, [currentRoute]);
 
-  const handleLoadDemoCredentials = () => {
-    setEmail(DEFAULT_PLATFORM_OWNER.email);
-    setPassword(DEFAULT_PLATFORM_OWNER.password);
-    setEmailError('');
-    setPasswordError('');
-    setAuthError('');
-    showToast("Platform Administrator credentials loaded.", "info");
-  };
-
   const handleOpenForgotPassword = () => {
     setForgotEmailInput(email || '');
     setForgotSubmitted(false);
@@ -1086,6 +1133,16 @@ export default function App() {
     setClinicOwnerAccess(await resolveClinicOwnerAccess(client));
   }, []);
 
+  const refreshPlatformAdminAccess = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setPlatformAdminAccess({ kind: 'signed_out' });
+      return;
+    }
+    setPlatformAdminAccess({ kind: 'loading' });
+    setPlatformAdminAccess(await resolvePlatformAdminAccess(client));
+  }, []);
+
   useEffect(() => {
     const client = getSupabaseClient();
     if (!client) {
@@ -1094,25 +1151,44 @@ export default function App() {
     }
 
     void refreshClinicOwnerAccess();
+    void refreshPlatformAdminAccess();
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => {
         if (!session) {
           setClinicOwnerAccess({ kind: 'signed_out' });
+          setPlatformAdminAccess({ kind: 'signed_out' });
           return;
         }
         void refreshClinicOwnerAccess();
+        void refreshPlatformAdminAccess();
       }, 0);
     });
     return () => subscription.unsubscribe();
-  }, [refreshClinicOwnerAccess]);
+  }, [refreshClinicOwnerAccess, refreshPlatformAdminAccess]);
 
   // Sync mock-only non-Clinic-Owner sessions while the Clinic Owner path is
   // derived exclusively from the Supabase session and membership state.
   const syncStateFromStorage = () => {
-    const list = mockStorage.getRegistrations();
-    setRegistrations(list);
-
-    if (clinicOwnerAccess.kind === 'loading') return;
+    if (clinicOwnerAccess.kind === 'loading' || platformAdminAccess.kind === 'loading') return;
+    if (platformAdminAccess.kind === 'ready') {
+      setLoggedUserEmail(platformAdminAccess.email);
+      setLoggedUserName(platformAdminAccess.email);
+      setLoggedClinicName('');
+      setLoggedPlanName('');
+      setUserRole('platform_owner');
+      if (!currentRoute.startsWith('/platform/')) {
+        setCurrentRoute('/platform/dashboard');
+        setActiveModule('Dashboard');
+      }
+      return;
+    }
+    if (platformAdminAccess.kind === 'error') {
+      setUserRole('guest');
+      setLoggedUserEmail('');
+      setLoggedUserName('');
+      if (currentRoute !== '/unauthorized') setCurrentRoute('/unauthorized');
+      return;
+    }
     if (clinicOwnerAccess.kind === 'password_change_required') {
       setLoggedUserEmail(clinicOwnerAccess.email);
       setLoggedUserName(clinicOwnerAccess.email);
@@ -1146,9 +1222,10 @@ export default function App() {
       return;
     }
 
+    setRegistrations(mockStorage.getRegistrations());
     const session = mockStorage.getSession();
-    if (session?.role === 'clinic_owner') {
-      // A legacy browser session is not authority for Clinic Owner access.
+    if (session?.role === 'clinic_owner' || session?.role === 'platform_owner') {
+      // Legacy browser sessions are not authority for Clinic Owner or Platform Administrator access.
       mockStorage.setSession(null);
       setUserRole('guest');
       if (currentRoute !== '/login') setCurrentRoute('/login');
@@ -1162,12 +1239,7 @@ export default function App() {
       setUserRole(session.role);
 
       // Route Guard
-      if (session.role === 'platform_owner') {
-        if (!currentRoute.startsWith('/platform/')) {
-          setCurrentRoute('/platform/dashboard');
-          setActiveModule('Dashboard');
-        }
-      } else if (session.role === 'associate' || session.role === 'staff') {
+      if (session.role === 'associate' || session.role === 'staff') {
         // Personnel may enter only an assigned branch workspace. Clinic-owner
         // console routes and the shared clinic dashboard are not role targets.
         if (currentRoute.startsWith('/clinic/') && !isSubsystemRoute) {
@@ -1214,7 +1286,7 @@ export default function App() {
     mockPlatformSettingsService.initializeSettings();
     syncStateFromStorage();
     setActiveModule(getModuleNameFromRoute(currentRoute));
-  }, [currentRoute, clinicOwnerAccess]);
+  }, [currentRoute, clinicOwnerAccess, platformAdminAccess]);
 
   useEffect(() => {
     if (window.location.pathname !== currentRoute) {
@@ -1254,7 +1326,8 @@ export default function App() {
     if (hasError) return;
 
     const legacyMockUser = mockStorage.getUsers().find((user) => (
-      user.email.toLowerCase() === email.trim().toLowerCase() && user.role !== 'clinic_owner'
+      user.email.toLowerCase() === email.trim().toLowerCase()
+      && (user.role === 'associate' || user.role === 'staff')
     ));
 
     setIsLoggingIn(true);
@@ -1322,7 +1395,25 @@ export default function App() {
     }
 
     try {
-      const access = await signInClinicOwner(email.trim(), password, client);
+      const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+      if (error || !data.session) {
+        setAuthError('Email or password is incorrect. Please try again.');
+        return;
+      }
+      const adminAccess = await resolvePlatformAdminAccess(client);
+      setPlatformAdminAccess(adminAccess);
+      if (adminAccess.kind === 'ready') {
+        setCurrentRoute('/platform/dashboard');
+        setActiveModule('Dashboard');
+        return;
+      }
+      if (adminAccess.kind === 'error') {
+        setAuthError(adminAccess.message);
+        await signOutClinicOwner(client);
+        return;
+      }
+
+      const access = await resolveClinicOwnerAccess(client);
       setClinicOwnerAccess(access);
       if (access.kind === 'password_change_required') {
         setCurrentRoute('/clinic/change-password');
@@ -1332,6 +1423,9 @@ export default function App() {
       } else if (access.kind === 'error') {
         setAuthError(access.message);
         setCurrentRoute('/unauthorized');
+      } else {
+        await signOutClinicOwner(client);
+        setAuthError('This account does not have access to the requested workspace.');
       }
     } catch {
       setAuthError('Unable to sign in right now. Please check your connection and try again.');
@@ -1341,7 +1435,9 @@ export default function App() {
   };
 
   const handleLogoutConfirm = async () => {
-    const isRealClinicOwner = clinicOwnerAccess.kind === 'password_change_required'
+    const isRealClinicOwner = platformAdminAccess.kind === 'ready'
+      || platformAdminAccess.kind === 'error'
+      || clinicOwnerAccess.kind === 'password_change_required'
       || clinicOwnerAccess.kind === 'ready'
       || clinicOwnerAccess.kind === 'error';
     if (isRealClinicOwner) {
@@ -1353,6 +1449,7 @@ export default function App() {
         return;
       }
       setClinicOwnerAccess({ kind: 'signed_out' });
+      setPlatformAdminAccess({ kind: 'signed_out' });
       setLogoutModalOpen(false);
       setEmail('');
       setPassword('');
@@ -1522,97 +1619,66 @@ export default function App() {
       ownerName: data.ownerName,
       ownerEmail: data.ownerEmail,
       plan: data.plan,
-      tempPassword: data.tempPassword || generateSecureTemporaryPassword(),
       subscriberId: data.subscriberId
     });
     setProvisionSuccessModalOpen(true);
   };
 
   // Platform admin approvals
-  const handleApprovePayment = () => {
+  const handleApprovePayment = async () => {
     if (!selectedRegAdmin) return;
-    const approvalCorrelationId = `CORR-${new Date().toISOString().split('T')[0].replaceAll('-', '')}-${selectedRegAdmin.id}`;
-    const res = centralizedPaymentService.approveRegistrationPayment(selectedRegAdmin.id);
-    if (res.ok) {
-      const approvedReg = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-      const provisionedSubscriber = mockPlatformManagementService.getSubscriberByRegistrationId(selectedRegAdmin.id)
-        || mockPlatformManagementService.listSubscribers().find(sub => sub.email.toLowerCase() === selectedRegAdmin.ownerEmail.toLowerCase());
-      const tempPass = approvedReg?.tempPassword || generateSecureTemporaryPassword();
-      const provisionedSubscriberId = provisionedSubscriber?.id || approvedReg?.subscriberId;
-      mockClinicService.initializeClinics();
-      mockLaboratoryService.initializeLaboratories();
-      // Sync State
-      const updated = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-      setSelectedRegAdmin(updated);
-      setApprovePaymentModalOpen(false);
-      mockAuditService.createCorrelatedAuditEvents([
-        { action: 'payment.approved', category: 'payment', module: 'payments', targetType: 'payment', targetId: selectedRegAdmin.id, targetLabel: selectedRegAdmin.referenceNumber || selectedRegAdmin.id, result: 'success', severity: 'medium', summary: `Payment approved for ${selectedRegAdmin.clinicName}.`, beforeSnapshot: { paymentStatus: selectedRegAdmin.paymentStatus, registrationStatus: selectedRegAdmin.registrationStatus }, afterSnapshot: { paymentStatus: 'approved', registrationStatus: updated?.registrationStatus || 'account_ready' } },
-        { action: 'registration.account_provisioned', category: 'registration', module: 'registration', targetType: 'registration', targetId: selectedRegAdmin.id, targetLabel: selectedRegAdmin.clinicName, result: 'success', severity: 'medium', summary: `Registration provisioned for ${selectedRegAdmin.ownerEmail}.`, metadata: { temporaryPassword: tempPass } }
-      ], approvalCorrelationId);
-      mockNotificationService.createSystemNotification({
-        eventKey: `payment-approved-${selectedRegAdmin.id}`,
-        category: 'payment',
-        sourceModule: 'payments',
-        sourceRecordId: selectedRegAdmin.id,
-        title: 'Payment Approved & Subscription Active',
-        message: `Subscription provisioned for ${selectedRegAdmin.clinicName} (${selectedRegAdmin.plan} Plan).`,
-        priority: 'high',
-        actionUrl: `/platform/subscribers`,
-        actionLabel: 'View Subscriber'
-      });
-      showToast("Registration approved and clinic owner account provisioned.", "success");
-      syncStateFromStorage();
-      handleShowProvisionSuccess({
-        clinicName: approvedReg?.clinicName || selectedRegAdmin.clinicName,
-        ownerName: approvedReg?.ownerName || selectedRegAdmin.ownerName,
-        ownerEmail: approvedReg?.ownerEmail || selectedRegAdmin.ownerEmail,
-        plan: approvedReg?.plan || selectedRegAdmin.plan,
-        tempPassword: tempPass,
-        subscriberId: provisionedSubscriberId
-      });
-    } else {
-      showToast(res.error || 'Failed to approve payment.', 'error');
+    if (platformAdminAccess.kind === 'ready') {
+      if (!selectedRegAdmin.paymentId) {
+        showToast('The selected registration has no reviewable payment.', 'error');
+        return;
+      }
+      try {
+        const client = getSupabaseClient();
+        if (!client) throw new Error('Platform Administrator access is unavailable.');
+        await platformAdminApi.reviewPayment(selectedRegAdmin.id, selectedRegAdmin.paymentId, 'approve', undefined, client);
+        const provisioned = await platformAdminApi.approveRegistration(selectedRegAdmin.id, client);
+        setApprovePaymentModalOpen(false);
+        setSelectedRegAdmin(null);
+        await refreshPlatformReviewRecords();
+        showToast(
+          provisioned.credentialDelivery?.status === 'sent'
+            ? 'Payment approved, registration provisioned, and initial credential delivery was requested.'
+            : 'Payment approved and registration provisioned. Credential delivery requires review.',
+          provisioned.credentialDelivery?.status === 'sent' ? 'success' : 'warning',
+        );
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to approve this payment.', 'error');
+      }
+      return;
     }
+    showToast('A verified Platform Administrator session is required. No local approval was performed.', 'error');
   };
 
-  const handleRejectPayment = () => {
+  const handleRejectPayment = async () => {
     if (!selectedRegAdmin || !rejectReason) {
       showToast("Please enter a rejection reason.", "error");
       return;
     }
-    const res = centralizedPaymentService.rejectRegistrationPayment(selectedRegAdmin.id, rejectReason);
-    if (!res.ok) {
-      showToast(res.error || 'Failed to reject payment.', 'error');
+    if (platformAdminAccess.kind === 'ready') {
+      if (!selectedRegAdmin.paymentId) {
+        showToast('The selected registration has no reviewable payment.', 'error');
+        return;
+      }
+      try {
+        const client = getSupabaseClient();
+        if (!client) throw new Error('Platform Administrator access is unavailable.');
+        await platformAdminApi.reviewPayment(selectedRegAdmin.id, selectedRegAdmin.paymentId, 'reject', rejectReason, client);
+        setRejectPaymentModalOpen(false);
+        setRejectReason('');
+        setSelectedRegAdmin(null);
+        await refreshPlatformReviewRecords();
+        showToast('Payment rejected. The registration remains in the authoritative review state.', 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to reject this payment.', 'error');
+      }
       return;
     }
-    const updated = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-    setSelectedRegAdmin(updated);
-    setRejectPaymentModalOpen(false);
-    mockAuditService.appendAuditEvent({
-      action: 'payment.rejected',
-      category: 'payment',
-      module: 'payments',
-      targetType: 'payment',
-      targetId: selectedRegAdmin.id,
-      targetLabel: selectedRegAdmin.referenceNumber || selectedRegAdmin.id,
-      result: 'success',
-      severity: 'medium',
-      summary: `Payment rejected for ${selectedRegAdmin.clinicName}.`,
-      beforeSnapshot: { paymentStatus: selectedRegAdmin.paymentStatus },
-      afterSnapshot: { paymentStatus: 'rejected', rejectionReason: rejectReason }
-    });
-    mockNotificationService.createSystemNotification({
-      eventKey: `payment-rejected-${selectedRegAdmin.id}`,
-      category: 'payment',
-      sourceModule: 'payments',
-      sourceRecordId: selectedRegAdmin.id,
-      title: 'Payment Verification Rejected',
-      message: `Payment for ${selectedRegAdmin.clinicName} was rejected. Reason: ${rejectReason}`,
-      priority: 'high',
-      actionUrl: `/platform/payments`,
-      actionLabel: 'Review Payments'
-    });
-    showToast("Payment details rejected.", "error");
+    showToast('A verified Platform Administrator session is required. No local rejection was performed.', 'error');
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -1702,18 +1768,6 @@ export default function App() {
     setEmail('');
     setPassword('');
     setCurrentRoute('/login');
-    syncStateFromStorage();
-  };
-
-  const handleStaleSafePurge = () => {
-    const result = mockBackupRestoreService.staleSafePurge(staleSafePurgeConfirmation);
-    if (!result.ok) {
-      showToast(result.error || 'Stale-safe purge blocked.', 'error');
-      return;
-    }
-    setStaleSafePurgeModalOpen(false);
-    setStaleSafePurgeConfirmation('');
-    showToast('Stale-safe purge completed. Processed platform ledgers were cleared.', 'success');
     syncStateFromStorage();
   };
 
@@ -1986,6 +2040,7 @@ export default function App() {
   const clinicOwnerAccessError = clinicOwnerAccess.kind === 'error' ? clinicOwnerAccess : null;
 
   return (
+    <PlatformAdminReadProvider enabled={platformAdminAccess.kind === 'ready'}>
     <div className="app-container">
       {/* Toast Notifications */}
       <div className="toast-container">
@@ -2181,41 +2236,6 @@ export default function App() {
 
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>Welcome Back</h2>
                 <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>Please sign in to access your clinic workspace.</p>
-              </div>
-
-              {/* Demo Persona Switcher (Convenient 1-Click Auto-Fill) */}
-              <div style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '0.75rem 0.85rem',
-                marginBottom: '1.25rem'
-              }}>
-                <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  ⚡ Quick Demo Accounts (Click to Fill)
-                </span>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleLoadDemoCredentials}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.3rem 0.65rem',
-                      borderRadius: '8px',
-                      fontSize: '0.76rem',
-                      fontWeight: 600,
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <span>👑</span> Platform Admin
-                  </button>
-                </div>
               </div>
 
               {authError && (
@@ -4866,7 +4886,7 @@ export default function App() {
             </nav>
 
             <div className="sidebar-footer">
-              <button 
+              {userRole !== 'platform_owner' && <button
                 className="sidebar-link warning" 
                 style={{ border: '1px solid rgba(255,255,255,0.1)', padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }} 
                 onClick={() => setResetMockModalOpen(true)}
@@ -4874,7 +4894,7 @@ export default function App() {
               >
                 <RotateCcw size={18} />
                 <span className="sidebar-link-text">Reset Mock Data</span>
-              </button>
+              </button>}
               <button 
                 className="sidebar-link danger" 
                 style={{ padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
@@ -4895,26 +4915,7 @@ export default function App() {
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{userRole === 'platform_owner' ? 'Platform Administration System' : 'Clinic Console'}</h3>
               </div>
               <div className="top-nav-right">
-                <span className="badge-prototype"><ShieldAlert size={12} /> Prototype Mode</span>
-                {userRole === 'platform_owner' && (
-                  <button
-                    className="top-nav-btn"
-                    onClick={() => setStaleSafePurgeModalOpen(true)}
-                    title="Stale-Safe Purge"
-                    style={{
-                      width: 'auto',
-                      paddingInline: '0.9rem',
-                      gap: '0.45rem',
-                      color: '#dc2626',
-                      borderColor: '#fecaca',
-                      background: '#fff5f5',
-                      fontWeight: 700
-                    }}
-                  >
-                    <Database size={16} />
-                    <span>Stale-Safe Purge</span>
-                  </button>
-                )}
+                {userRole !== 'platform_owner' && <span className="badge-prototype"><ShieldAlert size={12} /> Prototype Mode</span>}
                 <button className="top-nav-btn" onClick={triggerRefresh}>
                   <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}} />
                 </button>
@@ -4944,6 +4945,8 @@ export default function App() {
               showToast={showToast}
             />
 
+            {userRole === 'platform_owner' && <PlatformAdminReadNotice />}
+
             {/* PLATFORM OWNER DASHBOARD */}
             {currentRoute === '/platform/dashboard' && (
               <PlatformDashboardPage
@@ -4952,6 +4955,10 @@ export default function App() {
                 onReviewRegistration={(reg) => {
                   setSelectedRegAdmin(reg);
                   setCurrentRoute(`/platform/registrations/${reg.id}`);
+                }}
+                onApproveRegistration={(reg) => {
+                  setSelectedRegAdmin(reg);
+                  setApprovePaymentModalOpen(true);
                 }}
                 registrations={registrations}
                 dashboardAnalytics={dashboardAnalytics}
@@ -5022,7 +5029,7 @@ export default function App() {
                     {selectedRegistrationForRoute.paymentStatus === 'approved' && (
                       <div className="banner-alert success" style={{ marginTop: '1rem' }}>
                         <strong>APPROVED</strong>
-                        <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Temp Pass: <code>{selectedRegistrationForRoute.tempPassword}</code></p>
+                        <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Initial credentials are delivered only through the secure email workflow.</p>
                       </div>
                     )}
                   </div>
@@ -5056,20 +5063,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/plans/new' && (
-              <PlanFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Plans" onBack={() => setCurrentRoute('/platform/plans')} />
             )}
 
             {currentRoute.startsWith('/platform/plans/') && currentRoute.endsWith('/edit') && (
-              <PlanFormPage
-                mode="edit"
-                planId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Plans" onBack={() => setCurrentRoute('/platform/plans')} />
             )}
 
             {currentRoute.startsWith('/platform/plans/') && currentRoute !== '/platform/plans/new' && !currentRoute.endsWith('/edit') && (
@@ -5089,20 +5087,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/subscriptions/new' && (
-              <SubscriptionFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Subscriptions" onBack={() => setCurrentRoute('/platform/subscriptions')} />
             )}
 
             {currentRoute.startsWith('/platform/subscriptions/') && currentRoute.endsWith('/edit') && (
-              <SubscriptionFormPage
-                mode="edit"
-                subscriptionId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Subscriptions" onBack={() => setCurrentRoute('/platform/subscriptions')} />
             )}
 
             {currentRoute.startsWith('/platform/subscriptions/') && currentRoute !== '/platform/subscriptions/new' && !currentRoute.endsWith('/edit') && (
@@ -5123,20 +5112,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/payments/new' && (
-              <PaymentFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Payments" onBack={() => setCurrentRoute('/platform/payments')} />
             )}
 
             {currentRoute.startsWith('/platform/payments/') && currentRoute.endsWith('/edit') && (
-              <PaymentFormPage
-                mode="edit"
-                paymentId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Payments" onBack={() => setCurrentRoute('/platform/payments')} />
             )}
 
             {currentRoute.startsWith('/platform/payments/') && currentRoute !== '/platform/payments/new' && !currentRoute.endsWith('/edit') && (
@@ -5157,20 +5137,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/clinics/new' && (
-              <ClinicFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Clinics" onBack={() => setCurrentRoute('/platform/clinics')} />
             )}
 
             {currentRoute.startsWith('/platform/clinics/') && currentRoute.endsWith('/edit') && (
-              <ClinicFormPage
-                mode="edit"
-                clinicId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Clinics" onBack={() => setCurrentRoute('/platform/clinics')} />
             )}
 
             {currentRoute.startsWith('/platform/clinics/') && currentRoute !== '/platform/clinics/new' && !currentRoute.endsWith('/edit') && (
@@ -5331,7 +5302,6 @@ export default function App() {
                     {currentRoute === '/platform/notifications' && 'This module is under development and will display administrative alerts for payment confirmations.'}
                     {currentRoute === '/platform/settings' && 'This module is under development and will manage logo branding and payment vendor key setups.'}
                   </p>
-                  <span className="badge-prototype" style={{ display: 'inline-block', marginBottom: '1.5rem' }}><ShieldAlert size={12} /> Prototype Mode Only</span>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
                     <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => setCurrentRoute('/platform/dashboard')}>
                       Return to Dashboard
@@ -5347,31 +5317,7 @@ export default function App() {
     )}
 
       <Modal
-        open={staleSafePurgeModalOpen}
-        title="Purge stale processed platform data?"
-        description="This clears processed records under Clinic Owners, Clinic Staff & Doctors, Dental Clinics, Partner Laboratories, Subscription Plans, Active Subscriptions, Payments & Receipts, plus linked branch workspace traces. Platform admin access, settings baseline, and restore checkpoints will be preserved. Type PURGE STALE DATA to continue."
-        role="alertdialog"
-        onClose={() => { setStaleSafePurgeModalOpen(false); setStaleSafePurgeConfirmation(''); }}
-        footer={(
-          <>
-            <button className="btn btn-outline" style={{ width: 'auto' }} onClick={() => { setStaleSafePurgeModalOpen(false); setStaleSafePurgeConfirmation(''); }}>Cancel</button>
-            <button className="btn btn-danger" style={{ width: 'auto' }} disabled={staleSafePurgeConfirmation !== 'PURGE STALE DATA'} onClick={handleStaleSafePurge}>Run Stale-Safe Purge</button>
-          </>
-        )}
-      >
-        <div style={{ display: 'grid', gap: '0.9rem' }}>
-          <div style={{ padding: '0.9rem 1rem', borderRadius: '14px', border: '1px solid #fecaca', background: '#fff5f5', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.6 }}>
-            Use this before end-to-end testing when ghost, embedded, stale, seeded, or processed cross-module records are causing confusion in registration, payments, subscriptions, clinics, laboratories, or linked branch workspaces.
-          </div>
-          <label className="form-control">
-            <span>Confirmation Phrase</span>
-            <input className="form-input" value={staleSafePurgeConfirmation} onChange={event => setStaleSafePurgeConfirmation(event.target.value)} placeholder="PURGE STALE DATA" />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal
-        open={resetMockModalOpen}
+        open={userRole !== 'platform_owner' && resetMockModalOpen}
         title="Reset all prototype data?"
         description="This creates a pre-reset local checkpoint, clears non-session prototype data, reseeds mock records, signs out, and returns to Login. Type RESET MOCK DATA to continue."
         role="alertdialog"
@@ -5401,7 +5347,7 @@ export default function App() {
       <Modal
         open={provisionSuccessModalOpen}
         title="🎉 Clinic Owner Account Provisioned & Activated"
-        description="Payment has been verified and clinic owner access credentials have been issued."
+        description="Payment has been verified and the clinic owner account has been provisioned."
         onClose={() => setProvisionSuccessModalOpen(false)}
         footer={(
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%', flexWrap: 'wrap' }}>
@@ -5411,13 +5357,13 @@ export default function App() {
               style={{ width: 'auto' }}
               onClick={() => {
                 if (provisionSuccessData) {
-                  const text = `Clinic Name: ${provisionSuccessData.clinicName}\nOwner: ${provisionSuccessData.ownerName}\nLogin Email: ${provisionSuccessData.ownerEmail}\nTemporary Password: ${provisionSuccessData.tempPassword}\nPlan Tier: ${provisionSuccessData.plan} Enterprise Plan\nSign-in URL: ${window.location.origin}/login`;
+                  const text = `Clinic Name: ${provisionSuccessData.clinicName}\nOwner: ${provisionSuccessData.ownerName}\nLogin Email: ${provisionSuccessData.ownerEmail}\nPlan Tier: ${provisionSuccessData.plan} Enterprise Plan\nSign-in URL: ${window.location.origin}/login`;
                   navigator.clipboard.writeText(text);
-                  showToast("Complete credentials copied to clipboard!", "success");
+                  showToast("Provisioned account summary copied to clipboard!", "success");
                 }
               }}
             >
-              Copy Full Credentials
+              Copy Account Summary
             </button>
             {provisionSuccessData?.subscriberId && (
               <button
@@ -5466,37 +5412,10 @@ export default function App() {
 
             <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '1.25rem' }}>
               <span style={{ color: '#166534', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
-                Temporary Access Password (Issued for First Sign-In)
+                Secure Initial Credential Delivery
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <code style={{
-                  flex: 1,
-                  backgroundColor: '#ffffff',
-                  padding: '0.6rem 0.85rem',
-                  borderRadius: '8px',
-                  border: '1px solid #86efac',
-                  fontFamily: 'monospace',
-                  fontSize: '1.1rem',
-                  fontWeight: 800,
-                  color: '#15803d',
-                  letterSpacing: '0.05em'
-                }}>
-                  {provisionSuccessData.tempPassword}
-                </code>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.6rem 1.25rem' }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(provisionSuccessData.tempPassword);
-                    showToast("Temporary password copied to clipboard!", "success");
-                  }}
-                >
-                  Copy Password
-                </button>
-              </div>
               <span style={{ fontSize: '0.75rem', color: '#166534', marginTop: '0.5rem', display: 'block' }}>
-                ℹ️ The clinic owner will use this temporary password to log in and will be prompted to set a permanent password upon first sign-in.
+                Initial credentials are never returned to or displayed by the browser. The Clinic Owner receives them only through the approved email delivery workflow.
               </span>
             </div>
           </div>
@@ -5539,5 +5458,6 @@ export default function App() {
         onConfirm={handleLogoutConfirm}
       />
     </div>
+    </PlatformAdminReadProvider>
   );
 }

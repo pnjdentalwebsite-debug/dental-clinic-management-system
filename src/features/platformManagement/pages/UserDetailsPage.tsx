@@ -13,8 +13,8 @@ import {
   Users
 } from 'lucide-react';
 import { Modal } from '../../../components/overlays/Modal';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../realData/PlatformAdminReadProvider';
 
 interface UserDetailsPageProps {
   userId: string;
@@ -35,6 +35,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPageProps) {
+  usePlatformAdminDetail('users', userId);
   const [activeTab, setActiveTab] = useState('Overview');
   const [activeModal, setActiveModal] = useState<'reassign' | 'reset_password' | 'suspend' | 'reactivate' | 'delete' | null>(null);
   const [reason, setReason] = useState('');
@@ -59,9 +60,9 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
     );
   }
 
-  const subscriber = user.subscriberId ? mockPlatformManagementService.getSubscriberById(user.subscriberId) : null;
-  const clinics = mockClinicService.getClinicsByUserId(user.id);
-  const allSubscriberClinics = mockClinicService.listClinics().filter(c => !user.subscriberId || c.subscriberId === user.subscriberId);
+  const subscriber = user.subscriberId ? { id: user.subscriberId, businessName: user.subscriberName || 'Subscriber unavailable', primaryClinicName: user.subscriberName || 'Subscriber unavailable', email: '' } : null;
+  const clinics = user.clinicSummaries ?? [];
+  const allSubscriberClinics = clinics;
 
   const activity = mockPlatformManagementService.listActivity().filter(log =>
     log.details.includes(user.fullName) ||
@@ -76,18 +77,15 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
     setIsSubmitting(true);
 
     if (activeModal === 'reset_password') {
-      const tempPass = `TmpPass#${Math.floor(1000 + Math.random() * 9000)}`;
-      mockPlatformManagementService.initiateMockPasswordReset(user.id);
-      showToast(`Temporary password (${tempPass}) generated and dispatched to ${user.email}.`, 'success');
+      showToast('Personnel credential reset is unavailable until an approved secure mutation contract is deployed.', 'warning');
       setActiveModal(null);
       setIsSubmitting(false);
       return;
     }
 
     if (activeModal === 'reassign') {
-      mockPlatformManagementService.updateUser(user.id, { clinicIds: selectedClinicIds });
-      showToast(`Branch assignments updated for ${user.fullName}.`, 'success');
-      setActiveModal(null);
+      const result = mockPlatformManagementService.updateUser(user.id, { clinicIds: selectedClinicIds });
+      showToast(result.error || 'Branch reassignment is unavailable until an approved secure mutation contract is deployed.', 'warning');
       setIsSubmitting(false);
       return;
     }
@@ -246,7 +244,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
                 <div><span style={{ color: '#64748b' }}>Employer Org:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber?.businessName || 'Unassigned'}</strong></div>
-                <div><span style={{ color: '#64748b' }}>Subscriber Plan:</span> <span style={{ color: '#2563eb', fontWeight: 600, marginLeft: '6px' }}>{subscriber?.planId} Plan</span></div>
+                <div><span style={{ color: '#64748b' }}>Subscriber Plan:</span> <span style={{ color: '#2563eb', fontWeight: 600, marginLeft: '6px' }}>Available from Subscriber Details</span></div>
                 <div><span style={{ color: '#64748b' }}>Subscriber Owner:</span> <span style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber?.email}</span></div>
                 {subscriber && (
                   <button className="btn btn-outline" style={{ width: 'auto', marginTop: '0.5rem', fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={() => navigate(`/platform/subscribers/${subscriber.id}`)}>
@@ -263,7 +261,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
                 <div><span style={{ color: '#64748b' }}>Account Status:</span> <StatusBadge status={user.accountStatus} /></div>
                 <div><span style={{ color: '#64748b' }}>Registered Date:</span> <span style={{ color: '#0f172a', marginLeft: '6px' }}>{user.registeredAt}</span></div>
-                <div><span style={{ color: '#64748b' }}>Last Login Timestamp:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{user.lastLoginAt || 'Recent'}</strong></div>
+                <div><span style={{ color: '#64748b' }}>Last Login Timestamp:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{user.lastLoginAt || 'Not available'}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Assigned Branches:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{clinics.length} Facilities</strong></div>
               </div>
             </section>
@@ -282,7 +280,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
                       <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{clinic.name}</h4>
                       <span style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{clinic.id}</span>
                     </div>
-                    <StatusBadge status={clinic.status} />
+                    <StatusBadge status={clinic.status || 'unknown'} />
                   </div>
                   <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' }}>
                     <MapPin size={12} style={{ marginRight: '4px', verticalAlign: '-1px' }} />
@@ -300,7 +298,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
               ))}
               {clinics.length === 0 && (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                  No clinic branch assigned yet. Click "Reassign Branch" above to designate.
+                  No clinic branch assignment is available for this membership.
                 </div>
               )}
             </div>
@@ -314,30 +312,16 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
               <Clock size={18} color="#0284c7" /> Weekly Working Hours Schedule
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {[
-                { day: 'Monday', time: isDentist ? '09:00 AM - 05:00 PM' : '08:00 AM - 06:00 PM', active: true },
-                { day: 'Tuesday', time: isDentist ? '09:00 AM - 05:00 PM' : '08:00 AM - 06:00 PM', active: true },
-                { day: 'Wednesday', time: isDentist ? '09:00 AM - 05:00 PM' : '08:00 AM - 06:00 PM', active: true },
-                { day: 'Thursday', time: isDentist ? '09:00 AM - 05:00 PM' : '08:00 AM - 06:00 PM', active: true },
-                { day: 'Friday', time: isDentist ? '09:00 AM - 05:00 PM' : '08:00 AM - 06:00 PM', active: true },
-                { day: 'Saturday', time: isDentist ? '09:00 AM - 01:00 PM' : '08:00 AM - 05:00 PM', active: true },
-                { day: 'Sunday', time: 'Rest Day (Off Duty)', active: false }
-              ].map(item => (
-                <div
-                  key={item.day}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    backgroundColor: item.active ? '#f8fafc' : '#f1f5f9',
-                    border: '1px solid #e2e8f0'
-                  }}
-                >
-                  <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>{item.day}</span>
-                  <span style={{ fontSize: '0.85rem', color: item.active ? '#0284c7' : '#94a3b8', fontWeight: item.active ? 600 : 400 }}>
-                    {item.time}
+              {Object.keys(user.workSchedule ?? {}).length === 0 ? (
+                <div className="banner-alert info">
+                  <strong>Schedule not configured</strong>
+                  <p>No authoritative work schedule is stored for this membership.</p>
+                </div>
+              ) : Object.entries(user.workSchedule ?? {}).map(([day, schedule]) => (
+                <div key={day} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: schedule.enabled ? '#f8fafc' : '#f1f5f9', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>{day}</span>
+                  <span style={{ fontSize: '0.85rem', color: schedule.enabled ? '#0284c7' : '#94a3b8', fontWeight: schedule.enabled ? 600 : 400 }}>
+                    {schedule.enabled ? `${schedule.startTime || '—'} - ${schedule.endTime || '—'}` : 'Off duty'}
                   </span>
                 </div>
               ))}

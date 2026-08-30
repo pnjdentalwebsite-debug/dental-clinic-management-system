@@ -1,28 +1,24 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
-import { mockClinicService } from '../services/mockClinicService';
+import { clearPlatformAdminSnapshot, installPlatformAdminSnapshot } from '../../platformManagement/realData/platformAdminRealDataService';
+import { makePlatformAdminRealDataTestSnapshot, platformAdminRealDataTestIds } from '../../platformManagement/realData/platformAdminRealDataTestFixture';
 import { ClinicDetailsPage } from './ClinicDetailsPage';
 
 const setup = () => {
-  localStorage.clear();
-  mockPlatformManagementService.ensureSeedData();
-  mockPlanService.initializePlans();
-  mockSubscriptionService.initializeSubscriptions();
-  mockClinicService.initializeClinics();
+  installPlatformAdminSnapshot(makePlatformAdminRealDataTestSnapshot());
 };
 
 describe('ClinicDetailsPage', () => {
   beforeEach(setup);
 
   it('renders detail tabs and assignment workflow entry points', async () => {
-    const clinic = mockClinicService.getClinicsBySubscriberId('SUB-MOCK-MAX')[0];
+    const clinic = { id: platformAdminRealDataTestIds.clinicId, clinicNumber: 'CLN-DEV-001' };
     const user = userEvent.setup();
     render(<ClinicDetailsPage clinicId={clinic.id} navigate={vi.fn()} showToast={vi.fn()} refreshShell={vi.fn()} />);
     expect(screen.getByText(clinic.clinicNumber)).toBeInTheDocument();
+    expect(screen.getByText('Plus Plan')).toBeInTheDocument();
+    expect(screen.queryByText('Plan Usage: Unknown')).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Business Hours' }));
     expect(screen.getByText('Monday')).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Dentists' }));
@@ -31,6 +27,7 @@ describe('ClinicDetailsPage', () => {
   });
 
   it('renders missing clinic state', () => {
+    clearPlatformAdminSnapshot();
     render(<ClinicDetailsPage clinicId="missing" navigate={vi.fn()} showToast={vi.fn()} refreshShell={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Clinic not found' })).toBeInTheDocument();
   });

@@ -26,10 +26,9 @@ import {
   PlatformPageHeader,
   SectionTabs
 } from '../../../components/PlatformShared';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import type { SortState, Subscriber, SubscriberFilters } from '../types';
 
 interface SubscribersPageProps {
@@ -69,8 +68,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 const getSubscriberOwner = (subscriber: Subscriber) => {
-  const users = mockPlatformManagementService.getUsersBySubscriberId(subscriber.id);
-  return users.find(user => user.role === 'clinic_owner')?.fullName || subscriber.businessName || 'Lead Dentist';
+  return subscriber.ownerDisplayName || 'Owner identity unavailable';
 };
 
 const tabOptions = [
@@ -81,8 +79,8 @@ const tabOptions = [
   { key: 'expired', label: 'Expired Accounts' }
 ];
 
-export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvisionModal }: SubscribersPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+export function SubscribersPage({ navigate, showToast, refreshShell }: SubscribersPageProps) {
+  const [, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<SubscriberFilters>(defaultFilters);
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
   const [page, setPage] = useState(1);
@@ -94,43 +92,34 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
   const [plan, setPlan] = useState('Max');
   const [renewalDays, setRenewalDays] = useState(365);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : filters.tab === 'active' || filters.tab === 'suspended' ? filters.tab : undefined;
+  const { revision, summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscribers', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: filters.tab === 'pending' ? 'pending' : requestedStatus,
+    plan: filters.plan !== 'all' ? filters.plan : undefined,
+    paymentStatus: filters.paymentStatus !== 'all' ? filters.paymentStatus : undefined,
+    subscriptionStatus: filters.tab === 'expired' ? 'expired' : filters.subscriptionStatus !== 'all' ? filters.subscriptionStatus : undefined,
+  });
 
-  const subscribers = useMemo(() => {
-    return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey]);
+  const subscribers = directoryPage.items as Subscriber[];
 
-  const summary = useMemo(() => {
-    return mockPlatformManagementService.getSubscriberSummary();
-  }, [refreshKey, subscribers]);
+  const summary = { ...platformSummary.subscriberSummary, pendingRegistrations: platformSummary.pendingRegistrationReviews, expired: platformSummary.subscriptionStatuses.expired, rejectedRegistrations: 0 };
 
   const registrations = useMemo(() => {
     return mockPlatformManagementService.listRegistrations();
-  }, [refreshKey]);
+  }, [revision]);
 
-  const displayedSubscribers = useMemo(() => {
-    const filtered = mockPlatformManagementService.filterSubscribers(subscribers, filters, registrations);
-    return mockPlatformManagementService.sortSubscribers(filtered, sort);
-  }, [subscribers, registrations, filters, sort]);
+  const displayedSubscribers = useMemo(() => mockPlatformManagementService.sortSubscribers(subscribers, sort), [subscribers, sort]);
 
-  const pageCount = Math.max(1, Math.ceil(displayedSubscribers.length / PAGE_SIZE));
-  const pagedSubscribers = mockPlatformManagementService.paginateSubscribers(displayedSubscribers, page, PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const pagedSubscribers = displayedSubscribers;
 
   const pendingRegistrations = registrations.filter(reg => reg.paymentStatus === 'pending_verification' || reg.paymentStatus === 'unpaid');
   const showingRegistrations = filters.tab === 'pending';
 
   // Calculate MRR from subscribers
-  const totalSubscriberMRR = useMemo(() => {
-    const plans = mockPlanService.listPlans();
-    return subscribers.reduce((sum, s) => {
-      if (s.accountStatus !== 'active') return sum;
-      const matchedPlan = plans.find(p => p.name.toLowerCase() === s.planId?.toLowerCase() || p.planCode.toLowerCase() === s.planId?.toLowerCase());
-      return sum + (matchedPlan?.monthlyPrice ?? 10000);
-    }, 0);
-  }, [subscribers]);
+  const totalSubscriberMRR = platformSummary.activeSubscriptionMrrCentavos / 100;
 
-  const maxPlanCount = useMemo(() => {
-    return subscribers.filter(s => s.planId?.toLowerCase() === 'max').length;
-  }, [subscribers]);
+  const maxPlanCount = platformSummary.activePlanDistribution.max ?? 0;
 
   const setFilter = (key: keyof SubscriberFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -161,7 +150,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     setIsSubmitting(false);
   };
 
-  const completeAction = () => {
+  const completeAction = async () => {
     if (!selectedSubscriber || !selectedAction) return;
     if ((selectedAction === 'suspend' || selectedAction === 'deactivate') && !reason.trim()) {
       showToast('Please provide a valid reason before confirming.', 'error');
@@ -170,9 +159,21 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     setIsSubmitting(true);
 
     if (selectedAction === 'reset_password') {
-      showToast(`Temporary password generated and dispatched to ${selectedSubscriber.email}.`, 'success');
-      refreshShell();
-      closeAction();
+      if (!selectedSubscriber.registrationId) {
+        setIsSubmitting(false);
+        showToast('Credential rotation is unavailable because this subscriber has no provisioning registration.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.resendInitialCredential(selectedSubscriber.registrationId);
+        await refreshRealData();
+        showToast(`A rotated initial credential was securely emailed to ${selectedSubscriber.email}.`, 'success');
+        refreshShell();
+        closeAction();
+      } catch (error) {
+        setIsSubmitting(false);
+        showToast(error instanceof Error ? error.message : 'Credential rotation failed.', 'error');
+      }
       return;
     }
 
@@ -196,8 +197,8 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     }
   };
 
-  const allPlans = mockPlanService.listPlans();
-  const activePlans = mockPlanService.getSelectableSubscriberPlans();
+  const allPlans = Array.from(new Map(subscribers.filter(item => item.planId).map(item => [item.planId, { id: item.planId, name: item.planName || item.planId, monthlyPrice: item.monthlyPlanAmount ?? 0 }])).values());
+  const activePlans = allPlans;
 
   const getDaysRemaining = (expiresAt?: string) => {
     if (!expiresAt) return null;
@@ -206,7 +207,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
   };
 
   const renderActions = (subscriber: Subscriber) => {
-    const subscription = mockSubscriptionService.getCurrentSubscriptionBySubscriberId(subscriber.id);
+    const subscriptionId = subscriber.subscriptionId;
     return (
       <RowActionMenu
         ariaLabel={`Actions for subscriber ${subscriber.subscriberNumber}`}
@@ -216,7 +217,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
           { id: 'renew', label: 'Renew / Extend Validity', icon: RotateCcw, hidden: subscriber.accountStatus === 'deactivated', onSelect: () => openAction(subscriber, 'renew') },
           { id: 'reset-pwd', label: 'Reset Owner Password', icon: KeyRound, onSelect: () => openAction(subscriber, 'reset_password') },
           { id: 'sep-related', separator: true },
-          { id: 'subscription', label: 'View Active Plan Details', icon: RefreshCw, onSelect: () => navigate(subscription ? `/platform/subscriptions/${subscription.id}` : '/platform/subscriptions') },
+          { id: 'subscription', label: 'View Active Plan Details', icon: RefreshCw, onSelect: () => navigate(subscriptionId ? `/platform/subscriptions/${subscriptionId}` : '/platform/subscriptions') },
           { id: 'payments', label: 'Payment History & Receipts', icon: CreditCard, onSelect: () => navigate('/platform/payments') },
           { id: 'sep-account', separator: true },
           { id: 'suspend', label: 'Place Account on Hold', icon: PauseCircle, hidden: subscriber.accountStatus !== 'active', destructive: true, onSelect: () => openAction(subscriber, 'suspend') },
@@ -239,6 +240,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
           label: 'Refresh Accounts',
           icon: RefreshCw,
           onClick: () => {
+            void refreshRealData();
             setRefreshKey(k => k + 1);
             refreshShell();
             showToast('Accounts refreshed.', 'info');
@@ -394,28 +396,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
                         <button
                           className="btn btn-primary"
                           style={{ width: 'auto', padding: '0.25rem 0.65rem', fontSize: '0.75rem', height: 'auto' }}
-                          onClick={() => {
-                            const res = mockPaymentService.approveRegistrationPayment(reg.id);
-                            if (res.ok) {
-                              showToast(`Approved registration for ${reg.clinicName}. Account provisioned!`, 'success');
-                              setRefreshKey(k => k + 1);
-                              refreshShell();
-                              const approvedReg = mockPlatformManagementService.listRegistrations().find(r => r.id === reg.id) || reg;
-                              const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === reg.id || s.email?.toLowerCase() === reg.ownerEmail?.toLowerCase());
-                              if (onShowProvisionModal) {
-                                onShowProvisionModal({
-                                  clinicName: approvedReg.clinicName,
-                                  ownerName: approvedReg.ownerName,
-                                  ownerEmail: approvedReg.ownerEmail,
-                                  plan: approvedReg.plan,
-                                  tempPassword: approvedReg.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === approvedReg.ownerEmail.toLowerCase()) as any)?.tempPassword || '',
-                                  subscriberId: sub?.id
-                                });
-                              }
-                            } else {
-                              showToast(res.error || 'Failed to approve registration.', 'error');
-                            }
-                          }}
+                          onClick={() => navigate(`/platform/registrations/${reg.id}`)}
                         >
                           <Check size={14} style={{ marginRight: '4px', display: 'inline-block', verticalAlign: '-2px' }} /> Approve & Activate
                         </button>
@@ -636,7 +617,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
         {/* PAGINATION ROW */}
         {!showingRegistrations && (
           <div className="pagination-row" style={{ marginTop: '1.5rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Showing {pagedSubscribers.length} of {displayedSubscribers.length} subscribers</span>
+            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Showing {pagedSubscribers.length} of {directoryPage.total} subscribers</span>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <button className="btn btn-outline compact-action" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>Previous</button>
               <span style={{ margin: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600 }}>Page {page} of {pageCount}</span>

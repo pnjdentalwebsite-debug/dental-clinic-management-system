@@ -562,3 +562,31 @@
 - `src/App.tsx`: existing Login and Change Password screens are wired to that adapter; Clinic Owner mock credential/status paths are bypassed while Platform Admin, Staff, and Associate prototype paths remain untouched.
 - `src/infrastructure/supabase/clinicOwnerAuth.test.ts` and `src/App.firstLoginAuthContract.test.ts`: focused authentication, first-login gate, request-shape, session, sign-out, storage-safety, and preserved-UI-anchor coverage.
 - No visual component, layout, navigation design, typography, spacing, or responsive styling was redesigned.
+
+## August 30, 2026 Phase 2E.2 Platform Admin Real-Data Components
+- `src/infrastructure/supabase/platformAdminAuth.ts`: authenticated Platform Admin authorization adapter backed by the existing RLS-protected `platform_admins` table.
+- `supabase/functions/platform-admin-read/index.ts`: JWT-required shared-authorization read endpoint with safe DTOs for summary, subscribers, memberships/users, clinics, payments, subscriptions, plans, real schedules, and bounded query inputs.
+- `src/infrastructure/supabase/platformAdminApi.ts`: typed browser client for one summary request, bounded per-resource pages, and exact UUID details plus the existing deployed review, payment-decision, provisioning, and credential-resend functions; it contains no full-directory page walker, service-role key, or password material.
+- `src/features/platformManagement/realData/PlatformAdminReadProvider.tsx`: authenticated dashboard/per-resource load, refetch, and error boundary that returns typed mapped items directly to the requesting page while retaining only bounded compatibility state for detail helpers.
+- `src/features/platformManagement/realData/platformAdminRealDataService.ts`: non-persistent per-resource compatibility projection for the approved existing UI; unsupported writes return a controlled unavailable result.
+- Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, and their detail pages now read this real projection. Mock-backed create/edit routes are blocked and existing visual structure is preserved.
+- `src/infrastructure/supabase/platformAdminReadContract.test.ts` plus affected page tests cover auth ordering, safe DTOs, no automatic full snapshot, page/filter query forwarding, pre-pagination users/subscriptions search, authoritative totals, stable detail identity, no mock fallback, read-only routes, empty data, and preserved pages.
+- Live-fix additions: self-contained payment/clinic/subscriber summary aggregates; safe Subscriber, Clinic, Subscription, Payment, and User relation labels; direct page-response rendering; and hidden unsupported Platform prototype/reset/purge controls.
+- Status: original Edge Function remotely deployed; first live browser validation completed; corrected function pending redeploy and second live browser validation. Phase 2E.2 remains open.
+
+## August 30, 2026 Phase 2E.2 Final Detail Coherence Components
+- `platform-admin-read`: exact subscriber DTO now includes safe active-owner identity, current plan pricing, bounded facilities/personnel/payments, and server-computed financial summaries; exact Clinic, Payment, and Subscription DTOs include only the safe related summaries their detail pages require.
+- `platformAdminRealDataService.ts` and Platform detail pages: map and render exact-resource DTOs without consulting unrelated directory pages. Plan subscriber identities, clinic laboratory links/limits, and unsupported writes remain controlled unavailable when the approved DTO does not support them.
+- `platformAdminReadContract.test.ts`: covers authoritative owner/Plus price/clinic count/paid-total mapping, exact-detail self-containment, removal of cross-directory authority, and absence of hardcoded detail defaults.
+- Status: second list/dashboard live pass complete; **FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No migration or remote deployment was performed.
+
+## August 30, 2026 Phase 2E.2 Final Display Consistency Components
+- `ClinicDetailsPage.tsx`: Plan Usage and plan tab now render the exact clinic DTO's current subscription plan.
+- `PaymentDetailsPage.tsx`: one exact `source_payment_id` subscription association drives Plus plan labeling, 100% allocation status, count `1`, and the association row.
+- `platformAdminRealDataTestFixture.ts` and final-detail tests: coherent Plus/₱8,500 fixture plus direct-refresh Clinic, Payment, and Plan regression coverage.
+- Edge DTO and database schema were unchanged in this pass. Status: **FINAL DISPLAY CONSISTENCY FIX PENDING ABSOLUTE FINAL LIVE VALIDATION**.
+
+## August 30, 2026 Phase 2E.2 Closure
+- The Platform Admin real-data components, exact-detail DTO mappings, and direct-refresh regressions have passed final live browser validation against the deployed development project.
+- Verified details include Subscriber authority, Clinic Plus usage, Payment Plus source-payment association/count, Subscription Plus/approved/active state, and Plan catalog values/aggregate enrollment.
+- **Status: COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**

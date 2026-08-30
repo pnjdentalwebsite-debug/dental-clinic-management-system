@@ -486,3 +486,30 @@ flowchart TD
 - `subscriber_memberships.must_change_password` and the deployed RLS gate remain authoritative. The browser gate prevents tenant UX navigation during first login but never replaces database authorization.
 - Tenant scope is derived from the authenticated owner membership after the gate clears; it is not derived from email, registration records, mock users, or browser storage. SDK-managed Supabase session storage is the only session persistence used by this path.
 - Platform Admin frontend data remains outside this cutover and is the Phase 2E.2 boundary.
+
+## Phase 2E.2 Platform Admin Browser Boundary - August 30, 2026
+- Read path: `Supabase Auth session -> platform-admin-read -> shared requirePlatformAdmin -> server-only admin client -> explicit safe DTO -> real-data adapter -> existing Platform UI`.
+- Mutation path remains `authenticated browser adapter -> existing Phase 2 review/provisioning/resend Edge Function -> authoritative refetch`; the browser never supplies payment amount, actor identity, provisioning scope, or credentials.
+- Cross-tenant tables remain inaccessible through broad browser policies. Service-role access occurs only after server-side Platform Admin verification; no service-role key or secret is included in frontend code.
+- Directory reads are page-size constrained and screen-owned: Dashboard loads aggregate summary plus pending reviews, list screens request only their active page/search/filter, and detail screens request one exact backend UUID. The browser never walks every server page to build a complete cross-tenant snapshot.
+- Users/subscriptions composite search resolves matching relation IDs and constrains the base query before `.range()`, preserving filtered `count: exact` totals. User/detail identity is membership-UUID based, while the Auth user UUID remains a non-routing safe identity field.
+- Unsupported legacy writes are read-only/blocked and direct mock form routes cannot mount. A failed resource read clears that resource projection instead of consulting localStorage.
+- `platform-admin-read` is remotely deployed and the first live browser pass is complete. That pass exposed a split-authority defect where list hooks received a page but screens rendered a separate mutable compatibility snapshot; the corrected path is now `bounded response -> typed mapper -> requesting page`.
+- Dashboard and global Subscriber KPIs are self-contained summary DTO fields. Subscriber, Clinic, Subscription, Payment, and User safe related labels are supplied by their own resource DTOs, so direct navigation/refresh does not require a different directory cache.
+- Current status: **REMOTE READ FUNCTION DEPLOYED / LIVE VALIDATION IN PROGRESS / DEFECT FIX PENDING REDEPLOY/REVALIDATION**. No migration was introduced.
+
+## Phase 2E.2 Exact Detail DTO Coherence Boundary - August 30, 2026
+- Direct detail navigation is now `exact UUID request -> resource-owned safe related summaries -> typed detail model -> existing UI`; it does not depend on which list or detail page was visited first.
+- Subscriber detail includes the active owner membership/profile, authoritative plan amounts, active facilities and personnel, safe payment rows, and server-computed approved/pending/refunded totals. Payment and Subscription detail include their own safe association summaries; Clinic and User detail include bounded relation summaries. Plan detail exposes aggregate subscriber count only, not a cross-resource identity directory.
+- The frontend never derives paid totals from plan price and never derives owner identity from subscriber business name. Missing unsupported relation data is explicit and non-authoritative.
+- Status: **PHASE 2E.2 / LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No schema change was required.
+
+## Phase 2E.2 Detail Association Display Boundary - August 30, 2026
+- Clinic plan display is resolved only from the exact Clinic DTO's current subscription summary.
+- Payment allocation display is an association projection, not a persisted allocation row: `payment -> subscription.source_payment_id -> plan`. Its count, plan label, and allocated amount are all derived from that same exact relation.
+- Plan detail remains `exact plan UUID -> real catalog DTO -> aggregate subscriber count`; it never fabricates subscriber identities. No backend/schema contract changed in this display-only pass.
+
+## Phase 2E.2 Closure - August 30, 2026
+- The deployed `platform-admin-read` boundary and real-data frontend were live browser validated end-to-end. Exact detail routes reconstruct authoritative related summaries after direct refresh without cross-page cache authority.
+- The verified payment display uses the real `source_payment_id` subscription association; it is not a synthetic allocation table record. Credentials and privileged server material remain outside browser DTOs.
+- **Status: COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**

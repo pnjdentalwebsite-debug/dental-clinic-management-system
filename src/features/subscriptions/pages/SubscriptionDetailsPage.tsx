@@ -7,10 +7,8 @@ import {
   Sparkles, 
   DollarSign
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockSubscriptionService } from '../services/mockSubscriptionService';
+import { platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import type { Subscription } from '../types';
 import { SubscriptionActionMenu } from '../components/SubscriptionActionMenu';
 import { SubscriptionActionDialog, type SubscriptionDialogAction } from '../components/SubscriptionActionDialog';
@@ -25,6 +23,7 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }: SubscriptionDetailsPageProps) {
+  usePlatformAdminDetail('subscriptions', subscriptionId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'financial' | 'payments' | 'history'>('overview');
   const [action, setAction] = useState<SubscriptionDialogAction | null>(null);
@@ -42,9 +41,8 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
     );
   }
 
-  const subscriber = mockPlatformManagementService.getSubscriberById(subscription.subscriberId);
-  const plan = mockPlanService.listPlans().find(item => item.id === subscription.priceSnapshot.planId || item.name === subscription.priceSnapshot.planName || item.name === subscription.planId);
-  const payments = mockPaymentService.getPaymentsBySubscriptionId(subscription.id);
+  const subscriberName = subscription.subscriberName || 'Not available';
+  const payments = subscription.sourcePayment ? [subscription.sourcePayment] : [];
   const history = mockSubscriptionService.getSubscriptionHistory(subscription.id);
   const daysRemaining = mockSubscriptionService.getDaysRemaining(subscription);
 
@@ -120,7 +118,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>
-                {subscriber?.businessName || 'Angelo Dental Clinic'}
+                {subscriberName}
               </h1>
               <span style={{
                 display: 'inline-flex',
@@ -139,7 +137,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
               </span>
             </div>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-              Contract ID: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{subscription.subscriptionNumber}</strong> • Primary Owner: <strong style={{ color: '#0f172a' }}>Angelo Mhyr Lagsac</strong> ({subscriber?.email})
+              Contract ID: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{subscription.subscriptionNumber}</strong> • Primary Owner: <strong style={{ color: '#0f172a' }}>{subscription.ownerDisplayName || 'Owner identity unavailable'}</strong> ({subscription.ownerEmail || subscription.subscriberEmail || 'Email unavailable'})
             </p>
           </div>
         </div>
@@ -184,7 +182,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
               <Sparkles size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed' }}>{plan?.name || subscription.planId}</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed' }}>{subscription.priceSnapshot.planName || subscription.planId}</div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Enterprise multi-branch plan</div>
         </div>
 
@@ -196,7 +194,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
             </div>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981' }}>
-            {formatMoney(subscription.priceSnapshot.monthlyPrice || 7990)}
+            {formatMoney(subscription.priceSnapshot.monthlyPrice)}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Per month ({format(subscription.billingCycle)})</div>
         </div>
@@ -270,11 +268,11 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Monthly Billing Base</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.25rem' }}>{formatMoney(subscription.priceSnapshot.monthlyPrice || 7990)}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginTop: '0.25rem' }}>{formatMoney(subscription.priceSnapshot.monthlyPrice)}</div>
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Applied Contract Amount</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16a34a', marginTop: '0.25rem' }}>{formatMoney(subscription.priceSnapshot.appliedAmount || 86292)}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16a34a', marginTop: '0.25rem' }}>{formatMoney(subscription.priceSnapshot.appliedAmount)}</div>
             </div>
           </div>
         )}
@@ -307,7 +305,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{formatMoney(p.amount)}</div>
-                        <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700 }}>● {p.verificationStatus.toUpperCase()}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700 }}>● {p.status.toUpperCase()}</span>
                       </div>
                       <button
                         className="btn btn-outline"

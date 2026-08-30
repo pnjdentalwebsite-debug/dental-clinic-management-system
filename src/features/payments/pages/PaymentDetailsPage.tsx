@@ -8,11 +8,11 @@ import {
   Printer, 
   Check 
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
+import { platformAdminPaymentService as mockPaymentService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { PaymentActionDialog, type PaymentDialogAction } from '../components/PaymentActionDialog';
 import { PaymentActionMenu } from '../components/PaymentActionMenu';
-import { mockPaymentService } from '../services/mockPaymentService';
 
 interface PaymentDetailsPageProps {
   paymentId: string;
@@ -24,6 +24,7 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => `₱${value.toLocaleString()}`;
 
 export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDetailsPageProps) {
+  const { refresh: refreshRealData } = usePlatformAdminDetail('payments', paymentId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'allocations' | 'history'>('overview');
   const [action, setAction] = useState<PaymentDialogAction | null>(null);
@@ -43,17 +44,34 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
     );
   }
 
-  const subscriber = payment.subscriberId ? mockPlatformManagementService.getSubscriberById(payment.subscriberId) : null;
-  const subscription = payment.subscriptionId ? mockSubscriptionService.getSubscriptionById(payment.subscriptionId) : null;
-  const allocations = mockPaymentService.getPaymentAllocations(payment.id);
+  const subscriberName = payment.subscriberName || payment.payerName || 'Not available';
+  const subscriptionAssociations = payment.subscriptionId ? [{
+    id: payment.subscriptionId,
+    subscriptionId: payment.subscriptionId,
+    planName: payment.planName || 'Plan unavailable',
+    amount: payment.allocatedAmount,
+  }] : [];
   const history = mockPaymentService.getPaymentHistory(payment.id);
 
   const refresh = () => setVersion(prev => prev + 1);
 
-  const submitAction = (payload: Record<string, string | number>) => {
+  const submitAction = async (payload: Record<string, string | number>) => {
+    if (action === 'approve' || action === 'reject') {
+      if (!payment.registrationId) {
+        showToast('Only registration payments are supported by the approved payment review contract.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.reviewPayment(payment.registrationId, payment.id, action, action === 'reject' ? String(payload.reason || '') : undefined);
+        await refreshRealData();
+        showToast(`Payment ${action} completed.`, 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Payment review failed.', 'error');
+      }
+      setAction(null);
+      return;
+    }
     const result =
-      action === 'approve' ? mockPaymentService.approvePayment(payment.id) :
-      action === 'reject' ? mockPaymentService.rejectPayment(payment.id, String(payload.reason || ''), String(payload.note || '')) :
       action === 'request_info' ? mockPaymentService.requestPaymentInformation(payment.id, String(payload.reason || ''), String(payload.dueDate || ''), String(payload.note || '')) :
       action === 'allocate' ? mockPaymentService.allocatePayment(payment.id, { allocationType: String(payload.allocationType || 'manual_adjustment') as never, amount: Number(payload.amount), registrationId: payment.registrationId, subscriberId: payment.subscriberId, subscriptionId: payment.subscriptionId, description: String(payload.description || 'Manual allocation') }) :
       action === 'reverse' ? mockPaymentService.reverseAllocation(String(payload.allocationId || ''), String(payload.reason || '')) :
@@ -137,7 +155,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
               </span>
             </div>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-              Ref: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{payment.referenceNumber}</strong> • Payer: <strong style={{ color: '#0f172a' }}>Angelo Mhyr Lagsac</strong> ({payment.payerEmail})
+              Ref: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{payment.referenceNumber}</strong> • Payer: <strong style={{ color: '#0f172a' }}>{payment.payerName || 'Payer unavailable'}</strong> ({payment.payerEmail})
             </p>
           </div>
         </div>
@@ -208,8 +226,8 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
               <FileText size={18} />
             </div>
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed' }}>100% Allocated</div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Applied to Max Plan</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed' }}>{subscriptionAssociations.length === 1 && payment.allocationStatus === 'fully_allocated' ? '100% Allocated' : 'Not Allocated'}</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>{subscriptionAssociations.length === 1 ? `Applied to ${subscriptionAssociations[0].planName} Plan` : 'No subscription association'}</div>
         </div>
       </div>
 
@@ -224,7 +242,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
               style={{ padding: '0.4rem 0.9rem', fontSize: '0.85rem', borderRadius: '8px' }}
             >
               {item === 'overview' ? 'Transaction Details' :
-               item === 'allocations' ? `Subscription Allocation (${allocations.length})` : 'Audit History'}
+               item === 'allocations' ? `Subscription Allocation (${subscriptionAssociations.length})` : 'Audit History'}
             </button>
           ))}
         </div>
@@ -241,22 +259,22 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Subscriber Organization</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriber?.businessName || 'Angelo Dental Clinic'}</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriberName}</div>
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Contract Number</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem', fontFamily: 'monospace' }}>{subscription?.subscriptionNumber || 'SUBS-000001'}</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem', fontFamily: 'monospace' }}>{payment.subscriptionId || 'Not available'}</div>
             </div>
           </div>
         )}
 
         {tab === 'allocations' && (
           <div>
-            {allocations.length > 0 ? (
+            {subscriptionAssociations.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {allocations.map(a => (
+                {subscriptionAssociations.map(association => (
                   <div
-                    key={a.id}
+                    key={association.id}
                     style={{
                       padding: '1rem 1.25rem',
                       borderRadius: '12px',
@@ -270,27 +288,22 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Allocation to Max Plan</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Source Payment Association — {association.planName} Plan</div>
                       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-                        Subscription: <span style={{ fontFamily: 'monospace' }}>{a.subscriptionId}</span> • Type: {format(a.allocationType)}
+                        Subscription: <span style={{ fontFamily: 'monospace' }}>{association.subscriptionId}</span> • Linked through subscription source payment
                       </div>
                     </div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>
-                      {formatMoney(a.amount)}
+                      {formatMoney(association.amount)}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div style={{ padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Default Allocation to Max Plan</div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-                    Subscription: <span style={{ fontFamily: 'monospace' }}>SCP-000101</span> • Fully Applied
-                  </div>
-                </div>
+                <div><div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>No subscription association</div><div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>This payment is not linked through a subscription source payment.</div></div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>
-                  {formatMoney(payment.amount)}
+                  {formatMoney(0)}
                 </div>
               </div>
             )}

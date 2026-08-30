@@ -8,9 +8,9 @@ const authAdapter = read('src/infrastructure/supabase/clinicOwnerAuth.ts');
 
 describe('Phase 2E.1 Clinic Owner frontend first-login contract', () => {
   it('uses Supabase sign-in and excludes Clinic Owner accounts from the legacy mock branch', () => {
-    expect(app).toContain('signInClinicOwner(email.trim(), password, client)');
+    expect(app).toContain('client.auth.signInWithPassword({ email: email.trim(), password })');
     expect(authAdapter).toContain('client.auth.signInWithPassword({ email, password })');
-    expect(app).toContain("user.role !== 'clinic_owner'");
+    expect(app).toContain("user.role === 'associate' || user.role === 'staff'");
   });
 
   it('loads authoritative first-login state and routes the required-password case only to Change Password', () => {

@@ -18,12 +18,9 @@ import {
   Lock
 } from 'lucide-react';
 import { Modal } from '../../../components/overlays/Modal';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
-import { mockLaboratoryService } from '../../laboratories/services/mockLaboratoryService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 
 interface SubscriberDetailsPageProps {
   subscriberId: string;
@@ -41,6 +38,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: SubscriberDetailsPageProps) {
+  const { refresh: refreshRealData } = usePlatformAdminDetail('subscribers', subscriberId);
   const [activeTab, setActiveTab] = useState('Overview');
   const [activeModal, setActiveModal] = useState<'change_plan' | 'renew' | 'suspend' | 'reactivate' | 'reset_password' | 'delete' | null>(null);
   const [plan, setPlan] = useState('Max');
@@ -63,24 +61,16 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
     );
   }
 
-  const users = mockPlatformManagementService.getUsersBySubscriberId(subscriber.id);
+  const users = (subscriber.detailPersonnel ?? []).map(user => ({ ...user, lastLoginAt: undefined }));
   const owner = users.find(user => user.role === 'clinic_owner');
-  const clinics = mockClinicService.getClinicsBySubscriberId(subscriber.id);
-  const laboratories = mockLaboratoryService.getLaboratoriesBySubscriberId(subscriber.id);
-  const subscription = mockSubscriptionService.getCurrentSubscriptionBySubscriberId(subscriber.id);
-  const registrations = mockPlatformManagementService.listRegistrations();
-  const registration = registrations.find(item =>
-    item.id === subscriber.registrationId ||
-    item.subscriberId === subscriber.id ||
-    (subscriber.email && item.ownerEmail?.toLowerCase() === subscriber.email?.toLowerCase()) ||
-    (subscriber.email && item.clinicEmail?.toLowerCase() === subscriber.email?.toLowerCase())
-  );
-  const ownerFullName = owner?.fullName || registration?.ownerName || subscriber.businessName;
-  const ownerEmail = owner?.email || registration?.ownerEmail || subscriber.email;
-  const ownerMobile = owner?.mobileNumber || registration?.ownerMobile || subscriber.mobileNumber;
-  const tempPassword = registration?.tempPassword || (owner as any)?.tempPassword || '';
-  const activePlanObj = mockPlanService.getPlanByCode(subscriber.planId || 'Max') || mockPlanService.getPlanById(subscriber.planId || '');
-  const activePlanPrice = activePlanObj ? activePlanObj.monthlyPrice : 10000;
+  const clinics = subscriber.detailClinics ?? [];
+  const laboratories = subscriber.detailLaboratories ?? [];
+  const subscription = subscriber.subscriptionId ? { subscriptionNumber: subscriber.subscriptionId, status: subscriber.subscriptionStatus, billingCycle: subscriber.billingCycle ?? 'monthly', autoRenew: false } : null;
+  const ownerFullName = subscriber.ownerDisplayName || owner?.fullName || 'Owner identity unavailable';
+  const ownerEmail = owner?.email || subscriber.email || 'Email unavailable';
+  const ownerMobile = owner?.mobileNumber || subscriber.mobileNumber || 'Mobile unavailable';
+  const credentialDeliveryStatus = 'Delivered by secure email; plaintext credentials are not available in Platform Admin.';
+  const activePlanPrice = subscriber.monthlyPlanAmount ?? 0;
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -89,26 +79,32 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const payments = mockPaymentService.getPaymentsBySubscriberId(subscriber.id);
-  const paymentSummary = mockPaymentService.calculateSubscriberPaymentSummary(subscriber.id);
-  const activity = mockPlatformManagementService.listActivity().filter(log =>
-    log.details.includes(subscriber.id) ||
-    log.details.includes(subscriber.businessName) ||
-    Boolean(registration && log.details.includes(registration.id)) ||
-    Boolean(owner && log.details.includes(owner.email))
-  );
+  const payments = (subscriber.detailPayments ?? []).map(payment => ({ ...payment, paymentNumber: payment.id, paymentDate: payment.submittedAt }));
+  const paymentSummary = subscriber.financialSummary ?? { approvedPaidAmount: 0, pendingAmount: 0, refundedAmount: 0, paymentCount: 0 };
+  const activity: Array<{ id: string; event: string; timestamp: string; details: string }> = [];
 
-  const activePlans = mockPlanService.getSelectableSubscriberPlans();
+  const activePlans = [{ id: subscriber.planId, name: subscriber.planName || subscriber.planId, monthlyPrice: activePlanPrice }];
 
   const initials = subscriber.businessName
     ? subscriber.businessName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
     : 'AD';
 
-  const handleModalSubmit = () => {
+  const handleModalSubmit = async () => {
     setIsSubmitting(true);
     if (activeModal === 'reset_password') {
-      showToast(`Temporary password generated and dispatched to ${subscriber.email}.`, 'success');
-      setActiveModal(null);
+      if (!subscriber.registrationId) {
+        showToast('Credential rotation is unavailable because this subscriber has no provisioning registration.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+      try {
+        await platformAdminApi.resendInitialCredential(subscriber.registrationId);
+        await refreshRealData();
+        showToast(`A rotated initial credential was securely emailed to ${ownerEmail}.`, 'success');
+        setActiveModal(null);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Credential rotation failed.', 'error');
+      }
       setIsSubmitting(false);
       return;
     }
@@ -190,7 +186,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
               </span>
             </div>
             <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span>Owner: <strong>{owner?.fullName || 'Angelo Mhyr Lagsac'}</strong></span>
+              <span>Owner: <strong>{ownerFullName}</strong></span>
               <span>•</span>
               <span>Registered on {subscriber.registeredAt}</span>
             </p>
@@ -261,24 +257,9 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                 <div><span style={{ color: '#64748b' }}>Email:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{ownerEmail}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Contact Phone:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{ownerMobile}</strong></div>
                 <div><span style={{ color: '#64748b' }}>Role & Designation:</span> <span style={{ color: '#0f172a', marginLeft: '6px' }}>{owner?.position || 'Clinic Owner & Lead Dentist'}</span></div>
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem', marginTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Lock size={13} /> Temp Password:
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <code style={{ backgroundColor: '#ffffff', padding: '0.2rem 0.5rem', borderRadius: '6px', border: '1px solid #86efac', color: '#15803d', fontWeight: 700, fontSize: '0.82rem', fontFamily: 'monospace' }}>
-                      {tempPassword}
-                    </code>
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      style={{ width: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.72rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                      onClick={() => handleCopy(tempPassword, 'Temporary Password')}
-                    >
-                      {copiedField === 'Temporary Password' ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
-                      {copiedField === 'Temporary Password' ? 'Copied' : 'Copy'}
-                    </button>
-                  </div>
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Lock size={13} color="#166534" />
+                  <span style={{ color: '#166534', fontWeight: 700 }}>{credentialDeliveryStatus}</span>
                 </div>
               </div>
             </section>
@@ -288,8 +269,8 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                 <Building2 size={18} color="#10b981" /> Tenant Facility Entitlements
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
-                <div><span style={{ color: '#64748b' }}>Registered Branches:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{clinics.length} Active Facilities</strong></div>
-                <div><span style={{ color: '#64748b' }}>Partner Laboratories:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{laboratories.length} Linked Centers</strong></div>
+                <div><span style={{ color: '#64748b' }}>Registered Branches:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber.clinicCount} Active Facilities</strong></div>
+                <div><span style={{ color: '#64748b' }}>Partner Laboratories:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber.laboratoryCount} Linked Centers</strong></div>
                 <div><span style={{ color: '#64748b' }}>Associate Dentists:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber.associateCount} Licensed Clinicians</strong></div>
                 <div><span style={{ color: '#64748b' }}>Auxiliary Staff:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber.staffCount} Registered Accounts</strong></div>
               </div>
@@ -303,7 +284,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                 <div><span style={{ color: '#64748b' }}>Tier Rate:</span> <strong style={{ color: '#9333ea', marginLeft: '6px' }}>₱{activePlanPrice.toLocaleString()}.00 / month</strong></div>
                 <div><span style={{ color: '#64748b' }}>Registered Date:</span> <span style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber.registeredAt}</span></div>
                 <div><span style={{ color: '#64748b' }}>Validity Expires:</span> <strong style={{ color: '#16a34a', marginLeft: '6px' }}>{subscriber.expiresAt || 'Active'}</strong></div>
-                <div><span style={{ color: '#64748b' }}>Total Paid Revenue:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>₱{paymentSummary.totalPaid > 0 ? paymentSummary.totalPaid.toLocaleString() : activePlanPrice.toLocaleString()}</strong></div>
+                <div><span style={{ color: '#64748b' }}>Total Paid Revenue:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>₱{paymentSummary.approvedPaidAmount.toLocaleString()}</strong></div>
               </div>
             </section>
           </div>
@@ -329,7 +310,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                   </p>
                   <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      {clinic.isPrimaryClinic ? '👑 Main Branch' : '🏢 Satellite Branch'}
+                      {clinic.isPrimary ? '👑 Main Branch' : '🏢 Satellite Branch'}
                     </span>
                     <button className="btn btn-outline" style={{ width: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => navigate(`/platform/clinics/${clinic.id}`)}>
                       Branch Console
@@ -394,7 +375,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                     <td>{u.email}</td>
                     <td>{u.mobileNumber}</td>
                     <td><StatusBadge status={u.accountStatus} /></td>
-                    <td>{u.lastLoginAt || 'Recent'}</td>
+                    <td>{u.lastLoginAt || 'Not available'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -413,7 +394,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ color: '#64748b' }}>Plan Tier:</span>
-                <strong style={{ color: '#2563eb' }}>{subscriber.planId} Enterprise Plan</strong>
+                <strong style={{ color: '#2563eb' }}>{subscriber.planId || 'Not available'} Plan</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ color: '#64748b' }}>Billing Cycle:</span>
@@ -444,15 +425,15 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <KeyRound size={18} color="#16a34a" /> Access Credentials & Temporary Password
+                  <KeyRound size={18} color="#16a34a" /> Access Credentials
                 </h4>
                 <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '9999px', backgroundColor: '#dcfce7', color: '#15803d', fontWeight: 700 }}>
-                  Development / Prototype Mode
+                  Secure credential delivery
                 </span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.85rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                <div style={{ padding: '0.6rem 0.85rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dcfce7' }}>
                   <div>
                     <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Registered Login Email:</span>
                     <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{ownerEmail}</strong>
@@ -470,7 +451,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.85rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dcfce7' }}>
                   <div>
-                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Temporary Access Password:</span>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Credential Delivery Status:</span>
                     <code style={{
                       backgroundColor: '#f8fafc',
                       padding: '0.25rem 0.6rem',
@@ -484,36 +465,16 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                       display: 'inline-block',
                       marginTop: '0.2rem'
                     }}>
-                      {tempPassword}
+                      {credentialDeliveryStatus}
                     </code>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.35rem 0.85rem', fontSize: '0.78rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCopy(tempPassword, 'Temporary Password')}
-                  >
-                    {copiedField === 'Temporary Password' ? <Check size={13} /> : <Copy size={13} />}
-                    {copiedField === 'Temporary Password' ? 'Copied Password' : 'Copy Password'}
-                  </button>
                 </div>
               </div>
 
-              <div style={{ marginTop: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid #dcfce7', paddingTop: '0.75rem' }}>
+              <div style={{ marginTop: '0.85rem', borderTop: '1px solid #dcfce7', paddingTop: '0.75rem' }}>
                 <span style={{ fontSize: '0.75rem', color: '#166534' }}>
                   🔒 Use these credentials at <strong>/login</strong> to access the clinic owner portal.
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: 'auto', borderColor: '#16a34a', color: '#166534' }}
-                  onClick={() => {
-                    const text = `Clinic: ${subscriber.businessName}\nLogin Email: ${ownerEmail}\nTemporary Password: ${tempPassword}\nSign-in URL: ${window.location.origin}/login`;
-                    handleCopy(text, 'Full Sign-In Details');
-                  }}
-                >
-                  {copiedField === 'Full Sign-In Details' ? 'Copied Full Details!' : 'Copy Full Sign-In Details'}
-                </button>
               </div>
             </div>
           </div>
@@ -651,7 +612,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
               </p>
               <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1rem', borderRadius: '10px' }}>
                 <span style={{ color: '#166534', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
-                  Current Temporary Master Password:
+                  Credential delivery status:
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <code style={{
@@ -665,17 +626,8 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                     fontSize: '1rem',
                     fontFamily: 'monospace'
                   }}>
-                    {tempPassword}
+                    {credentialDeliveryStatus}
                   </code>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.5rem 0.85rem', fontSize: '0.75rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCopy(tempPassword, 'Temporary Password')}
-                  >
-                    {copiedField === 'Temporary Password' ? <Check size={13} /> : <Copy size={13} />}
-                    {copiedField === 'Temporary Password' ? 'Copied' : 'Copy'}
-                  </button>
                 </div>
               </div>
               <span style={{ fontSize: '0.75rem', color: '#64748b' }}>

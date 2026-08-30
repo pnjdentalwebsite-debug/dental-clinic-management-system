@@ -11,9 +11,9 @@ import {
   X,
   Check
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockPaymentService } from '../services/mockPaymentService';
+import { platformAdminPaymentService as mockPaymentService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import type { Payment, PaymentFilters, PaymentSort } from '../types';
@@ -39,8 +39,8 @@ const methods = ['all', 'gcash', 'maya', 'bank_transfer', 'over_the_counter', 'c
 const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => `₱${value.toLocaleString()}`;
 
-export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: PaymentsPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+export function PaymentsPage({ navigate, showToast }: PaymentsPageProps) {
+  const [, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [action, setAction] = useState<PaymentDialogAction | null>(null);
@@ -64,17 +64,23 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     maxAmount: '',
     tab: 'all'
   });
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' && filters.tab !== 'fully_allocated' ? filters.tab : undefined;
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('payments', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
+    paymentMethod: filters.paymentMethod !== 'all' ? filters.paymentMethod : undefined,
+  });
 
-  const payments = useMemo(() => mockPaymentService.listPayments(), [refreshKey]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey]);
-  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey]);
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey]);
-  const summary = useMemo(() => mockPaymentService.getPaymentSummary(), [refreshKey]);
-  const displayed = useMemo(() => mockPaymentService.sortPayments(mockPaymentService.filterPayments(payments, filters), sort), [payments, filters, sort]);
-  const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
-  const paged = mockPaymentService.paginatePayments(displayed, page, PAGE_SIZE);
+  const payments = directoryPage.items as Payment[];
+  const subscribers = Array.from(new Map(payments.filter(item => item.subscriberId).map(item => [item.subscriberId, { id: item.subscriberId!, subscriberNumber: item.subscriberId!, businessName: item.payerName, email: item.payerEmail, planId: item.planId || '' }])).values());
+  const registrations = Array.from(new Map(payments.filter(item => item.registrationId).map(item => [item.registrationId, { id: item.registrationId!, ownerName: item.payerName, ownerEmail: item.payerEmail, clinicName: item.payerName, plan: item.planId || '' }])).values());
+  const plans = Array.from(new Map(payments.filter(item => item.planId).map(item => [item.planId, { id: item.planId!, name: item.planName || item.planId!, planCode: item.planId! }])).values());
+  const summary = { ...platformSummary.paymentSummary, collectedAmount: platformSummary.paymentSummary.approvedAmountCentavos / 100, refundedAmount: platformSummary.paymentSummary.refundedAmountCentavos / 100 };
+  const displayed = useMemo(() => mockPaymentService.sortPayments(payments, sort), [payments, sort]);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const paged = displayed;
 
   const refresh = () => {
+    void refreshRealData();
     setRefreshKey(prev => prev + 1);
     showToast('Payment ledger refreshed.', 'info');
   };
@@ -104,11 +110,25 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     setAction(nextAction);
   };
 
-  const submitAction = (payload: Record<string, string | number>) => {
+  const submitAction = async (payload: Record<string, string | number>) => {
     if (!selectedPayment || !action) return;
+    if (action === 'approve' || action === 'reject') {
+      if (!selectedPayment.registrationId) {
+        showToast('Only registration payments are supported by the approved payment review contract.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.reviewPayment(selectedPayment.registrationId, selectedPayment.id, action, action === 'reject' ? String(payload.reason || '') : undefined);
+        await refreshRealData();
+        showToast(`Payment ${action} completed.`, 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Payment review failed.', 'error');
+      }
+      setAction(null);
+      setSelectedPayment(null);
+      return;
+    }
     const result =
-      action === 'approve' ? mockPaymentService.approvePayment(selectedPayment.id) :
-      action === 'reject' ? mockPaymentService.rejectPayment(selectedPayment.id, String(payload.reason || ''), String(payload.note || '')) :
       action === 'request_info' ? mockPaymentService.requestPaymentInformation(selectedPayment.id, String(payload.reason || ''), String(payload.dueDate || ''), String(payload.note || '')) :
       action === 'allocate' ? mockPaymentService.allocatePayment(selectedPayment.id, { allocationType: String(payload.allocationType || 'manual_adjustment') as never, amount: Number(payload.amount), registrationId: selectedPayment.registrationId, subscriberId: selectedPayment.subscriberId, subscriptionId: selectedPayment.subscriptionId, description: String(payload.description || 'Manual allocation') }) :
       action === 'reverse' ? mockPaymentService.reverseAllocation(String(payload.allocationId || ''), String(payload.reason || '')) :
@@ -121,18 +141,6 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     } else {
       showToast(`Payment ${action.replace('_', ' ')} completed.`, 'success');
       refresh();
-      if (action === 'approve' && onShowProvisionModal && selectedPayment) {
-        const reg = mockPlatformManagementService.listRegistrations().find(r => r.id === selectedPayment.registrationId);
-        const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === selectedPayment.registrationId || s.id === selectedPayment.subscriberId);
-        onShowProvisionModal({
-          clinicName: reg?.clinicName || selectedPayment.payerName,
-          ownerName: reg?.ownerName || selectedPayment.payerName,
-          ownerEmail: reg?.ownerEmail || selectedPayment.payerEmail,
-          plan: reg?.plan || 'Plus',
-          tempPassword: reg?.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === (reg?.ownerEmail || selectedPayment.payerEmail).toLowerCase()) as any)?.tempPassword || '',
-          subscriberId: sub?.id
-        });
-      }
     }
     setAction(null);
     setSelectedPayment(null);
@@ -506,7 +514,7 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
 
           {/* PAGINATION */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: '0.85rem', color: '#64748b' }}>
-            <div>Showing <strong>{paged.length}</strong> of <strong>{displayed.length}</strong> transactions</div>
+            <div>Showing <strong>{paged.length}</strong> of <strong>{directoryPage.total}</strong> transactions</div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <button
                 disabled={page === 1}

@@ -596,4 +596,28 @@
 - [x] Preserve the approved Login and Change Password visual structure; add only safe loading/error handling.
 - [x] Add focused frontend/adapter contract coverage and run the production build.
 - [ ] Perform the separately controlled real browser validation using the existing provisioned Clinic Owner account.
-- [ ] Phase 2E.2: cut over Platform Admin frontend data/actions. Do not start it automatically.
+- [x] Phase 2E.2: cut over Platform Admin frontend data/actions.
+
+## Phase 2E.2 Platform Admin Real-Data Frontend Cutover — Local Implementation Complete - August 30, 2026
+- [x] Replace Platform Admin Login authority with authenticated Supabase session plus RLS-backed `platform_admins` verification.
+- [x] Use deployed registration review, payment review, and provisioning APIs for Dashboard pending-review approval and refetch authoritative data afterward.
+- [x] Add focused source contracts and run the focused suite/build.
+- [x] Add a safe, shared-authorized Platform Admin directory/read DTO for all approved cross-tenant views; no migration is required.
+- [x] Cut over Dashboard metrics, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, and detail routes without localStorage runtime authority.
+- [x] Remove automatic full-directory browser snapshot loading; use Dashboard-only aggregates/reviews plus bounded per-resource page/search/filter requests and exact UUID detail reads.
+- [x] Apply Users and Subscriptions search before server pagination/counting and count only active/current subscriber resources where status authority exists.
+- [x] Block unsupported mock-only writes and direct mock-backed create/edit routes.
+- [x] Pass local Edge Runtime bundling/anonymous rejection, 11 focused files / 79 tests, and `npm run build`.
+- [x] Deploy the original `platform-admin-read` to the linked development project and complete the first live browser pass.
+- [x] Correct the live-discovered subscriptions zero-row projection, summary navigation-order metrics, owner identity DTOs, and unsupported Platform mock controls locally.
+- [x] Redeploy the corrected `platform-admin-read` and complete the second live browser validation with the existing real Platform Administrator account.
+- [x] Phase 2E.2 is complete and ready to merge; Phase 2 overall remains incomplete pending later phases.
+- [x] Complete the second live browser validation for Platform Admin login, Dashboard, all bounded lists, direct subscriber routing, and logout.
+- [x] Patch exact detail DTO coherence locally: authoritative subscriber owner/Plus rate/active clinic/approved paid total, plus cross-resource cache removal across User, Clinic, Payment, Subscription, and Plan details.
+- [x] Preserve approved UI and controlled read-only behavior; do not add migrations or expose credentials.
+- [x] Redeploy only `platform-admin-read` and run the final direct-refresh detail-page browser validation.
+- [x] Close Phase 2E.2 after final detail coherence validation passed.
+- [x] Replace Clinic Details' hardcoded unavailable Plan Usage with its exact current-subscription plan summary.
+- [x] Make Payment Details' plan, allocation percentage, association count, and association content use one real `source_payment_id` subscription relation.
+- [x] Re-audit Plan Details for exact catalog values and aggregate-only enrollment authority.
+- [x] Run the absolute final live browser validation; Phase 2E.2 is ready to merge.

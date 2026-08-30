@@ -14,13 +14,14 @@ import {
   DollarSign,
   Search
 } from 'lucide-react';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
+import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
+import { platformAdminDirectoryService } from '../realData/platformAdminRealDataService';
 
 export interface PlatformDashboardPageProps {
   navigate: (route: string) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onReviewRegistration: (registration: any) => void;
+  onApproveRegistration?: (registration: any) => void;
   registrations: any[];
   dashboardAnalytics: {
     totalSubscribers: number;
@@ -94,22 +95,30 @@ export interface PlatformDashboardPageProps {
 }
 
 export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
+  const { revision, summary } = usePlatformAdminReadModel();
   const {
     navigate,
     onReviewRegistration,
-    registrations,
-    dashboardAnalytics,
-    subscriptionSummary,
-    clinicSummary,
-    laboratorySummary,
-    paymentSummary,
-    notificationSummary,
-    auditSummary,
-    platformSettings,
-    backupSummary,
-    computedPendingPayments,
-    activityLogs
+    onApproveRegistration,
   } = props;
+
+  const registrations = useMemo(() => platformAdminDirectoryService.listRegistrations(), [revision]);
+  const dashboardAnalytics = useMemo(() => ({
+    totalSubscribers: summary.activeSubscribers,
+    totalClinics: summary.activeClinics,
+    totalLaboratories: 0,
+    mockMonthlyRevenue: summary.activeSubscriptionMrrCentavos / 100,
+  }), [summary]);
+  const subscriptionSummary = useMemo(() => ({ ...summary.subscriptionStatuses, total: Object.values(summary.subscriptionStatuses).reduce((total, value) => total + value, 0), draft: 0 }), [summary]);
+  const clinicSummary = summary.clinicSummary;
+  const paymentSummary = { ...summary.paymentSummary, collectedAmount: summary.paymentSummary.approvedAmountCentavos / 100, refundedAmount: summary.paymentSummary.refundedAmountCentavos / 100 };
+  const laboratorySummary = { active: 0, withoutClinicConnections: 0, withoutActiveServices: 0 };
+  const notificationSummary = { unread: 0, urgent: 0 };
+  const auditSummary = { critical: 0, integrityWarnings: 0, failedLogins: 0 };
+  const platformSettings = { maintenance: { enabled: false } };
+  const backupSummary: PlatformDashboardPageProps['backupSummary'] = {};
+  const computedPendingPayments = summary.pendingPaymentReviews;
+  const activityLogs: PlatformDashboardPageProps['activityLogs'] = [];
 
   const [activeMetricTab, setActiveMetricTab] = useState<'financial' | 'facilities' | 'security'>('financial');
   const [activityCategoryFilter, setActivityCategoryFilter] = useState<'all' | 'auth' | 'payment' | 'system'>('all');
@@ -185,8 +194,8 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
       items.push({
         key: 'all_clear',
         type: 'success',
-        title: 'Operations Healthy',
-        message: 'All platform modules, payments, and background services are functioning with zero pending alerts.',
+        title: 'No supported alerts',
+        message: 'The live Platform Admin read model reports no pending payment, clinic-assignment, or subscription-expiry alerts.',
         link: null
       });
     }
@@ -196,9 +205,9 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
 
   // Plan Distribution Breakdown
   const planDistribution = useMemo(() => {
-    const basic = registrations.filter(r => r.plan?.toLowerCase() === 'basic').length;
-    const plus = registrations.filter(r => r.plan?.toLowerCase() === 'plus').length;
-    const max = registrations.filter(r => r.plan?.toLowerCase() === 'max').length;
+    const basic = summary.activePlanDistribution.basic ?? 0;
+    const plus = summary.activePlanDistribution.plus ?? 0;
+    const max = summary.activePlanDistribution.max ?? 0;
     const total = Math.max(1, basic + plus + max);
 
     return {
@@ -210,12 +219,11 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
       plusPct: Math.round((plus / total) * 100),
       maxPct: Math.round((max / total) * 100)
     };
-  }, [registrations]);
+  }, [summary]);
 
   // Filtered Pending Registrations for Table
   const pendingRegistrations = useMemo(() => {
-    const fromStorage = mockPlatformManagementService.listRegistrations();
-    const source = (fromStorage && fromStorage.length > 0) ? fromStorage : (registrations || []);
+    const source = registrations || [];
     const list = source.filter((r: any) => 
       r.paymentStatus === 'pending_verification' || 
       r.registrationStatus === 'payment_under_review'
@@ -947,12 +955,12 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
                             reg.plan?.toLowerCase() === 'plus' ? '#059669' :
                             '#475569'
                         }}>
-                          {reg.plan || 'Plus'}
+                          {reg.plan || 'Not available'}
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 0.85rem' }}>
                         <span style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', display: 'block' }}>
-                          {reg.paymentMethod || 'GCash / Maya'}
+                          {reg.paymentMethod || 'Not available'}
                         </span>
                         {reg.referenceNumber && (
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -974,27 +982,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
                             type="button"
                             className="btn btn-primary"
                             style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: 'auto' }}
-                            onClick={() => {
-                              const res = mockPaymentService.approveRegistrationPayment(reg.id);
-                              if (res.ok) {
-                                props.showToast(`Approved registration for ${reg.clinicName}. Account provisioned!`, 'success');
-                                if (props.refreshShell) props.refreshShell();
-                                const approvedReg = mockPlatformManagementService.listRegistrations().find(r => r.id === reg.id) || reg;
-                                const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === reg.id || s.email?.toLowerCase() === reg.ownerEmail?.toLowerCase());
-                                if (props.onShowProvisionModal) {
-                                  props.onShowProvisionModal({
-                                    clinicName: approvedReg.clinicName,
-                                    ownerName: approvedReg.ownerName,
-                                    ownerEmail: approvedReg.ownerEmail,
-                                    plan: approvedReg.plan,
-                                    tempPassword: approvedReg.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === approvedReg.ownerEmail.toLowerCase()) as any)?.tempPassword || '',
-                                    subscriberId: sub?.id
-                                  });
-                                }
-                              } else {
-                                props.showToast(res.error || 'Failed to approve registration.', 'error');
-                              }
-                            }}
+                            onClick={() => onApproveRegistration?.(reg)}
                           >
                             Approve & Activate
                           </button>

@@ -19,8 +19,8 @@ import {
 import { Modal } from '../../../components/overlays/Modal';
 import { RowActionMenu } from '../../../components/overlays/RowActionMenu';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
 import type { PlatformUser, SortState, UserFilters } from '../types';
 
 interface UsersPageProps {
@@ -53,7 +53,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<UserFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState<'all' | 'associate' | 'staff' | 'suspended'>('all');
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
@@ -64,68 +64,32 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([]);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestedRole = activeTab === 'associate' || activeTab === 'staff' ? activeTab : filters.role !== 'all' ? filters.role : undefined;
+  const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : activeTab === 'suspended' ? 'suspended' : undefined;
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('users', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, role: requestedRole, excludeRole: 'clinic_owner', status: requestedStatus,
+    subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
+    clinicId: filters.clinicId !== 'all' ? filters.clinicId : undefined,
+  });
 
   // Exclude primary subscriber accounts (clinic_owner) so this page exclusively manages clinic personnel
-  const allUsers = useMemo(() => {
-    return mockPlatformManagementService.listUsers().filter(u => u.role !== 'clinic_owner');
-  }, [refreshKey]);
+  const allUsers = (directoryPage.items as PlatformUser[]).filter(user => user.role !== 'clinic_owner');
 
-  const subscribers = useMemo(() => {
-    return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey]);
+  const subscribers = Array.from(new Map(allUsers.filter(user => user.subscriberId).map(user => [user.subscriberId, { id: user.subscriberId!, subscriberNumber: user.subscriberNumber, businessName: user.subscriberName || 'Subscriber unavailable', primaryClinicName: user.subscriberName || 'Subscriber unavailable', email: user.email }])).values());
 
-  const clinics = useMemo(() => {
-    return mockClinicService.listClinics();
-  }, [refreshKey]);
+  const clinics = Array.from(new Map(allUsers.flatMap(user => user.clinicSummaries ?? []).map(clinic => [clinic.id, clinic])).values());
 
   // Tab and search filtering
-  const displayedUsers = useMemo(() => {
-    let filtered = allUsers;
+  const displayedUsers = useMemo(() => mockPlatformManagementService.sortUsers(allUsers, sort), [allUsers, sort]);
 
-    if (activeTab === 'associate') filtered = filtered.filter(u => u.role === 'associate');
-    if (activeTab === 'staff') filtered = filtered.filter(u => u.role === 'staff');
-    if (activeTab === 'suspended') filtered = filtered.filter(u => u.accountStatus === 'suspended' || u.accountStatus === 'deactivated');
-
-    if (filters.search.trim()) {
-      const term = filters.search.trim().toLowerCase();
-      filtered = filtered.filter(u => {
-        const sub = subscribers.find(s => s.id === u.subscriberId);
-        const userClinicsList = clinics.filter(c => u.clinicIds.includes(c.id));
-        const clinicNames = userClinicsList.map(c => c.name).join(' ').toLowerCase();
-        return (
-          u.fullName.toLowerCase().includes(term) ||
-          u.email.toLowerCase().includes(term) ||
-          u.mobileNumber.toLowerCase().includes(term) ||
-          u.position.toLowerCase().includes(term) ||
-          (sub?.businessName || '').toLowerCase().includes(term) ||
-          (sub?.email || '').toLowerCase().includes(term) ||
-          clinicNames.includes(term) ||
-          u.userNumber.toLowerCase().includes(term)
-        );
-      });
-    }
-
-    if (filters.subscriberId !== 'all') {
-      filtered = filtered.filter(u => u.subscriberId === filters.subscriberId);
-    }
-    if (filters.clinicId !== 'all') {
-      filtered = filtered.filter(u => u.clinicIds.includes(filters.clinicId));
-    }
-    if (filters.accountStatus !== 'all') {
-      filtered = filtered.filter(u => u.accountStatus === filters.accountStatus);
-    }
-
-    return mockPlatformManagementService.sortUsers(filtered, sort);
-  }, [allUsers, activeTab, filters, subscribers, clinics, sort]);
-
-  const pageCount = Math.max(1, Math.ceil(displayedUsers.length / PAGE_SIZE));
-  const pagedUsers = mockPlatformManagementService.paginateUsers(displayedUsers, page, PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const pagedUsers = displayedUsers;
 
   // Hero KPI Computations
-  const totalPersonnel = allUsers.length;
-  const activePersonnel = allUsers.filter(u => u.accountStatus === 'active').length;
-  const totalDentists = allUsers.filter(u => u.role === 'associate').length;
-  const totalStaff = allUsers.filter(u => u.role === 'staff').length;
+  const totalPersonnel = platformSummary.personnelSummary.total;
+  const activePersonnel = platformSummary.personnelSummary.active;
+  const totalDentists = platformSummary.personnelSummary.associates;
+  const totalStaff = platformSummary.personnelSummary.staff;
 
   const changeSort = (field: string) => {
     setSort(prev => ({
@@ -140,14 +104,13 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   };
 
   const getUserClinics = (user: PlatformUser) => {
-    return clinics.filter(clinic => user.clinicIds.includes(clinic.id));
+    return user.clinicSummaries ?? [];
   };
 
   const getWorkScheduleText = (user: PlatformUser) => {
-    if (user.role === 'associate') {
-      return 'Mon - Fri: 9:00 AM - 5:00 PM • Sat: 9:00 AM - 1:00 PM';
-    }
-    return 'Mon - Sat: 8:00 AM - 6:00 PM';
+    const activeDays = Object.entries(user.workSchedule ?? {}).filter(([, schedule]) => schedule.enabled);
+    if (activeDays.length === 0) return 'Not configured';
+    return activeDays.map(([day, schedule]) => `${day.slice(0, 3)}: ${schedule.startTime || '—'} - ${schedule.endTime || '—'}`).join(' • ');
   };
 
   const openAction = (user: PlatformUser, action: UserAction) => {
@@ -173,21 +136,15 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
     setIsSubmitting(true);
 
     if (selectedAction === 'reset_password') {
-      const tempPass = `TmpPass#${Math.floor(1000 + Math.random() * 9000)}`;
-      mockPlatformManagementService.initiateMockPasswordReset(selectedUser.id);
-      showToast(`Temporary password (${tempPass}) generated and sent to ${selectedUser.email}.`, 'success');
-      setRefreshKey(k => k + 1);
-      refreshShell();
+      showToast('Personnel credential reset is unavailable until an approved secure mutation contract is deployed.', 'warning');
       closeAction();
       return;
     }
 
     if (selectedAction === 'reassign_branch') {
-      mockPlatformManagementService.updateUser(selectedUser.id, { clinicIds: selectedClinicIds });
-      showToast(`Clinic branch assignment updated for ${selectedUser.fullName}.`, 'success');
-      setRefreshKey(k => k + 1);
-      refreshShell();
-      closeAction();
+      const result = mockPlatformManagementService.updateUser(selectedUser.id, { clinicIds: selectedClinicIds });
+      setIsSubmitting(false);
+      showToast(result.error || 'Branch reassignment is unavailable until an approved secure mutation contract is deployed.', 'warning');
       return;
     }
 
@@ -242,6 +199,7 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
           label: 'Refresh Personnel',
           icon: RefreshCw,
           onClick: () => {
+            void refreshRealData();
             setRefreshKey(k => k + 1);
             refreshShell();
             showToast('Personnel directory refreshed.', 'info');
@@ -634,7 +592,7 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
       {pageCount > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Showing {pagedUsers.length} of {displayedUsers.length} personnel
+            Showing {pagedUsers.length} of {directoryPage.total} personnel
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button

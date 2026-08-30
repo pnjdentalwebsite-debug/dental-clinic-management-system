@@ -1579,3 +1579,39 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 4. Enter a 12-256 character password containing at least one Unicode letter and one Unicode number. Confirm the browser sends only `{ newPassword }` to `complete-initial-password`.
 5. Confirm success refreshes the authoritative first-login state, which returns `mustChangePassword=false`, before `/clinic/dashboard` opens. Verify normal tenant access is restored only then.
 6. Sign out, refresh, and confirm the real Supabase session is removed. Do not perform Platform Admin frontend actions in this phase.
+
+## Phase 2E.2 Platform Admin Local Validation and Pending Live Runbook - August 30, 2026
+1. Local verification completed: `platform-admin-read` bundled in the local Edge Runtime, rejected an anonymous request with `401`, passed the 11-file/79-test focused suite, and the production build completed with zero errors.
+   - Pre-deployment correction validation confirms Platform sign-in no longer downloads every directory page. Use browser network inspection to verify Dashboard requests summary/review only and each directory request carries the visible page, page size, search, and applicable filters.
+   - Verify a Users or Subscriptions search with a match outside page 1 returns the matching bounded page and authoritative filtered total; clearing the search restores the unfiltered total.
+2. After deploying only `platform-admin-read`, sign in with the existing real Platform Administrator account and confirm Dashboard counts and pending reviews load without a mock/localStorage fallback.
+3. Open Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm each list fetches only its current page, each detail fetches its exact UUID, real empty states remain empty, real amounts/statuses match the database, and membership UUID detail routes survive browser refresh.
+4. Confirm Plans and all other unsupported write actions show the read-only/unavailable response; direct `/new` and `/edit` URLs must not mount mock-backed forms.
+5. Confirm existing payment review, registration provisioning, and credential resend still refetch real directory state and never render a temporary password.
+6. Sign out and refresh. Confirm the Supabase session is removed and no Platform route remains authorized by a legacy browser session.
+7. Do not mark Phase 2E.2 complete until this live browser runbook passes. Do not create a new registration or mutate unrelated remote records for validation.
+
+## Phase 2E.2 First Live Pass and Defect Revalidation Boundary - August 30, 2026
+1. The original `platform-admin-read` is remotely deployed. Live sign-in and real Dashboard/Subscriber/Clinic/Payment/Plan reads succeeded, while the Subscriptions page and navigation-order-dependent KPI/owner labels exposed frontend projection defects.
+2. The local fix makes every list render the typed items returned by its own request, expands summary aggregates for payments/clinics/subscribers, and supplies safe owner summaries directly in related DTOs. Unsupported Platform `Prototype Mode`, `Reset Mock Data`, and `Stale-Safe Purge` controls are not available in the real Platform Administrator shell.
+3. Redeploy only `platform-admin-read`, restart/rebuild the frontend, then repeat direct-login navigation and refresh checks for Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm active subscriptions `1`, MRR `₱8,500`, approved payments `1`, and truthful owner names without visiting another directory first.
+4. Do not mutate the existing pending Phase 1 development registration/payment during revalidation. Phase 2E.2 remains open until this second browser pass succeeds.
+
+## Phase 2E.2 Final Detail Coherence Revalidation - August 30, 2026
+1. The second browser pass has already validated login, Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, direct subscriber routing, logout, and refresh protection.
+2. After redeploying only the corrected `platform-admin-read` and rebuilding the frontend, open the real Subscriber Details URL directly in a fresh authenticated tab and refresh it.
+3. Confirm owner `Angelo Mhyr Lagsac`, Plus monthly rate `₱8,500`, active clinic count `1`, and approved paid total `₱8,500`; these values must be correct without first opening any other Platform list.
+4. Direct-refresh one real User, Clinic, Payment, Subscription, and Plan detail route. Confirm related labels come from that exact DTO, unsupported sections say unavailable, and no hardcoded person, amount, subscription number, or allocation appears.
+5. Confirm credential delivery status has no password/status copy control and that no response contains password, token, or service-role material. Phase 2E.2 remains open until this final detail pass succeeds.
+
+## Phase 2E.2 Absolute Final Detail Display Check - August 30, 2026
+1. Direct-refresh the verified Angelo Dental Clinic detail and confirm `Plan Usage` shows `Plus Plan`.
+2. Direct-refresh the approved ₱8,500 Payment detail and confirm `Applied to Plus Plan`, `100% Allocated`, and `Subscription Allocation (1)`.
+3. Open the allocation tab and confirm the single item is identified as the real source-payment association to the Plus subscription, not a fabricated allocation record.
+4. Direct-refresh Basic, Plus, and Max Plan details as available and confirm their real catalog values and aggregate subscriber counts.
+
+## Phase 2E.2 Closure Evidence - August 30, 2026
+1. Final live browser validation passed for Platform Admin authentication, Dashboard real aggregates, Clinic Owners, Clinics, Payments, Subscriptions, Plans, subscriber search, direct detail refresh, and logout/protected-route removal.
+2. Verified exact details: authoritative subscriber owner/facilities/subscription/payment data; Clinic Plus plan usage; approved ₱8,500 Payment linked to one real Plus subscription; Plus subscription active/approved; Plus plan ₱8,500 monthly, ₱86,700 annual, one enrolled subscriber, 11/17 features, and configured quotas.
+3. No plaintext temporary credential, mock/prototype Platform controls, migration, deployment, merge, or Phase 3 work was introduced at closure.
+4. **PHASE 2E.2 = COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**
