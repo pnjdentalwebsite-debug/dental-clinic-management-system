@@ -178,17 +178,18 @@ function toPayment(value: unknown): Payment {
   const item = object(value);
   const status = String(item.status ?? 'pending_verification') as Payment['status'];
   const approved = status === 'approved';
+  const associatedWithSubscription = Boolean(item.subscriptionId);
   const amount = Number(item.amountCentavos ?? 0) / 100;
   return {
     id: String(item.id), paymentNumber: String(item.id), registrationId: item.registrationId ? String(item.registrationId) : undefined,
     subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, subscriptionId: item.subscriptionId ? String(item.subscriptionId) : undefined,
     subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined, subscriberName: item.subscriberName ? String(item.subscriberName) : undefined, registrationNumber: item.registrationNumber ? String(item.registrationNumber) : undefined,
     planId: item.planId ? String(item.planId) : undefined, planName: item.planName ? String(item.planName) : undefined, payerName: String(item.payerName ?? ''), payerEmail: String(item.payerEmail ?? ''),
-    amount, allocatedAmount: approved ? amount : 0, unallocatedAmount: approved ? 0 : amount, refundedAmount: status === 'refunded' ? amount : 0, currency: 'PHP',
+    amount, allocatedAmount: approved && associatedWithSubscription ? amount : 0, unallocatedAmount: approved && associatedWithSubscription ? 0 : amount, refundedAmount: status === 'refunded' ? amount : 0, currency: 'PHP',
     paymentMethod: String(item.paymentMethod ?? 'other') as Payment['paymentMethod'], referenceNumber: String(item.referenceNumber ?? ''), paymentDate: dateOnly(item.submittedAt),
     submittedAt: item.submittedAt ? dateOnly(item.submittedAt) : undefined, verifiedAt: item.reviewedAt && approved ? dateOnly(item.reviewedAt) : undefined,
     rejectedAt: item.reviewedAt && status === 'rejected' ? dateOnly(item.reviewedAt) : undefined, status,
-    verificationStatus: approved ? 'verified' : status === 'rejected' ? 'rejected' : 'pending', allocationStatus: approved ? 'fully_allocated' : 'unallocated',
+    verificationStatus: approved ? 'verified' : status === 'rejected' ? 'rejected' : 'pending', allocationStatus: approved && associatedWithSubscription ? 'fully_allocated' : 'unallocated',
     notes: item.notes ? String(item.notes) : undefined, createdAt: dateOnly(item.createdAt), updatedAt: dateOnly(item.updatedAt), createdBy: 'system', updatedBy: 'system',
   };
 }

@@ -20,7 +20,7 @@ describe('SubscriptionsPage', () => {
 
     expect(await screen.findByText('Harbor Dental Clinic')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Active Clinic Subscriptions' })).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText(/subscriber, clinic name, owner/i), 'Basic');
+    await user.type(screen.getByPlaceholderText(/subscriber, clinic name, owner/i), 'Plus');
     expect(screen.getByText(/showing/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^active \(/i }));

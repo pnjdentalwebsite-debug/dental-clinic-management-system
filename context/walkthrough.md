@@ -1603,3 +1603,9 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 3. Confirm owner `Angelo Mhyr Lagsac`, Plus monthly rate `₱8,500`, active clinic count `1`, and approved paid total `₱8,500`; these values must be correct without first opening any other Platform list.
 4. Direct-refresh one real User, Clinic, Payment, Subscription, and Plan detail route. Confirm related labels come from that exact DTO, unsupported sections say unavailable, and no hardcoded person, amount, subscription number, or allocation appears.
 5. Confirm credential delivery status has no password/status copy control and that no response contains password, token, or service-role material. Phase 2E.2 remains open until this final detail pass succeeds.
+
+## Phase 2E.2 Absolute Final Detail Display Check - August 30, 2026
+1. Direct-refresh the verified Angelo Dental Clinic detail and confirm `Plan Usage` shows `Plus Plan`.
+2. Direct-refresh the approved ₱8,500 Payment detail and confirm `Applied to Plus Plan`, `100% Allocated`, and `Subscription Allocation (1)`.
+3. Open the allocation tab and confirm the single item is identified as the real source-payment association to the Plus subscription, not a fabricated allocation record.
+4. Direct-refresh Basic, Plus, and Max Plan details as available and confirm their real catalog values and aggregate subscriber counts. Phase 2E.2 remains open until this absolute final browser pass succeeds.

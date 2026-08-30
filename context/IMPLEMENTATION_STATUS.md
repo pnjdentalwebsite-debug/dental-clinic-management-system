@@ -775,3 +775,9 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - User, Clinic, Payment, Subscription, and Plan detail routes were audited and stripped of cross-resource directory authority. Related data is either included in the exact resource DTO or shown as controlled unavailable; no fabricated plan price, person, subscription number, or payment allocation is rendered.
     - Credential status remains non-secret and has no meaningless copy action. No password, token, service-role credential, or other secret is returned by the read DTO.
     - No migration or remote deployment was performed. Status: **PHASE 2E.2 / LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**.
+
+64. **Phase 2E.2 Final Detail Display Consistency Fix (August 30, 2026)**:
+    - Final live validation confirmed Subscriber and Subscription details and isolated two display-only inconsistencies. Clinic Details now renders its exact DTO's active subscription as `Plus Plan` instead of a hardcoded unavailable value.
+    - Payment Details now treats the real `subscriptions.source_payment_id` relation as one truthful subscription association. The approved ₱8,500 payment therefore displays Plus, `Subscription Allocation (1)`, and one source-payment association without inventing an allocation table row.
+    - Plan Details remains exact-UUID driven and displays the real catalog price/features/limits with authoritative aggregate subscriber count only. No Edge Function, migration, deployment, merge, or Phase 3 work was introduced in this pass.
+    - Status: **PHASE 2E.2 / LIVE VALIDATION IN PROGRESS / FINAL DISPLAY CONSISTENCY FIX PENDING ABSOLUTE FINAL LIVE VALIDATION**.

@@ -17,6 +17,8 @@ describe('ClinicDetailsPage', () => {
     const user = userEvent.setup();
     render(<ClinicDetailsPage clinicId={clinic.id} navigate={vi.fn()} showToast={vi.fn()} refreshShell={vi.fn()} />);
     expect(screen.getByText(clinic.clinicNumber)).toBeInTheDocument();
+    expect(screen.getByText('Plus Plan')).toBeInTheDocument();
+    expect(screen.queryByText('Plan Usage: Unknown')).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Business Hours' }));
     expect(screen.getByText('Monday')).toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Dentists' }));

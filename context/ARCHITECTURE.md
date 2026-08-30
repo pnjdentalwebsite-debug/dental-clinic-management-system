@@ -503,3 +503,8 @@ flowchart TD
 - Subscriber detail includes the active owner membership/profile, authoritative plan amounts, active facilities and personnel, safe payment rows, and server-computed approved/pending/refunded totals. Payment and Subscription detail include their own safe association summaries; Clinic and User detail include bounded relation summaries. Plan detail exposes aggregate subscriber count only, not a cross-resource identity directory.
 - The frontend never derives paid totals from plan price and never derives owner identity from subscriber business name. Missing unsupported relation data is explicit and non-authoritative.
 - Status: **PHASE 2E.2 / LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No schema change was required.
+
+## Phase 2E.2 Detail Association Display Boundary - August 30, 2026
+- Clinic plan display is resolved only from the exact Clinic DTO's current subscription summary.
+- Payment allocation display is an association projection, not a persisted allocation row: `payment -> subscription.source_payment_id -> plan`. Its count, plan label, and allocated amount are all derived from that same exact relation.
+- Plan detail remains `exact plan UUID -> real catalog DTO -> aggregate subscriber count`; it never fabricates subscriber identities. No backend/schema contract changed in this display-only pass.

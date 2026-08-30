@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { mapPlatformAdminDirectoryItems } from '../../features/platformManagement/realData/platformAdminRealDataService';
-import { makePlatformAdminRealDataTestSnapshot } from '../../features/platformManagement/realData/platformAdminRealDataTestFixture';
+import { makePlatformAdminRealDataTestSnapshot, platformAdminRealDataTestIds } from '../../features/platformManagement/realData/platformAdminRealDataTestFixture';
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const edge = read('supabase/functions/platform-admin-read/index.ts');
@@ -153,13 +153,29 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
     expect(userDetails).not.toContain('platformAdminClinicService');
     expect(clinicDetails).not.toContain('platformAdminDirectoryService');
     expect(clinicDetails).not.toContain('platformAdminLaboratoryService');
+    expect(clinicDetails).toContain('value={plan ? `${plan.name} Plan` : \'Unavailable\'}');
     expect(paymentDetails).not.toContain('platformAdminDirectoryService');
     expect(paymentDetails).not.toContain('platformAdminSubscriptionService');
+    expect(paymentDetails).toContain('const subscriptionAssociations = payment.subscriptionId ?');
+    expect(paymentDetails).toContain('Subscription Allocation (${subscriptionAssociations.length})');
+    expect(paymentDetails).not.toContain('getPaymentAllocations');
     expect(subscriptionDetails).not.toContain('platformAdminDirectoryService');
     expect(subscriptionDetails).not.toContain('platformAdminPaymentService');
     expect(subscriptionDetails).not.toContain('platformAdminPlanService');
     expect(planDetails).not.toContain('getPlanSubscribers');
+    expect(planDetails).toContain('plan.subscriberCount');
     expect([paymentDetails, subscriptionDetails, planDetails].join('\n')).not.toMatch(/Angelo Mhyr|7990|86292|SUBS-000001|SCP-000101/);
+  });
+
+  it('maps exact clinic plan and approved payment source-subscription association consistently', () => {
+    const snapshot = makePlatformAdminRealDataTestSnapshot();
+    const [clinic] = mapPlatformAdminDirectoryItems('clinics', snapshot.clinics.items);
+    const [payment] = mapPlatformAdminDirectoryItems('payments', snapshot.payments.items);
+    const [plan] = mapPlatformAdminDirectoryItems('plans', snapshot.plans.items);
+
+    expect(clinic).toMatchObject({ subscriptionSummary: { planCode: 'plus', planName: 'Plus', status: 'active' } });
+    expect(payment).toMatchObject({ amount: 8500, planName: 'Plus', subscriptionId: platformAdminRealDataTestIds.subscriptionId, allocatedAmount: 8500, allocationStatus: 'fully_allocated' });
+    expect(plan).toMatchObject({ planCode: 'plus', name: 'Plus', monthlyPrice: 8500, annualPrice: 86700, subscriberCount: 1 });
   });
 
   it('maps the authoritative subscriber owner, price, facilities, and paid total', () => {

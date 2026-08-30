@@ -579,3 +579,9 @@
 - `platformAdminRealDataService.ts` and Platform detail pages: map and render exact-resource DTOs without consulting unrelated directory pages. Plan subscriber identities, clinic laboratory links/limits, and unsupported writes remain controlled unavailable when the approved DTO does not support them.
 - `platformAdminReadContract.test.ts`: covers authoritative owner/Plus price/clinic count/paid-total mapping, exact-detail self-containment, removal of cross-directory authority, and absence of hardcoded detail defaults.
 - Status: second list/dashboard live pass complete; **FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No migration or remote deployment was performed.
+
+## August 30, 2026 Phase 2E.2 Final Display Consistency Components
+- `ClinicDetailsPage.tsx`: Plan Usage and plan tab now render the exact clinic DTO's current subscription plan.
+- `PaymentDetailsPage.tsx`: one exact `source_payment_id` subscription association drives Plus plan labeling, 100% allocation status, count `1`, and the association row.
+- `platformAdminRealDataTestFixture.ts` and final-detail tests: coherent Plus/₱8,500 fixture plus direct-refresh Clinic, Payment, and Plan regression coverage.
+- Edge DTO and database schema were unchanged in this pass. Status: **FINAL DISPLAY CONSISTENCY FIX PENDING ABSOLUTE FINAL LIVE VALIDATION**.

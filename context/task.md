@@ -617,3 +617,7 @@
 - [x] Preserve approved UI and controlled read-only behavior; do not add migrations or expose credentials.
 - [ ] Redeploy only `platform-admin-read` and run the final direct-refresh detail-page browser validation.
 - [ ] Close Phase 2E.2 only after the final detail coherence validation passes. Phase 2 remains incomplete.
+- [x] Replace Clinic Details' hardcoded unavailable Plan Usage with its exact current-subscription plan summary.
+- [x] Make Payment Details' plan, allocation percentage, association count, and association content use one real `source_payment_id` subscription relation.
+- [x] Re-audit Plan Details for exact catalog values and aggregate-only enrollment authority.
+- [ ] Run the absolute final live browser validation; do not close Phase 2E.2 before it passes.

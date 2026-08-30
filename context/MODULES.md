@@ -378,3 +378,8 @@
 - The second list/dashboard browser validation passed. The remaining Subscriber Details direct-refresh issue is fixed locally by making the exact subscriber DTO self-contained for safe owner, subscription price, active facilities/personnel, payments, and financial totals.
 - All Platform detail pages now avoid other resource-page caches for identity and financial authority. Unsupported related detail and write workflows display a controlled unavailable state instead of local defaults or fabricated records.
 - Status: **LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No migration or remote deployment was performed.
+
+## Phase 2E.2 Final Detail Display Consistency - August 30, 2026
+- Clinic Details uses its exact current-subscription summary for `Plus Plan`; it does not consult Plans or Subscriptions page caches.
+- Payment Details derives the Plus label and association count from the exact payment DTO's real source-payment subscription link. One linked subscription produces `Subscription Allocation (1)` and no synthetic allocation ledger row.
+- Plan Details remains exact-plan and aggregate-count authoritative. Status: **FINAL DISPLAY CONSISTENCY FIX PENDING ABSOLUTE FINAL LIVE VALIDATION**.
