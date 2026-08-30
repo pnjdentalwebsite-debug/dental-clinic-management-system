@@ -14,13 +14,12 @@ import {
   DollarSign,
   Search
 } from 'lucide-react';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
 
 export interface PlatformDashboardPageProps {
   navigate: (route: string) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onReviewRegistration: (registration: any) => void;
+  onApproveRegistration?: (registration: any) => void;
   registrations: any[];
   dashboardAnalytics: {
     totalSubscribers: number;
@@ -97,6 +96,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
   const {
     navigate,
     onReviewRegistration,
+    onApproveRegistration,
     registrations,
     dashboardAnalytics,
     subscriptionSummary,
@@ -214,8 +214,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
 
   // Filtered Pending Registrations for Table
   const pendingRegistrations = useMemo(() => {
-    const fromStorage = mockPlatformManagementService.listRegistrations();
-    const source = (fromStorage && fromStorage.length > 0) ? fromStorage : (registrations || []);
+    const source = registrations || [];
     const list = source.filter((r: any) => 
       r.paymentStatus === 'pending_verification' || 
       r.registrationStatus === 'payment_under_review'
@@ -974,27 +973,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
                             type="button"
                             className="btn btn-primary"
                             style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: 'auto' }}
-                            onClick={() => {
-                              const res = mockPaymentService.approveRegistrationPayment(reg.id);
-                              if (res.ok) {
-                                props.showToast(`Approved registration for ${reg.clinicName}. Account provisioned!`, 'success');
-                                if (props.refreshShell) props.refreshShell();
-                                const approvedReg = mockPlatformManagementService.listRegistrations().find(r => r.id === reg.id) || reg;
-                                const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === reg.id || s.email?.toLowerCase() === reg.ownerEmail?.toLowerCase());
-                                if (props.onShowProvisionModal) {
-                                  props.onShowProvisionModal({
-                                    clinicName: approvedReg.clinicName,
-                                    ownerName: approvedReg.ownerName,
-                                    ownerEmail: approvedReg.ownerEmail,
-                                    plan: approvedReg.plan,
-                                    tempPassword: approvedReg.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === approvedReg.ownerEmail.toLowerCase()) as any)?.tempPassword || '',
-                                    subscriberId: sub?.id
-                                  });
-                                }
-                              } else {
-                                props.showToast(res.error || 'Failed to approve registration.', 'error');
-                              }
-                            }}
+                            onClick={() => onApproveRegistration?.(reg)}
                           >
                             Approve & Activate
                           </button>

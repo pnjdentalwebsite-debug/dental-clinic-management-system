@@ -486,3 +486,8 @@ flowchart TD
 - `subscriber_memberships.must_change_password` and the deployed RLS gate remain authoritative. The browser gate prevents tenant UX navigation during first login but never replaces database authorization.
 - Tenant scope is derived from the authenticated owner membership after the gate clears; it is not derived from email, registration records, mock users, or browser storage. SDK-managed Supabase session storage is the only session persistence used by this path.
 - Platform Admin frontend data remains outside this cutover and is the Phase 2E.2 boundary.
+
+## Phase 2E.2 Partial Platform Admin Browser Boundary - August 30, 2026
+- Current real path: `Supabase Auth session -> RLS-protected platform_admins check -> platform-registration-review-list -> platform-review-payment -> platform-approve-registration -> authoritative list refetch`.
+- The browser sends only registration/payment identifiers and a permitted review decision/reason. Actor identity, monetary authority, tenant creation, Auth creation, and credential material remain server-side.
+- A complete Platform directory requires a safe server-side profile/read DTO; `profiles` are not cross-tenant readable to Platform Admin through the existing browser RLS policy.

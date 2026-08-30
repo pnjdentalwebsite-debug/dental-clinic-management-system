@@ -112,12 +112,13 @@ import { onboardingApi, type RegistrationPlan, type RegistrationPublicStatus } f
 import {
   completeClinicOwnerInitialPassword,
   resolveClinicOwnerAccess,
-  signInClinicOwner,
   signOutClinicOwner,
   validateInitialPassword,
   type ClinicOwnerAccess,
 } from './infrastructure/supabase/clinicOwnerAuth';
 import { getSupabaseClient } from './infrastructure/supabase/client';
+import { resolvePlatformAdminAccess, type PlatformAdminAccess } from './infrastructure/supabase/platformAdminAuth';
+import { platformAdminApi, type PlatformReviewRegistration } from './infrastructure/supabase/platformAdminApi';
 
 // Default Platform Owner credentials
 const DEFAULT_PLATFORM_OWNER = {
@@ -183,6 +184,7 @@ interface Registration {
   updatedDate: string;
   referenceNumber?: string;
   paymentMethod?: string;
+  paymentId?: string;
   tempPassword?: string;
   rejectionReason?: string;
   subscriberId?: string;
@@ -784,6 +786,7 @@ export default function App() {
   const [loggedClinicName, setLoggedClinicName] = useState<string>('');
   const [loggedPlanName, setLoggedPlanName] = useState<string>('');
   const [clinicOwnerAccess, setClinicOwnerAccess] = useState<ClinicOwnerAccess>({ kind: 'loading' });
+  const [platformAdminAccess, setPlatformAdminAccess] = useState<PlatformAdminAccess>({ kind: 'loading' });
 
   // Subsystem Router Context
   let currentClinic: any = null;
@@ -870,6 +873,52 @@ export default function App() {
   const [isOtpRequesting, setIsOtpRequesting] = useState(false);
   const [isOtpVerifying, setIsOtpVerifying] = useState(false);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+
+  const toPlatformReviewRegistration = (record: PlatformReviewRegistration): Registration => ({
+    id: record.registrationId,
+    plan: record.plan?.name ?? 'Unknown',
+    ownerName: record.ownerName,
+    ownerEmail: record.ownerEmail,
+    ownerMobile: record.ownerMobile ?? '',
+    ownerAddress: '',
+    clinicName: record.clinicName,
+    clinicEmail: record.clinicEmail,
+    clinicMobile: record.clinicMobile ?? '',
+    clinicAddress: '',
+    dentistsCount: 0,
+    staffCount: 0,
+    locationsCount: 0,
+    worksWithLab: false,
+    emailVerified: Boolean(record.emailVerifiedAt),
+    paymentStatus: record.paymentStatus as Registration['paymentStatus'],
+    registrationStatus: record.registrationStatus === 'pending_review'
+      ? 'payment_under_review'
+      : record.registrationStatus === 'approved'
+        ? 'account_ready'
+        : record.registrationStatus === 'pending_payment'
+          ? 'payment_pending'
+          : 'email_verification_pending',
+    submittedDate: record.submittedAt,
+    updatedDate: record.createdAt,
+    referenceNumber: record.payment?.referenceNumber ?? undefined,
+    paymentMethod: record.payment?.method ?? undefined,
+    paymentId: record.payment?.id,
+  });
+
+  const refreshPlatformReviewRecords = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client || platformAdminAccess.kind !== 'ready') return;
+    try {
+      const result = await platformAdminApi.listReview({ page: 1, pageSize: 100, registrationStatus: 'pending_review' }, client);
+      setRegistrations(result.items.map(toPlatformReviewRegistration));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Registration review records are unavailable.', 'error');
+    }
+  }, [platformAdminAccess]);
+
+  useEffect(() => {
+    void refreshPlatformReviewRecords();
+  }, [refreshPlatformReviewRecords]);
 
   // Selected registration for admin details view
   const [selectedRegAdmin, setSelectedRegAdmin] = useState<Registration | null>(null);
@@ -1009,15 +1058,6 @@ export default function App() {
     if (currentRoute.includes('/register/status/')) void refreshRegistrationStatus();
   }, [currentRoute]);
 
-  const handleLoadDemoCredentials = () => {
-    setEmail(DEFAULT_PLATFORM_OWNER.email);
-    setPassword(DEFAULT_PLATFORM_OWNER.password);
-    setEmailError('');
-    setPasswordError('');
-    setAuthError('');
-    showToast("Platform Administrator credentials loaded.", "info");
-  };
-
   const handleOpenForgotPassword = () => {
     setForgotEmailInput(email || '');
     setForgotSubmitted(false);
@@ -1086,6 +1126,16 @@ export default function App() {
     setClinicOwnerAccess(await resolveClinicOwnerAccess(client));
   }, []);
 
+  const refreshPlatformAdminAccess = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      setPlatformAdminAccess({ kind: 'signed_out' });
+      return;
+    }
+    setPlatformAdminAccess({ kind: 'loading' });
+    setPlatformAdminAccess(await resolvePlatformAdminAccess(client));
+  }, []);
+
   useEffect(() => {
     const client = getSupabaseClient();
     if (!client) {
@@ -1094,17 +1144,20 @@ export default function App() {
     }
 
     void refreshClinicOwnerAccess();
+    void refreshPlatformAdminAccess();
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => {
         if (!session) {
           setClinicOwnerAccess({ kind: 'signed_out' });
+          setPlatformAdminAccess({ kind: 'signed_out' });
           return;
         }
         void refreshClinicOwnerAccess();
+        void refreshPlatformAdminAccess();
       }, 0);
     });
     return () => subscription.unsubscribe();
-  }, [refreshClinicOwnerAccess]);
+  }, [refreshClinicOwnerAccess, refreshPlatformAdminAccess]);
 
   // Sync mock-only non-Clinic-Owner sessions while the Clinic Owner path is
   // derived exclusively from the Supabase session and membership state.
@@ -1112,7 +1165,26 @@ export default function App() {
     const list = mockStorage.getRegistrations();
     setRegistrations(list);
 
-    if (clinicOwnerAccess.kind === 'loading') return;
+    if (clinicOwnerAccess.kind === 'loading' || platformAdminAccess.kind === 'loading') return;
+    if (platformAdminAccess.kind === 'ready') {
+      setLoggedUserEmail(platformAdminAccess.email);
+      setLoggedUserName(platformAdminAccess.email);
+      setLoggedClinicName('');
+      setLoggedPlanName('');
+      setUserRole('platform_owner');
+      if (!currentRoute.startsWith('/platform/')) {
+        setCurrentRoute('/platform/dashboard');
+        setActiveModule('Dashboard');
+      }
+      return;
+    }
+    if (platformAdminAccess.kind === 'error') {
+      setUserRole('guest');
+      setLoggedUserEmail('');
+      setLoggedUserName('');
+      if (currentRoute !== '/unauthorized') setCurrentRoute('/unauthorized');
+      return;
+    }
     if (clinicOwnerAccess.kind === 'password_change_required') {
       setLoggedUserEmail(clinicOwnerAccess.email);
       setLoggedUserName(clinicOwnerAccess.email);
@@ -1214,7 +1286,7 @@ export default function App() {
     mockPlatformSettingsService.initializeSettings();
     syncStateFromStorage();
     setActiveModule(getModuleNameFromRoute(currentRoute));
-  }, [currentRoute, clinicOwnerAccess]);
+  }, [currentRoute, clinicOwnerAccess, platformAdminAccess]);
 
   useEffect(() => {
     if (window.location.pathname !== currentRoute) {
@@ -1254,7 +1326,8 @@ export default function App() {
     if (hasError) return;
 
     const legacyMockUser = mockStorage.getUsers().find((user) => (
-      user.email.toLowerCase() === email.trim().toLowerCase() && user.role !== 'clinic_owner'
+      user.email.toLowerCase() === email.trim().toLowerCase()
+      && (user.role === 'associate' || user.role === 'staff')
     ));
 
     setIsLoggingIn(true);
@@ -1322,7 +1395,25 @@ export default function App() {
     }
 
     try {
-      const access = await signInClinicOwner(email.trim(), password, client);
+      const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+      if (error || !data.session) {
+        setAuthError('Email or password is incorrect. Please try again.');
+        return;
+      }
+      const adminAccess = await resolvePlatformAdminAccess(client);
+      setPlatformAdminAccess(adminAccess);
+      if (adminAccess.kind === 'ready') {
+        setCurrentRoute('/platform/dashboard');
+        setActiveModule('Dashboard');
+        return;
+      }
+      if (adminAccess.kind === 'error') {
+        setAuthError(adminAccess.message);
+        await signOutClinicOwner(client);
+        return;
+      }
+
+      const access = await resolveClinicOwnerAccess(client);
       setClinicOwnerAccess(access);
       if (access.kind === 'password_change_required') {
         setCurrentRoute('/clinic/change-password');
@@ -1332,6 +1423,9 @@ export default function App() {
       } else if (access.kind === 'error') {
         setAuthError(access.message);
         setCurrentRoute('/unauthorized');
+      } else {
+        await signOutClinicOwner(client);
+        setAuthError('This account does not have access to the requested workspace.');
       }
     } catch {
       setAuthError('Unable to sign in right now. Please check your connection and try again.');
@@ -1341,7 +1435,9 @@ export default function App() {
   };
 
   const handleLogoutConfirm = async () => {
-    const isRealClinicOwner = clinicOwnerAccess.kind === 'password_change_required'
+    const isRealClinicOwner = platformAdminAccess.kind === 'ready'
+      || platformAdminAccess.kind === 'error'
+      || clinicOwnerAccess.kind === 'password_change_required'
       || clinicOwnerAccess.kind === 'ready'
       || clinicOwnerAccess.kind === 'error';
     if (isRealClinicOwner) {
@@ -1353,6 +1449,7 @@ export default function App() {
         return;
       }
       setClinicOwnerAccess({ kind: 'signed_out' });
+      setPlatformAdminAccess({ kind: 'signed_out' });
       setLogoutModalOpen(false);
       setEmail('');
       setPassword('');
@@ -1529,8 +1626,32 @@ export default function App() {
   };
 
   // Platform admin approvals
-  const handleApprovePayment = () => {
+  const handleApprovePayment = async () => {
     if (!selectedRegAdmin) return;
+    if (platformAdminAccess.kind === 'ready') {
+      if (!selectedRegAdmin.paymentId) {
+        showToast('The selected registration has no reviewable payment.', 'error');
+        return;
+      }
+      try {
+        const client = getSupabaseClient();
+        if (!client) throw new Error('Platform Administrator access is unavailable.');
+        await platformAdminApi.reviewPayment(selectedRegAdmin.id, selectedRegAdmin.paymentId, 'approve', undefined, client);
+        const provisioned = await platformAdminApi.approveRegistration(selectedRegAdmin.id, client);
+        setApprovePaymentModalOpen(false);
+        setSelectedRegAdmin(null);
+        await refreshPlatformReviewRecords();
+        showToast(
+          provisioned.credentialDelivery?.status === 'sent'
+            ? 'Payment approved, registration provisioned, and initial credential delivery was requested.'
+            : 'Payment approved and registration provisioned. Credential delivery requires review.',
+          provisioned.credentialDelivery?.status === 'sent' ? 'success' : 'warning',
+        );
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to approve this payment.', 'error');
+      }
+      return;
+    }
     const approvalCorrelationId = `CORR-${new Date().toISOString().split('T')[0].replaceAll('-', '')}-${selectedRegAdmin.id}`;
     const res = centralizedPaymentService.approveRegistrationPayment(selectedRegAdmin.id);
     if (res.ok) {
@@ -1575,9 +1696,28 @@ export default function App() {
     }
   };
 
-  const handleRejectPayment = () => {
+  const handleRejectPayment = async () => {
     if (!selectedRegAdmin || !rejectReason) {
       showToast("Please enter a rejection reason.", "error");
+      return;
+    }
+    if (platformAdminAccess.kind === 'ready') {
+      if (!selectedRegAdmin.paymentId) {
+        showToast('The selected registration has no reviewable payment.', 'error');
+        return;
+      }
+      try {
+        const client = getSupabaseClient();
+        if (!client) throw new Error('Platform Administrator access is unavailable.');
+        await platformAdminApi.reviewPayment(selectedRegAdmin.id, selectedRegAdmin.paymentId, 'reject', rejectReason, client);
+        setRejectPaymentModalOpen(false);
+        setRejectReason('');
+        setSelectedRegAdmin(null);
+        await refreshPlatformReviewRecords();
+        showToast('Payment rejected. The registration remains in the authoritative review state.', 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to reject this payment.', 'error');
+      }
       return;
     }
     const res = centralizedPaymentService.rejectRegistrationPayment(selectedRegAdmin.id, rejectReason);
@@ -2181,41 +2321,6 @@ export default function App() {
 
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>Welcome Back</h2>
                 <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>Please sign in to access your clinic workspace.</p>
-              </div>
-
-              {/* Demo Persona Switcher (Convenient 1-Click Auto-Fill) */}
-              <div style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '0.75rem 0.85rem',
-                marginBottom: '1.25rem'
-              }}>
-                <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  ⚡ Quick Demo Accounts (Click to Fill)
-                </span>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleLoadDemoCredentials}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.3rem 0.65rem',
-                      borderRadius: '8px',
-                      fontSize: '0.76rem',
-                      fontWeight: 600,
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <span>👑</span> Platform Admin
-                  </button>
-                </div>
               </div>
 
               {authError && (
@@ -4952,6 +5057,10 @@ export default function App() {
                 onReviewRegistration={(reg) => {
                   setSelectedRegAdmin(reg);
                   setCurrentRoute(`/platform/registrations/${reg.id}`);
+                }}
+                onApproveRegistration={(reg) => {
+                  setSelectedRegAdmin(reg);
+                  setApprovePaymentModalOpen(true);
                 }}
                 registrations={registrations}
                 dashboardAnalytics={dashboardAnalytics}

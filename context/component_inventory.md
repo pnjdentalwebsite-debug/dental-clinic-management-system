@@ -562,3 +562,9 @@
 - `src/App.tsx`: existing Login and Change Password screens are wired to that adapter; Clinic Owner mock credential/status paths are bypassed while Platform Admin, Staff, and Associate prototype paths remain untouched.
 - `src/infrastructure/supabase/clinicOwnerAuth.test.ts` and `src/App.firstLoginAuthContract.test.ts`: focused authentication, first-login gate, request-shape, session, sign-out, storage-safety, and preserved-UI-anchor coverage.
 - No visual component, layout, navigation design, typography, spacing, or responsive styling was redesigned.
+
+## August 30, 2026 Phase 2E.2 Partial Platform Admin Components
+- `src/infrastructure/supabase/platformAdminAuth.ts`: authenticated Platform Admin authorization adapter backed by the existing RLS-protected `platform_admins` table.
+- `src/infrastructure/supabase/platformAdminApi.ts`: typed browser client for the deployed review, payment decision, provisioning, and credential-resend Edge Functions; it contains no service-role key or password material.
+- `src/features/platformManagement/pages/PlatformDashboardPage.tsx`: pending-review data/action boundary no longer approves through mock services.
+- `src/infrastructure/supabase/platformAdminCutoverContract.test.ts`: focused authority, API payload, no-secret, and Dashboard-refetch coverage. Remaining Platform page components are not yet real-data components.

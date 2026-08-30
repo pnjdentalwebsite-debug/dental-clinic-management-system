@@ -363,3 +363,8 @@
 - A single active owner membership with `mustChangePassword=true` is restricted to `/clinic/change-password`; completion invokes `complete-initial-password` with only `{ newPassword }`, then refreshes the RPC before normal Clinic Owner routing.
 - Zero/multiple active owner memberships and invalid/expired sessions fail safely without selecting a tenant. The ready path resolves the membership's RLS-scoped `subscriber_id` only after the first-login gate clears.
 - Platform Admin real-data frontend cutover is deliberately not included; it remains Phase 2E.2. The deployed Phase 2 backend and first-login RLS/completion contracts are live-validated.
+
+## Phase 2E.2 Platform Admin Real-Data Cutover — Partial Foundation - August 30, 2026
+- Platform Admin authentication now resolves an authenticated Supabase session against the RLS-protected `platform_admins` table; it no longer accepts the legacy Platform Admin mock account path.
+- The Dashboard pending-review list is sourced from deployed `platform-registration-review-list`; approval delegates to `platform-review-payment` then `platform-approve-registration`, followed by an authoritative refetch.
+- The remaining Platform directory, personnel, clinic, subscription, payment-ledger, and plan pages are not yet fully cut over. Their existing mock-backed runtime must not be represented as real data.

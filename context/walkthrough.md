@@ -1579,3 +1579,9 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 4. Enter a 12-256 character password containing at least one Unicode letter and one Unicode number. Confirm the browser sends only `{ newPassword }` to `complete-initial-password`.
 5. Confirm success refreshes the authoritative first-login state, which returns `mustChangePassword=false`, before `/clinic/dashboard` opens. Verify normal tenant access is restored only then.
 6. Sign out, refresh, and confirm the real Supabase session is removed. Do not perform Platform Admin frontend actions in this phase.
+
+## Phase 2E.2 Partial Platform Admin Validation - August 30, 2026
+1. Sign in using the real Platform Administrator account; confirm the authenticated `platform_admins` authorization check, not a local mock role, opens the Platform dashboard.
+2. Confirm pending registration reviews load through `platform-registration-review-list`.
+3. Review a real pending payment only when separately authorized: the UI calls `platform-review-payment`, then `platform-approve-registration`, and refetches the review list. No temporary password is shown.
+4. Do not treat remaining mock-backed directory pages as real Platform data. A dedicated safe read DTO is still required for cross-tenant personnel identity display.
