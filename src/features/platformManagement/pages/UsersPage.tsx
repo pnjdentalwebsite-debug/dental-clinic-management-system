@@ -20,7 +20,7 @@ import { Modal } from '../../../components/overlays/Modal';
 import { RowActionMenu } from '../../../components/overlays/RowActionMenu';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
-import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
+import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
 import type { PlatformUser, SortState, UserFilters } from '../types';
 
 interface UsersPageProps {
@@ -53,7 +53,6 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps) {
-  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<UserFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState<'all' | 'associate' | 'staff' | 'suspended'>('all');
@@ -65,6 +64,13 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([]);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestedRole = activeTab === 'associate' || activeTab === 'staff' ? activeTab : filters.role !== 'all' ? filters.role : undefined;
+  const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : activeTab === 'suspended' ? 'suspended' : undefined;
+  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('users', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, role: requestedRole, excludeRole: 'clinic_owner', status: requestedStatus,
+    subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
+    clinicId: filters.clinicId !== 'all' ? filters.clinicId : undefined,
+  });
 
   // Exclude primary subscriber accounts (clinic_owner) so this page exclusively manages clinic personnel
   const allUsers = useMemo(() => {
@@ -80,47 +86,10 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   }, [refreshKey, revision]);
 
   // Tab and search filtering
-  const displayedUsers = useMemo(() => {
-    let filtered = allUsers;
+  const displayedUsers = useMemo(() => mockPlatformManagementService.sortUsers(allUsers, sort), [allUsers, sort]);
 
-    if (activeTab === 'associate') filtered = filtered.filter(u => u.role === 'associate');
-    if (activeTab === 'staff') filtered = filtered.filter(u => u.role === 'staff');
-    if (activeTab === 'suspended') filtered = filtered.filter(u => u.accountStatus === 'suspended' || u.accountStatus === 'deactivated');
-
-    if (filters.search.trim()) {
-      const term = filters.search.trim().toLowerCase();
-      filtered = filtered.filter(u => {
-        const sub = subscribers.find(s => s.id === u.subscriberId);
-        const userClinicsList = clinics.filter(c => u.clinicIds.includes(c.id));
-        const clinicNames = userClinicsList.map(c => c.name).join(' ').toLowerCase();
-        return (
-          u.fullName.toLowerCase().includes(term) ||
-          u.email.toLowerCase().includes(term) ||
-          u.mobileNumber.toLowerCase().includes(term) ||
-          u.position.toLowerCase().includes(term) ||
-          (sub?.businessName || '').toLowerCase().includes(term) ||
-          (sub?.email || '').toLowerCase().includes(term) ||
-          clinicNames.includes(term) ||
-          u.userNumber.toLowerCase().includes(term)
-        );
-      });
-    }
-
-    if (filters.subscriberId !== 'all') {
-      filtered = filtered.filter(u => u.subscriberId === filters.subscriberId);
-    }
-    if (filters.clinicId !== 'all') {
-      filtered = filtered.filter(u => u.clinicIds.includes(filters.clinicId));
-    }
-    if (filters.accountStatus !== 'all') {
-      filtered = filtered.filter(u => u.accountStatus === filters.accountStatus);
-    }
-
-    return mockPlatformManagementService.sortUsers(filtered, sort);
-  }, [allUsers, activeTab, filters, subscribers, clinics, sort]);
-
-  const pageCount = Math.max(1, Math.ceil(displayedUsers.length / PAGE_SIZE));
-  const pagedUsers = mockPlatformManagementService.paginateUsers(displayedUsers, page, PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const pagedUsers = displayedUsers;
 
   // Hero KPI Computations
   const totalPersonnel = allUsers.length;
@@ -629,7 +598,7 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
       {pageCount > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
           <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Showing {pagedUsers.length} of {displayedUsers.length} personnel
+            Showing {pagedUsers.length} of {directoryPage.total} personnel
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button

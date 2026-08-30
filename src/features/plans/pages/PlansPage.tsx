@@ -16,7 +16,7 @@ import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDia
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import { PlanActionMenu } from '../components/PlanActionMenu';
 import { platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
-import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import type { Plan, PlanFilters, PlanSort } from '../types';
 
 interface PlansPageProps {
@@ -35,17 +35,20 @@ const tabs = [
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function PlansPage({ navigate, showToast }: PlansPageProps) {
-  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [confirmPlan, setConfirmPlan] = useState<Plan | null>(null);
   const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate' | 'archive' | 'restore' | 'delete' | null>(null);
   const [filters, setFilters] = useState<PlanFilters>({ search: '', status: 'all', visibility: 'all', tab: 'all' });
   const [sort, setSort] = useState<PlanSort>({ field: 'displayOrder', direction: 'asc' });
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : filters.visibility === 'public' ? 'active' : undefined;
+  const { revision, refresh: refreshRealData } = usePlatformAdminDirectoryPage('plans', {
+    page: 1, pageSize: 25, search: filters.search.trim() || undefined, status: requestedStatus,
+  });
 
   const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
   const summary = useMemo(() => mockPlanService.getPlanSummary(), [refreshKey, revision]);
-  const filteredPlans = useMemo(() => mockPlanService.sortPlans(mockPlanService.filterPlans(plans, filters), sort), [plans, filters, sort]);
+  const filteredPlans = useMemo(() => mockPlanService.sortPlans(plans, sort), [plans, sort]);
   const entryPlan = useMemo(() => [...plans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0] ?? null, [plans]);
   const showReadOnlyNotice = () => showToast('Plan configuration is read-only until an approved secure plan mutation contract is deployed.', 'info');
 

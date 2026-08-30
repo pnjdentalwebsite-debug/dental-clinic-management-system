@@ -42,7 +42,7 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
   });
 
   it('uses one cohesive typed read endpoint for every approved resource', () => {
-    expect(api).toContain("invoke<PlatformAdminReadPage>('platform-admin-read'");
+    expect(api).toContain("invoke<PlatformAdminReadPage<T> | { item: T }");
     expect(api).toContain("invoke<{ summary: PlatformAdminDirectorySnapshot['summary'] }>('platform-admin-read'");
     for (const resource of ['subscribers', 'users', 'clinics', 'payments', 'subscriptions', 'plans']) {
       expect(edge).toContain(resource);
@@ -58,14 +58,50 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
     expect(edge).toContain("uuid(payload.id, 'Record ID')");
   });
 
-  it('loads every safe directory page and uses membership UUIDs for unambiguous user details', () => {
-    expect(api).toContain('while (items.length < total)');
-    expect(api).toContain("readAllDirectoryPages('users', client)");
+  it('does not download a complete cross-tenant directory snapshot on sign-in', () => {
+    expect(api).not.toContain('readAllDirectoryPages');
+    expect(api).not.toContain('getDirectorySnapshot');
+    expect(provider).toContain('platformAdminApi.getSummary()');
+    expect(provider).not.toMatch(/readDirectory\(['"](?:subscribers|users|clinics|payments|subscriptions|plans)/);
     expect(api).toContain('readAllReviewPages(filters, client)');
     expect(provider).toContain("platformAdminApi.listAllReview({ registrationStatus: 'pending_review' })");
+  });
+
+  it('sends the active page, bounded page size, search, and filters to the read endpoint', () => {
+    expect(provider).toContain('model.loadPage(resource, query)');
+    expect(provider).toContain('installPlatformAdminDirectoryPage(resource, result.items)');
+    for (const page of targetPages.filter(value => !value.includes('DetailsPage') && !value.includes('Platform Control Center'))) {
+      expect(page).toContain('usePlatformAdminDirectoryPage(');
+    }
+    expect(targetPages.join('\n')).toContain('pageSize: PAGE_SIZE');
+    expect(targetPages.join('\n')).toContain("search: filters.search.trim() || undefined");
+  });
+
+  it('applies users and subscriptions search before range and keeps exact filtered totals', () => {
+    const usersReader = edge.slice(edge.indexOf('async function users'), edge.indexOf('async function clinics'));
+    const subscriptionsReader = edge.slice(edge.indexOf('async function subscriptions'), edge.indexOf('async function plans'));
+    for (const reader of [usersReader, subscriptionsReader]) {
+      expect(reader.indexOf('if (options.search)')).toBeGreaterThan(-1);
+      expect(reader.indexOf('if (options.search)')).toBeLessThan(reader.indexOf('.range('));
+      expect(reader).toContain("select(`");
+      expect(reader).toContain("{ count: 'exact' }");
+      expect(reader).toContain('total: count ?? 0');
+      expect(reader).not.toContain('total: options.search ? items.length');
+    }
+  });
+
+  it('keeps directory page size bounded and detail lookup UUID-exact', () => {
+    expect(edge).toContain('pageSize > 100');
     expect(edge).toContain("query.eq('id', options.id)");
     expect(edge).toContain('id: row.id');
     expect(edge).toContain('userId: row.user_id');
+  });
+
+  it('counts only active subscriber resources where status authority exists', () => {
+    expect(edge).toContain('laboratories(id, status)');
+    expect(edge).toContain("clinics.filter(clinic => clinic.status === 'active')");
+    expect(edge).toContain("list(row.laboratories).filter(laboratory => laboratory.status === 'active')");
+    expect(edge).toContain("memberships.filter(membership => membership.account_status === 'active')");
   });
 
   it('maps explicit safe DTOs and excludes credential, OTP, and token fields', () => {
@@ -115,10 +151,10 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
     expect(app).toContain('No local rejection was performed.');
   });
 
-  it('drives Dashboard counts and plan pricing from the real snapshot', () => {
+  it('drives Dashboard from summary/review state without requiring directory downloads', () => {
     const dashboard = targetPages[0];
     expect(dashboard).toContain('getPlatformAdminSummary()');
-    expect(dashboard).toContain('platformAdminSubscriptionService.listSubscriptions()');
     expect(dashboard).not.toContain('mockPlatformManagementService');
+    expect(provider).toContain('installPlatformAdminDashboard(summaryResult.summary, review.items)');
   });
 });

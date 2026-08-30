@@ -27,7 +27,7 @@ import {
   SectionTabs
 } from '../../../components/PlatformShared';
 import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../realData/platformAdminRealDataService';
-import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
+import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
 import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import type { SortState, Subscriber, SubscriberFilters } from '../types';
 
@@ -81,7 +81,6 @@ const tabOptions = [
 ];
 
 export function SubscribersPage({ navigate, showToast, refreshShell }: SubscribersPageProps) {
-  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<SubscriberFilters>(defaultFilters);
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
@@ -94,6 +93,13 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
   const [plan, setPlan] = useState('Max');
   const [renewalDays, setRenewalDays] = useState(365);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : filters.tab === 'active' || filters.tab === 'suspended' ? filters.tab : undefined;
+  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscribers', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: filters.tab === 'pending' ? 'pending' : requestedStatus,
+    plan: filters.plan !== 'all' ? filters.plan : undefined,
+    paymentStatus: filters.paymentStatus !== 'all' ? filters.paymentStatus : undefined,
+    subscriptionStatus: filters.tab === 'expired' ? 'expired' : filters.subscriptionStatus !== 'all' ? filters.subscriptionStatus : undefined,
+  });
 
   const subscribers = useMemo(() => {
     return mockPlatformManagementService.listSubscribers();
@@ -107,13 +113,10 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
     return mockPlatformManagementService.listRegistrations();
   }, [refreshKey, revision]);
 
-  const displayedSubscribers = useMemo(() => {
-    const filtered = mockPlatformManagementService.filterSubscribers(subscribers, filters, registrations);
-    return mockPlatformManagementService.sortSubscribers(filtered, sort);
-  }, [subscribers, registrations, filters, sort]);
+  const displayedSubscribers = useMemo(() => mockPlatformManagementService.sortSubscribers(subscribers, sort), [subscribers, sort]);
 
-  const pageCount = Math.max(1, Math.ceil(displayedSubscribers.length / PAGE_SIZE));
-  const pagedSubscribers = mockPlatformManagementService.paginateSubscribers(displayedSubscribers, page, PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const pagedSubscribers = displayedSubscribers;
 
   const pendingRegistrations = registrations.filter(reg => reg.paymentStatus === 'pending_verification' || reg.paymentStatus === 'unpaid');
   const showingRegistrations = filters.tab === 'pending';
@@ -628,7 +631,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
         {/* PAGINATION ROW */}
         {!showingRegistrations && (
           <div className="pagination-row" style={{ marginTop: '1.5rem' }}>
-            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Showing {pagedSubscribers.length} of {displayedSubscribers.length} subscribers</span>
+            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Showing {pagedSubscribers.length} of {directoryPage.total} subscribers</span>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <button className="btn btn-outline compact-action" disabled={page === 1} onClick={() => setPage(prev => Math.max(1, prev - 1))}>Previous</button>
               <span style={{ margin: '0 0.75rem', fontSize: '0.85rem', fontWeight: 600 }}>Page {page} of {pageCount}</span>

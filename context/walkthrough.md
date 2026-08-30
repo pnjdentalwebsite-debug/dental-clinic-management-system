@@ -1581,9 +1581,11 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 6. Sign out, refresh, and confirm the real Supabase session is removed. Do not perform Platform Admin frontend actions in this phase.
 
 ## Phase 2E.2 Platform Admin Local Validation and Pending Live Runbook - August 30, 2026
-1. Local verification completed: `platform-admin-read` bundled in the local Edge Runtime, rejected an anonymous request with `401`, passed the 11-file/81-test focused suite, and the production build completed with zero errors.
+1. Local verification completed: `platform-admin-read` bundled in the local Edge Runtime, rejected an anonymous request with `401`, passed the 11-file/79-test focused suite, and the production build completed with zero errors.
+   - Pre-deployment correction validation confirms Platform sign-in no longer downloads every directory page. Use browser network inspection to verify Dashboard requests summary/review only and each directory request carries the visible page, page size, search, and applicable filters.
+   - Verify a Users or Subscriptions search with a match outside page 1 returns the matching bounded page and authoritative filtered total; clearing the search restores the unfiltered total.
 2. After deploying only `platform-admin-read`, sign in with the existing real Platform Administrator account and confirm Dashboard counts and pending reviews load without a mock/localStorage fallback.
-3. Open Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm each list and detail refreshes from Supabase, real empty states remain empty, real amounts/statuses match the database, and membership UUID detail routes survive browser refresh.
+3. Open Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm each list fetches only its current page, each detail fetches its exact UUID, real empty states remain empty, real amounts/statuses match the database, and membership UUID detail routes survive browser refresh.
 4. Confirm Plans and all other unsupported write actions show the read-only/unavailable response; direct `/new` and `/edit` URLs must not mount mock-backed forms.
 5. Confirm existing payment review, registration provisioning, and credential resend still refetch real directory state and never render a temporary password.
 6. Sign out and refresh. Confirm the Supabase session is removed and no Platform route remains authorized by a legacy browser session.

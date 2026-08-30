@@ -6,6 +6,8 @@ import { platformAdminErrorResponse, PlatformAdminApiError, requirePlatformAdmin
 const resources = new Set(['summary', 'subscribers', 'users', 'clinics', 'payments', 'subscriptions', 'plans']);
 const statuses = new Set(['pending', 'active', 'suspended', 'deactivated', 'draft', 'inactive', 'archived', 'expiring_soon', 'expired', 'cancelled', 'unpaid', 'pending_verification', 'approved', 'rejected', 'refunded', 'voided']);
 const roles = new Set(['clinic_owner', 'associate', 'staff']);
+const paymentMethods = new Set(['gcash', 'maya', 'bank_transfer', 'over_the_counter', 'cash', 'card', 'demo_payment', 'other']);
+const billingCycles = new Set(['monthly', 'annual']);
 const workDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 type QueryOptions = {
@@ -14,8 +16,19 @@ type QueryOptions = {
   search: string | null;
   status: string | null;
   role: string | null;
+  excludeRole: string | null;
   id: string | null;
+  subscriberId: string | null;
+  clinicId: string | null;
+  planId: string | null;
+  plan: string | null;
+  paymentStatus: string | null;
+  subscriptionStatus: string | null;
+  paymentMethod: string | null;
+  billingCycle: string | null;
 };
+
+const noMatchId = '00000000-0000-0000-0000-000000000000';
 
 const escapedLike = (value: string) => value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
 const first = (value: unknown): Record<string, any> | null => Array.isArray(value) ? (value[0] ?? null) : (value as Record<string, any> | null);
@@ -43,10 +56,53 @@ function parseOptions(payload: Record<string, unknown>): { resource: string; opt
   const search = payload.search === undefined ? null : text(payload.search, 'Search', 80);
   const status = payload.status === undefined ? null : text(payload.status, 'Status', 40);
   const role = payload.role === undefined ? null : text(payload.role, 'Role', 30);
+  const excludeRole = payload.excludeRole === undefined ? null : text(payload.excludeRole, 'Excluded role', 30);
   const id = payload.id === undefined ? null : uuid(payload.id, 'Record ID');
+  const subscriberId = payload.subscriberId === undefined ? null : uuid(payload.subscriberId, 'Subscriber ID');
+  const clinicId = payload.clinicId === undefined ? null : uuid(payload.clinicId, 'Clinic ID');
+  const planId = payload.planId === undefined ? null : uuid(payload.planId, 'Plan ID');
+  const plan = payload.plan === undefined ? null : text(payload.plan, 'Plan', 80);
+  const paymentStatus = payload.paymentStatus === undefined ? null : text(payload.paymentStatus, 'Payment status', 40);
+  const subscriptionStatus = payload.subscriptionStatus === undefined ? null : text(payload.subscriptionStatus, 'Subscription status', 40);
+  const paymentMethod = payload.paymentMethod === undefined ? null : text(payload.paymentMethod, 'Payment method', 40).toLowerCase();
+  const billingCycle = payload.billingCycle === undefined ? null : text(payload.billingCycle, 'Billing cycle', 20);
   if (status && !statuses.has(status)) throw new PlatformAdminApiError('INVALID_STATUS', 422, 'Status filter is invalid.');
   if (role && !roles.has(role)) throw new PlatformAdminApiError('INVALID_ROLE', 422, 'Role filter is invalid.');
-  return { resource, options: { page, pageSize, search, status, role, id } };
+  if (excludeRole && !roles.has(excludeRole)) throw new PlatformAdminApiError('INVALID_ROLE', 422, 'Excluded role filter is invalid.');
+  if (paymentStatus && !statuses.has(paymentStatus)) throw new PlatformAdminApiError('INVALID_PAYMENT_STATUS', 422, 'Payment status filter is invalid.');
+  if (subscriptionStatus && !statuses.has(subscriptionStatus)) throw new PlatformAdminApiError('INVALID_SUBSCRIPTION_STATUS', 422, 'Subscription status filter is invalid.');
+  if (paymentMethod && !paymentMethods.has(paymentMethod)) throw new PlatformAdminApiError('INVALID_PAYMENT_METHOD', 422, 'Payment method filter is invalid.');
+  if (billingCycle && !billingCycles.has(billingCycle)) throw new PlatformAdminApiError('INVALID_BILLING_CYCLE', 422, 'Billing cycle filter is invalid.');
+  return { resource, options: { page, pageSize, search, status, role, excludeRole, id, subscriberId, clinicId, planId, plan, paymentStatus, subscriptionStatus, paymentMethod, billingCycle } };
+}
+
+const uuidIn = (values: unknown[]) => [...new Set(values.filter(Boolean).map(String))];
+const applyUuidMatches = (query: any, column: string, values: string[]) => values.length ? query.in(column, values) : query.eq(column, noMatchId);
+
+async function resolveUserSearch(admin: any, search: string): Promise<{ membershipIds: string[]; userIds: string[]; subscriberIds: string[] }> {
+  const term = escapedLike(search);
+  const [profiles, staff, associates, subscribers] = await Promise.all([
+    admin.from('profiles').select('id').or(`email.ilike.%${term}%,display_name.ilike.%${term}%,first_name.ilike.%${term}%,middle_name.ilike.%${term}%,last_name.ilike.%${term}%,mobile_number.ilike.%${term}%`),
+    admin.from('staff_profiles').select('membership_id').or(`staff_number.ilike.%${term}%,position.ilike.%${term}%,phone_number.ilike.%${term}%`),
+    admin.from('associate_dentist_profiles').select('membership_id').or(`associate_number.ilike.%${term}%,designation.ilike.%${term}%,specialization.ilike.%${term}%`),
+    admin.from('subscribers').select('id').or(`subscriber_number.ilike.%${term}%,business_name.ilike.%${term}%,email.ilike.%${term}%`),
+  ]);
+  if ([profiles, staff, associates, subscribers].some(result => result.error)) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'User search is temporarily unavailable.');
+  return {
+    membershipIds: uuidIn([...(staff.data ?? []).map((row: any) => row.membership_id), ...(associates.data ?? []).map((row: any) => row.membership_id)]),
+    userIds: uuidIn((profiles.data ?? []).map((row: any) => row.id)),
+    subscriberIds: uuidIn((subscribers.data ?? []).map((row: any) => row.id)),
+  };
+}
+
+async function resolveSubscriptionSearch(admin: any, search: string): Promise<{ subscriberIds: string[]; planIds: string[] }> {
+  const term = escapedLike(search);
+  const [subscribers, plans] = await Promise.all([
+    admin.from('subscribers').select('id').or(`subscriber_number.ilike.%${term}%,business_name.ilike.%${term}%,email.ilike.%${term}%`),
+    admin.from('plans').select('id').or(`plan_code.ilike.%${term}%,name.ilike.%${term}%`),
+  ]);
+  if (subscribers.error || plans.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscription search is temporarily unavailable.');
+  return { subscriberIds: uuidIn((subscribers.data ?? []).map((row: any) => row.id)), planIds: uuidIn((plans.data ?? []).map((row: any) => row.id)) };
 }
 
 async function countActivePlatformUsers(admin: any): Promise<number> {
@@ -68,6 +124,23 @@ async function countActivePlatformUsers(admin: any): Promise<number> {
   return userIds.size;
 }
 
+async function activeSubscriptionMetrics(admin: any): Promise<{ mrrCentavos: number; planDistribution: Record<string, number> }> {
+  const rows: any[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await admin.from('subscriptions').select('billing_cycle, amount_centavos, plans(plan_code)').eq('status', 'active').range(from, from + pageSize - 1);
+    if (error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Platform summary is temporarily unavailable.');
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < pageSize) break;
+  }
+  return rows.reduce((metrics, row) => {
+    const plan = first(row.plans)?.plan_code ?? 'other';
+    metrics.planDistribution[plan] = (metrics.planDistribution[plan] ?? 0) + 1;
+    metrics.mrrCentavos += row.billing_cycle === 'annual' ? Math.round(Number(row.amount_centavos ?? 0) / 12) : Number(row.amount_centavos ?? 0);
+    return metrics;
+  }, { mrrCentavos: 0, planDistribution: {} as Record<string, number> });
+}
+
 async function summary(admin: any) {
   const count = (table: string, apply?: (query: any) => any) => {
     let query = admin.from(table).select('id', { count: 'exact', head: true });
@@ -81,8 +154,14 @@ async function summary(admin: any) {
     count('clinics', q => q.eq('status', 'active')),
     count('subscriptions', q => q.eq('status', 'active')),
     countActivePlatformUsers(admin),
+    count('subscriptions', q => q.eq('status', 'pending')),
+    count('subscriptions', q => q.eq('status', 'expiring_soon')),
+    count('subscriptions', q => q.eq('status', 'expired')),
+    count('subscriptions', q => q.eq('status', 'suspended')),
+    count('subscriptions', q => q.eq('status', 'cancelled')),
+    activeSubscriptionMetrics(admin),
   ]);
-  if (results.slice(0, 5).some(result => result.error)) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Platform summary is temporarily unavailable.');
+  if ([...results.slice(0, 5), ...results.slice(6, 11)].some((result: any) => result.error)) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Platform summary is temporarily unavailable.');
   return {
     pendingRegistrationReviews: results[0].count ?? 0,
     pendingPaymentReviews: results[1].count ?? 0,
@@ -90,6 +169,16 @@ async function summary(admin: any) {
     activeClinics: results[3].count ?? 0,
     activeSubscriptions: results[4].count ?? 0,
     platformUsers: results[5],
+    activeSubscriptionMrrCentavos: results[11].mrrCentavos,
+    subscriptionStatuses: {
+      active: results[4].count ?? 0,
+      pending: results[6].count ?? 0,
+      expiringSoon: results[7].count ?? 0,
+      expired: results[8].count ?? 0,
+      suspended: results[9].count ?? 0,
+      cancelled: results[10].count ?? 0,
+    },
+    activePlanDistribution: results[11].planDistribution,
   };
 }
 
@@ -98,12 +187,30 @@ async function subscribers(admin: any, options: QueryOptions) {
     id, subscriber_number, registration_id, business_name, email, mobile_number, account_status,
     created_at, updated_at, activated_at, deactivated_at,
     registrations(id, plan_id, submitted_at, payment_status),
-    clinics(id, clinic_number, name, status, is_primary), laboratories(id),
+    clinics(id, clinic_number, name, status, is_primary), laboratories(id, status),
     subscriptions(id, plan_id, status, billing_cycle, amount_centavos, starts_at, expires_at, plans(id, plan_code, name)),
     subscriber_memberships(id, user_id, role, account_status, must_change_password, created_at, updated_at, profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number))
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('account_status', options.status);
+  if (options.plan || options.subscriptionStatus) {
+    let subscriptionFilter = admin.from('subscriptions').select('subscriber_id');
+    if (options.subscriptionStatus) subscriptionFilter = subscriptionFilter.eq('status', options.subscriptionStatus);
+    if (options.plan) {
+      const term = escapedLike(options.plan);
+      const planResult = await admin.from('plans').select('id').or(`plan_code.ilike.${term},name.ilike.${term}`);
+      if (planResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscriber plan filtering is temporarily unavailable.');
+      subscriptionFilter = applyUuidMatches(subscriptionFilter, 'plan_id', uuidIn((planResult.data ?? []).map((row: any) => row.id)));
+    }
+    const subscriptionResult = await subscriptionFilter;
+    if (subscriptionResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscriber subscription filtering is temporarily unavailable.');
+    query = applyUuidMatches(query, 'id', uuidIn((subscriptionResult.data ?? []).map((row: any) => row.subscriber_id)));
+  }
+  if (options.paymentStatus) {
+    const registrationResult = await admin.from('registrations').select('id').eq('payment_status', options.paymentStatus);
+    if (registrationResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscriber payment filtering is temporarily unavailable.');
+    query = applyUuidMatches(query, 'registration_id', uuidIn((registrationResult.data ?? []).map((row: any) => row.id)));
+  }
   if (options.search) {
     const term = escapedLike(options.search);
     query = query.or(`subscriber_number.ilike.%${term}%,business_name.ilike.%${term}%,email.ilike.%${term}%`);
@@ -117,6 +224,9 @@ async function subscribers(admin: any, options: QueryOptions) {
     const ownerMembership = memberships.find(membership => membership.role === 'clinic_owner') ?? null;
     const ownerProfile = first(ownerMembership?.profiles);
     const clinics = list(row.clinics);
+    const activeClinics = clinics.filter(clinic => clinic.status === 'active');
+    const activeLaboratories = list(row.laboratories).filter(laboratory => laboratory.status === 'active');
+    const activeMemberships = memberships.filter(membership => membership.account_status === 'active');
     const primaryClinic = clinics.find(clinic => clinic.is_primary) ?? clinics[0] ?? null;
     const subscriptions = list(row.subscriptions);
     const currentSubscription = subscriptions.find(subscription => ['pending', 'active', 'expiring_soon', 'suspended'].includes(subscription.status)) ?? subscriptions[0] ?? null;
@@ -138,7 +248,7 @@ async function subscribers(admin: any, options: QueryOptions) {
         membershipId: ownerMembership.id,
         userId: ownerMembership.user_id,
         email: ownerProfile?.email ?? row.email,
-        displayName: ownerProfile?.display_name ?? [ownerProfile?.first_name, ownerProfile?.middle_name, ownerProfile?.last_name].filter(Boolean).join(' ') || row.business_name,
+        displayName: ownerProfile?.display_name ?? ([ownerProfile?.first_name, ownerProfile?.middle_name, ownerProfile?.last_name].filter(Boolean).join(' ') || row.business_name),
         mobileNumber: ownerProfile?.mobile_number ?? row.mobile_number,
         accountStatus: ownerMembership.account_status,
         mustChangePassword: Boolean(ownerMembership.must_change_password),
@@ -156,10 +266,10 @@ async function subscribers(admin: any, options: QueryOptions) {
         expiresAt: currentSubscription.expires_at,
       } : null,
       counts: {
-        clinics: clinics.length,
-        laboratories: list(row.laboratories).length,
-        associates: memberships.filter(membership => membership.role === 'associate').length,
-        staff: memberships.filter(membership => membership.role === 'staff').length,
+        clinics: activeClinics.length,
+        laboratories: activeLaboratories.length,
+        associates: activeMemberships.filter(membership => membership.role === 'associate').length,
+        staff: activeMemberships.filter(membership => membership.role === 'staff').length,
       },
     };
   });
@@ -178,10 +288,26 @@ async function users(admin: any, options: QueryOptions) {
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('account_status', options.status);
   if (options.role) query = query.eq('role', options.role);
+  if (options.excludeRole) query = query.neq('role', options.excludeRole);
+  if (options.subscriberId) query = query.eq('subscriber_id', options.subscriberId);
+  if (options.clinicId) {
+    const assignmentResult = await admin.from('clinic_assignments').select('membership_id').eq('clinic_id', options.clinicId).eq('status', 'active');
+    if (assignmentResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Clinic user filtering is temporarily unavailable.');
+    query = applyUuidMatches(query, 'id', uuidIn((assignmentResult.data ?? []).map((row: any) => row.membership_id)));
+  }
+  if (options.search) {
+    const matches = await resolveUserSearch(admin, options.search);
+    const predicates = [
+      matches.membershipIds.length ? `id.in.(${matches.membershipIds.join(',')})` : null,
+      matches.userIds.length ? `user_id.in.(${matches.userIds.join(',')})` : null,
+      matches.subscriberIds.length ? `subscriber_id.in.(${matches.subscriberIds.join(',')})` : null,
+    ].filter(Boolean).join(',');
+    query = predicates ? query.or(predicates) : query.eq('id', noMatchId);
+  }
   const from = (options.page - 1) * options.pageSize;
   const { data, count, error } = await query.range(from, from + options.pageSize - 1);
   if (error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Users are temporarily unavailable.');
-  let items = (data ?? []).map((row: any) => {
+  const items = (data ?? []).map((row: any) => {
     const profile = first(row.profiles);
     const staff = first(row.staff_profiles);
     const associate = first(row.associate_dentist_profiles);
@@ -211,11 +337,7 @@ async function users(admin: any, options: QueryOptions) {
       updatedAt: row.updated_at,
     };
   });
-  if (options.search) {
-    const term = options.search.toLowerCase();
-    items = items.filter((item: any) => [item.userNumber, item.fullName, item.email, item.mobileNumber, item.subscriberName].some(value => String(value ?? '').toLowerCase().includes(term)));
-  }
-  return { items, page: options.page, pageSize: options.pageSize, total: options.search ? items.length : count ?? 0 };
+  return { items, page: options.page, pageSize: options.pageSize, total: count ?? 0 };
 }
 
 async function clinics(admin: any, options: QueryOptions) {
@@ -229,6 +351,7 @@ async function clinics(admin: any, options: QueryOptions) {
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('status', options.status);
+  if (options.subscriberId) query = query.eq('subscriber_id', options.subscriberId);
   if (options.search) {
     const term = escapedLike(options.search);
     query = query.or(`clinic_number.ilike.%${term}%,name.ilike.%${term}%,city.ilike.%${term}%,province.ilike.%${term}%`);
@@ -286,6 +409,8 @@ async function payments(admin: any, options: QueryOptions) {
   `, { count: 'exact' }).order('submitted_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('status', options.status);
+  if (options.subscriberId) query = query.eq('subscriber_id', options.subscriberId);
+  if (options.paymentMethod) query = query.eq('payment_method', options.paymentMethod);
   if (options.search) {
     const term = escapedLike(options.search);
     query = query.or(`reference_number.ilike.%${term}%,payment_method.ilike.%${term}%`);
@@ -335,6 +460,28 @@ async function subscriptions(admin: any, options: QueryOptions) {
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('status', options.status);
+  if (options.subscriberId) query = query.eq('subscriber_id', options.subscriberId);
+  if (options.planId) query = query.eq('plan_id', options.planId);
+  if (options.plan) {
+    const term = escapedLike(options.plan);
+    const planResult = await admin.from('plans').select('id').or(`plan_code.ilike.${term},name.ilike.${term}`);
+    if (planResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscription plan filtering is temporarily unavailable.');
+    query = applyUuidMatches(query, 'plan_id', uuidIn((planResult.data ?? []).map((row: any) => row.id)));
+  }
+  if (options.billingCycle) query = query.eq('billing_cycle', options.billingCycle);
+  if (options.paymentStatus) {
+    const paymentResult = await admin.from('payments').select('id').eq('status', options.paymentStatus);
+    if (paymentResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscription payment filtering is temporarily unavailable.');
+    query = applyUuidMatches(query, 'source_payment_id', uuidIn((paymentResult.data ?? []).map((row: any) => row.id)));
+  }
+  if (options.search) {
+    const matches = await resolveSubscriptionSearch(admin, options.search);
+    const predicates = [
+      matches.subscriberIds.length ? `subscriber_id.in.(${matches.subscriberIds.join(',')})` : null,
+      matches.planIds.length ? `plan_id.in.(${matches.planIds.join(',')})` : null,
+    ].filter(Boolean).join(',');
+    query = predicates ? query.or(predicates) : query.eq('id', noMatchId);
+  }
   const from = (options.page - 1) * options.pageSize;
   const { data, count, error } = await query.range(from, from + options.pageSize - 1);
   if (error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscriptions are temporarily unavailable.');
@@ -343,7 +490,7 @@ async function subscriptions(admin: any, options: QueryOptions) {
     ? await admin.from('payments').select('id, status').in('id', sourcePaymentIds)
     : { data: [], error: null };
   if (paymentResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscription payment state is temporarily unavailable.');
-  let items = (data ?? []).map((row: any) => {
+  const items = (data ?? []).map((row: any) => {
     const subscriber = first(row.subscribers);
     const plan = first(row.plans);
     return {
@@ -368,11 +515,7 @@ async function subscriptions(admin: any, options: QueryOptions) {
       updatedAt: row.updated_at,
     };
   });
-  if (options.search) {
-    const term = options.search.toLowerCase();
-    items = items.filter((item: any) => [item.subscriberNumber, item.subscriberName, item.planCode, item.planName].some(value => String(value ?? '').toLowerCase().includes(term)));
-  }
-  return { items, page: options.page, pageSize: options.pageSize, total: options.search ? items.length : count ?? 0 };
+  return { items, page: options.page, pageSize: options.pageSize, total: count ?? 0 };
 }
 
 async function plans(admin: any, options: QueryOptions) {

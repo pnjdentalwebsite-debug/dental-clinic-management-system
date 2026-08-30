@@ -9,7 +9,7 @@ import {
   Clock
 } from 'lucide-react';
 import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
-import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import type { Subscription, SubscriptionFilters, SubscriptionSort } from '../types';
@@ -30,7 +30,6 @@ const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}
 
 export function SubscriptionsPage({ navigate, showToast, refreshShell }: SubscriptionsPageProps) {
   const showReadOnlyNotice = () => showToast('Subscription editing is unavailable until an approved secure mutation contract is deployed.', 'info');
-  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -50,14 +49,21 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     autoRenew: 'all',
     tab: 'all'
   });
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : undefined;
+  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscriptions', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
+    plan: filters.planId !== 'all' ? filters.planId : undefined,
+    paymentStatus: filters.paymentStatus !== 'all' ? filters.paymentStatus : undefined,
+    billingCycle: filters.billingCycle !== 'all' ? filters.billingCycle : undefined,
+  });
 
   const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
   const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
   const subscriptions = useMemo(() => mockSubscriptionService.listSubscriptions(), [refreshKey, revision]);
   const summary = useMemo(() => mockSubscriptionService.getSubscriptionSummary(), [refreshKey, revision]);
-  const displayed = useMemo(() => mockSubscriptionService.sortSubscriptions(mockSubscriptionService.filterSubscriptions(subscriptions, filters), sort), [subscriptions, filters, sort]);
-  const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
-  const paged = mockSubscriptionService.paginateSubscriptions(displayed, page, PAGE_SIZE);
+  const displayed = useMemo(() => mockSubscriptionService.sortSubscriptions(subscriptions, sort), [subscriptions, sort]);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const paged = displayed;
 
   const refresh = () => {
     void refreshRealData();
@@ -492,7 +498,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
 
           {/* PAGINATION */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: '0.85rem', color: '#64748b' }}>
-            <div>Showing <strong>{paged.length}</strong> of <strong>{displayed.length}</strong> subscriptions</div>
+            <div>Showing <strong>{paged.length}</strong> of <strong>{directoryPage.total}</strong> subscriptions</div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <button
                 disabled={page === 1}

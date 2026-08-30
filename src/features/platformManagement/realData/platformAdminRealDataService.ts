@@ -1,4 +1,4 @@
-import type { PlatformAdminDirectorySnapshot, PlatformReviewRegistration } from '../../../infrastructure/supabase/platformAdminApi';
+import type { PlatformAdminDirectorySnapshot, PlatformAdminReadResource, PlatformReviewRegistration } from '../../../infrastructure/supabase/platformAdminApi';
 import type { Clinic, ClinicAssignment, ClinicFilters, ClinicHistoryRecord, ClinicSort } from '../../clinics/types';
 import type { Payment, PaymentAllocation, PaymentFilters, PaymentHistoryRecord, PaymentSort } from '../../payments/types';
 import type { Plan, PlanFilters, PlanHistoryRecord, PlanSort } from '../../plans/types';
@@ -12,6 +12,9 @@ export interface PlatformAdminSummary {
   activeClinics: number;
   activeSubscriptions: number;
   platformUsers: number;
+  activeSubscriptionMrrCentavos: number;
+  subscriptionStatuses: { active: number; pending: number; expiringSoon: number; expired: number; suspended: number; cancelled: number };
+  activePlanDistribution: Record<string, number>;
 }
 
 interface RealDataSnapshot {
@@ -26,7 +29,7 @@ interface RealDataSnapshot {
 }
 
 const emptySnapshot = (): RealDataSnapshot => ({
-  summary: { pendingRegistrationReviews: 0, pendingPaymentReviews: 0, activeSubscribers: 0, activeClinics: 0, activeSubscriptions: 0, platformUsers: 0 },
+  summary: { pendingRegistrationReviews: 0, pendingPaymentReviews: 0, activeSubscribers: 0, activeClinics: 0, activeSubscriptions: 0, platformUsers: 0, activeSubscriptionMrrCentavos: 0, subscriptionStatuses: { active: 0, pending: 0, expiringSoon: 0, expired: 0, suspended: 0, cancelled: 0 }, activePlanDistribution: {} },
   subscribers: [], users: [], clinics: [], payments: [], subscriptions: [], plans: [], registrations: [],
 });
 
@@ -125,14 +128,14 @@ const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 function toClinic(value: unknown, users: PlatformUser[]): Clinic {
   const item = object(value);
   const ownerUser = users.find(user => user.id === String(item.ownerMembershipId ?? ''));
-  const dentistIds = records<string>(item.dentistMembershipIds).filter(id => users.some(user => user.id === id));
-  const staffIds = records<string>(item.staffMembershipIds).filter(id => users.some(user => user.id === id));
+  const dentistIds = records<string>(item.dentistMembershipIds).map(String);
+  const staffIds = records<string>(item.staffMembershipIds).map(String);
   const businessHours = Object.fromEntries(records<Record<string, any>>(item.businessHours).map(hours => [dayNames[Number(hours.dayOfWeek)] ?? String(hours.dayOfWeek), {
     enabled: Boolean(hours.isOpen), openingTime: String(hours.openingTime ?? ''), closingTime: String(hours.closingTime ?? ''),
     breakEnabled: Boolean(hours.breakStart && hours.breakEnd), breakStart: String(hours.breakStart ?? ''), breakEnd: String(hours.breakEnd ?? ''),
   }]));
   return {
-    id: String(item.id), clinicNumber: String(item.clinicNumber ?? item.id), subscriberId: String(item.subscriberId), primaryOwnerUserId: ownerUser?.id,
+    id: String(item.id), clinicNumber: String(item.clinicNumber ?? item.id), subscriberId: String(item.subscriberId), primaryOwnerUserId: ownerUser?.id ?? (item.ownerMembershipId ? String(item.ownerMembershipId) : undefined),
     branchType: String(item.branchType ?? 'main') as Clinic['branchType'], name: String(item.name ?? ''), legalBusinessName: String(item.legalBusinessName ?? item.name ?? ''),
     email: String(item.email ?? ''), contactNumber: String(item.contactNumber ?? ''), alternativeContactNumber: item.alternativeContactNumber ? String(item.alternativeContactNumber) : undefined,
     addressLine1: String(item.addressLine1 ?? ''), addressLine2: item.addressLine2 ? String(item.addressLine2) : undefined, barangay: item.barangay ? String(item.barangay) : undefined,
@@ -192,24 +195,32 @@ function toPlan(value: unknown, index: number): Plan {
   };
 }
 
+export function installPlatformAdminDashboard(summary: PlatformAdminDirectorySnapshot['summary'], reviews: PlatformReviewRegistration[] = []): void {
+  snapshot.summary = summary;
+  snapshot.registrations = reviews.map(toRegistration);
+}
+
+// Test-fixture installer only. Runtime code installs dashboard and individual
+// bounded resource pages through the dedicated functions below.
 export function installPlatformAdminSnapshot(data: PlatformAdminDirectorySnapshot, reviews: PlatformReviewRegistration[] = []): void {
-  const users = records(data.users.items).map(toUser);
-  const subscribers = records(data.subscribers.items).map(toSubscriber);
-  snapshot = {
-    summary: data.summary,
-    users,
-    subscribers,
-    clinics: records(data.clinics.items).map(item => toClinic(item, users)),
-    payments: records(data.payments.items).map(toPayment),
-    subscriptions: records(data.subscriptions.items).map(toSubscription),
-    plans: records(data.plans.items).map(toPlan),
-    registrations: reviews.map(toRegistration),
-  };
-  const registrationsById = new Map(snapshot.registrations.map(item => [item.id, item]));
-  snapshot.subscribers = subscribers.map(subscriber => {
-    const registration = subscriber.registrationId ? registrationsById.get(subscriber.registrationId) : undefined;
-    return registration ? { ...subscriber, paymentStatus: registration.paymentStatus } : subscriber;
-  });
+  clearPlatformAdminSnapshot();
+  installPlatformAdminDashboard(data.summary, reviews);
+  for (const resource of ['subscribers', 'users', 'clinics', 'payments', 'subscriptions', 'plans'] as const) {
+    installPlatformAdminDirectoryPage(resource, data[resource].items);
+  }
+}
+
+export function installPlatformAdminDirectoryPage(resource: Exclude<PlatformAdminReadResource, 'summary'>, values: unknown[]): void {
+  if (resource === 'subscribers') snapshot.subscribers = values.map(toSubscriber);
+  if (resource === 'users') snapshot.users = values.map(toUser);
+  if (resource === 'clinics') snapshot.clinics = values.map(item => toClinic(item, snapshot.users));
+  if (resource === 'payments') snapshot.payments = values.map(toPayment);
+  if (resource === 'subscriptions') snapshot.subscriptions = values.map(toSubscription);
+  if (resource === 'plans') snapshot.plans = values.map(toPlan);
+}
+
+export function clearPlatformAdminResource(resource: Exclude<PlatformAdminReadResource, 'summary'>): void {
+  installPlatformAdminDirectoryPage(resource, []);
 }
 
 export function clearPlatformAdminSnapshot(): void { snapshot = emptySnapshot(); }

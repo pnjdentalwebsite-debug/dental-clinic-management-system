@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { platformAdminApi, PlatformAdminClientError, type PlatformAdminReadResource } from '../../../infrastructure/supabase/platformAdminApi';
-import { clearPlatformAdminSnapshot, installPlatformAdminDirectoryItem, installPlatformAdminSnapshot } from './platformAdminRealDataService';
+import { platformAdminApi, PlatformAdminClientError, type PlatformAdminReadPage, type PlatformAdminReadQuery, type PlatformAdminReadResource } from '../../../infrastructure/supabase/platformAdminApi';
+import { clearPlatformAdminResource, clearPlatformAdminSnapshot, installPlatformAdminDashboard, installPlatformAdminDirectoryItem, installPlatformAdminDirectoryPage } from './platformAdminRealDataService';
 
 type DetailResource = Exclude<PlatformAdminReadResource, 'summary'>;
 
@@ -9,6 +9,7 @@ interface PlatformAdminReadContextValue {
   error: string | null;
   revision: number;
   refresh: () => Promise<void>;
+  loadPage: (resource: DetailResource, query: PlatformAdminReadQuery) => Promise<PlatformAdminReadPage>;
   loadDetail: (resource: DetailResource, id: string) => Promise<void>;
 }
 
@@ -18,6 +19,7 @@ const standaloneReadContext: PlatformAdminReadContextValue = {
   error: null,
   revision: 0,
   refresh: async () => undefined,
+  loadPage: async () => ({ items: [], page: 1, pageSize: 25, total: 0 }),
   loadDetail: async () => undefined,
 };
 
@@ -35,11 +37,11 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
     setLoading(true);
     setError(null);
     try {
-      const [directory, review] = await Promise.all([
-        platformAdminApi.getDirectorySnapshot(),
+      const [summaryResult, review] = await Promise.all([
+        platformAdminApi.getSummary(),
         platformAdminApi.listAllReview({ registrationStatus: 'pending_review' }),
       ]);
-      installPlatformAdminSnapshot(directory, review.items);
+      installPlatformAdminDashboard(summaryResult.summary, review.items);
       setRevision(value => value + 1);
     } catch (requestError) {
       clearPlatformAdminSnapshot();
@@ -47,6 +49,23 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
       setError(safeMessage(requestError));
     } finally {
       setLoading(false);
+    }
+  }, [enabled]);
+
+  const loadPage = useCallback(async (resource: DetailResource, query: PlatformAdminReadQuery) => {
+    if (!enabled) return { items: [], page: query.page ?? 1, pageSize: query.pageSize ?? 25, total: 0 };
+    try {
+      const result = await platformAdminApi.readDirectory(resource, query);
+      if (!('items' in result)) throw new PlatformAdminClientError('PLATFORM_ADMIN_REQUEST_FAILED', 'The Platform Administrator page returned an invalid response.');
+      installPlatformAdminDirectoryPage(resource, result.items);
+      setError(null);
+      setRevision(value => value + 1);
+      return result;
+    } catch (requestError) {
+      clearPlatformAdminResource(resource);
+      setRevision(value => value + 1);
+      setError(safeMessage(requestError));
+      throw requestError;
     }
   }, [enabled]);
 
@@ -74,8 +93,30 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
     }
   }, [enabled, refresh]);
 
-  const value = useMemo(() => ({ loading, error, revision, refresh, loadDetail }), [loading, error, revision, refresh, loadDetail]);
+  const value = useMemo(() => ({ loading, error, revision, refresh, loadPage, loadDetail }), [loading, error, revision, refresh, loadPage, loadDetail]);
   return <PlatformAdminReadContext.Provider value={value}>{children}</PlatformAdminReadContext.Provider>;
+}
+
+export function usePlatformAdminDirectoryPage(resource: DetailResource, query: PlatformAdminReadQuery) {
+  const model = usePlatformAdminReadModel();
+  const queryKey = JSON.stringify(query);
+  const [result, setResult] = useState<PlatformAdminReadPage>({ items: [], page: query.page ?? 1, pageSize: query.pageSize ?? 25, total: 0 });
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const next = await model.loadPage(resource, query);
+      setResult(next);
+    } finally {
+      setLoading(false);
+    }
+  // queryKey is the stable dependency for the serializable request contract.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model.loadPage, resource, queryKey]);
+
+  useEffect(() => { void refresh().catch(() => undefined); }, [refresh]);
+  return { ...model, loading: model.loading || loading, result, refresh };
 }
 
 export function usePlatformAdminReadModel(): PlatformAdminReadContextValue {

@@ -604,8 +604,10 @@
 - [x] Add focused source contracts and run the focused suite/build.
 - [x] Add a safe, shared-authorized Platform Admin directory/read DTO for all approved cross-tenant views; no migration is required.
 - [x] Cut over Dashboard metrics, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, and detail routes without localStorage runtime authority.
+- [x] Remove automatic full-directory browser snapshot loading; use Dashboard-only aggregates/reviews plus bounded per-resource page/search/filter requests and exact UUID detail reads.
+- [x] Apply Users and Subscriptions search before server pagination/counting and count only active/current subscriber resources where status authority exists.
 - [x] Block unsupported mock-only writes and direct mock-backed create/edit routes.
-- [x] Pass local Edge Runtime bundling/anonymous rejection, 11 focused files / 81 tests, and `npm run build`.
+- [x] Pass local Edge Runtime bundling/anonymous rejection, 11 focused files / 79 tests, and `npm run build`.
 - [ ] Deploy `platform-admin-read` to the linked development project after review.
 - [ ] Complete the exact live browser validation runbook with the existing real Platform Administrator account.
 - [ ] Phase 2 remains incomplete.

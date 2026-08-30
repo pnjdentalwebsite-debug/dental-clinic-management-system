@@ -15,7 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
-import { getPlatformAdminSummary, platformAdminClinicService, platformAdminDirectoryService, platformAdminPaymentService, platformAdminSubscriptionService } from '../realData/platformAdminRealDataService';
+import { getPlatformAdminSummary, platformAdminClinicService, platformAdminDirectoryService, platformAdminPaymentService } from '../realData/platformAdminRealDataService';
 
 export interface PlatformDashboardPageProps {
   navigate: (route: string) => void;
@@ -103,15 +103,14 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
   } = props;
 
   const registrations = useMemo(() => platformAdminDirectoryService.listRegistrations(), [revision]);
-  const subscriptions = useMemo(() => platformAdminSubscriptionService.listSubscriptions(), [revision]);
   const summary = useMemo(() => getPlatformAdminSummary(), [revision]);
   const dashboardAnalytics = useMemo(() => ({
     totalSubscribers: summary.activeSubscribers,
     totalClinics: summary.activeClinics,
     totalLaboratories: 0,
-    mockMonthlyRevenue: subscriptions.filter(item => item.status === 'active').reduce((total, item) => total + (item.billingCycle === 'annual' ? item.priceSnapshot.appliedAmount / 12 : item.priceSnapshot.appliedAmount), 0),
-  }), [summary, subscriptions]);
-  const subscriptionSummary = useMemo(() => platformAdminSubscriptionService.getSubscriptionSummary(), [revision]);
+    mockMonthlyRevenue: summary.activeSubscriptionMrrCentavos / 100,
+  }), [summary]);
+  const subscriptionSummary = useMemo(() => ({ ...summary.subscriptionStatuses, total: Object.values(summary.subscriptionStatuses).reduce((total, value) => total + value, 0), draft: 0 }), [summary]);
   const clinicSummary = useMemo(() => platformAdminClinicService.getClinicSummary(), [revision]);
   const paymentSummary = useMemo(() => platformAdminPaymentService.getPaymentSummary(), [revision]);
   const laboratorySummary = { active: 0, withoutClinicConnections: 0, withoutActiveServices: 0 };
@@ -207,10 +206,9 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
 
   // Plan Distribution Breakdown
   const planDistribution = useMemo(() => {
-    const activeSubscriptions = subscriptions.filter(subscription => ['active', 'expiring_soon', 'suspended'].includes(subscription.status));
-    const basic = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'basic' || subscription.priceSnapshot.planName.toLowerCase() === 'basic').length;
-    const plus = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'plus' || subscription.priceSnapshot.planName.toLowerCase() === 'plus').length;
-    const max = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'max' || subscription.priceSnapshot.planName.toLowerCase() === 'max').length;
+    const basic = summary.activePlanDistribution.basic ?? 0;
+    const plus = summary.activePlanDistribution.plus ?? 0;
+    const max = summary.activePlanDistribution.max ?? 0;
     const total = Math.max(1, basic + plus + max);
 
     return {
@@ -222,7 +220,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
       plusPct: Math.round((plus / total) * 100),
       maxPct: Math.round((max / total) * 100)
     };
-  }, [subscriptions]);
+  }, [summary]);
 
   // Filtered Pending Registrations for Table
   const pendingRegistrations = useMemo(() => {

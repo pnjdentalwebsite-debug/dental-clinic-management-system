@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../../platformManagement/realData/platformAdminRealDataService';
-import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ClinicActionDialog, type ClinicDialogAction } from '../components/ClinicActionDialog';
 import { ClinicActionMenu } from '../components/ClinicActionMenu';
 import type { Clinic, ClinicFilters, ClinicSort } from '../types';
@@ -41,7 +41,6 @@ const defaultFilters: ClinicFilters = {
 
 export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
   const showReadOnlyNotice = () => showToast('Clinic editing is unavailable until an approved secure mutation contract is deployed.', 'info');
-  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [filters, setFilters] = useState<ClinicFilters>(defaultFilters);
   const [sort, setSort] = useState<ClinicSort>({ field: 'createdAt', direction: 'desc' });
   const [page, setPage] = useState(1);
@@ -49,14 +48,19 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
   const [action, setAction] = useState<ClinicDialogAction | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : undefined;
+  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('clinics', {
+    page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
+    subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
+  });
 
   const clinics = useMemo(() => mockClinicService.listClinics(), [refreshKey, revision]);
   const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
   const users = useMemo(() => mockPlatformManagementService.listUsers(), [refreshKey, revision]);
   const summary = useMemo(() => mockClinicService.getClinicSummary(), [refreshKey, revision]);
-  const displayed = useMemo(() => mockClinicService.sortClinics(mockClinicService.filterClinics(clinics, filters), sort), [clinics, filters, sort]);
-  const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
-  const paged = mockClinicService.paginateClinics(displayed, page, PAGE_SIZE);
+  const displayed = useMemo(() => mockClinicService.sortClinics(clinics, sort), [clinics, sort]);
+  const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
+  const paged = displayed;
 
   const refresh = () => { 
     void refreshRealData();
@@ -69,7 +73,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
   
   const ownerName = (id?: string) => {
     const user = users.find(item => item.id === id || item.userNumber === id);
-    return user?.fullName || 'Angelo Mhyr Lagsac';
+    return user?.fullName || 'Owner unavailable';
   };
 
   const setFilter = (key: keyof ClinicFilters, value: string) => { 
@@ -440,7 +444,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
 
           {/* PAGINATION */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: '0.85rem', color: '#64748b' }}>
-            <div>Showing <strong>{paged.length}</strong> of <strong>{displayed.length}</strong> clinic branches</div>
+            <div>Showing <strong>{paged.length}</strong> of <strong>{directoryPage.total}</strong> clinic branches</div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <button
                 disabled={page === 1}
