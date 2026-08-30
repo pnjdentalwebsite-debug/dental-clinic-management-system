@@ -19,8 +19,8 @@ import {
 import { Modal } from '../../../components/overlays/Modal';
 import { RowActionMenu } from '../../../components/overlays/RowActionMenu';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
+import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
 import type { PlatformUser, SortState, UserFilters } from '../types';
 
 interface UsersPageProps {
@@ -53,6 +53,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps) {
+  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<UserFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState<'all' | 'associate' | 'staff' | 'suspended'>('all');
@@ -68,15 +69,15 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   // Exclude primary subscriber accounts (clinic_owner) so this page exclusively manages clinic personnel
   const allUsers = useMemo(() => {
     return mockPlatformManagementService.listUsers().filter(u => u.role !== 'clinic_owner');
-  }, [refreshKey]);
+  }, [refreshKey, revision]);
 
   const subscribers = useMemo(() => {
     return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey]);
+  }, [refreshKey, revision]);
 
   const clinics = useMemo(() => {
     return mockClinicService.listClinics();
-  }, [refreshKey]);
+  }, [refreshKey, revision]);
 
   // Tab and search filtering
   const displayedUsers = useMemo(() => {
@@ -144,10 +145,9 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   };
 
   const getWorkScheduleText = (user: PlatformUser) => {
-    if (user.role === 'associate') {
-      return 'Mon - Fri: 9:00 AM - 5:00 PM • Sat: 9:00 AM - 1:00 PM';
-    }
-    return 'Mon - Sat: 8:00 AM - 6:00 PM';
+    const activeDays = Object.entries(user.workSchedule ?? {}).filter(([, schedule]) => schedule.enabled);
+    if (activeDays.length === 0) return 'Not configured';
+    return activeDays.map(([day, schedule]) => `${day.slice(0, 3)}: ${schedule.startTime || '—'} - ${schedule.endTime || '—'}`).join(' • ');
   };
 
   const openAction = (user: PlatformUser, action: UserAction) => {
@@ -173,21 +173,15 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
     setIsSubmitting(true);
 
     if (selectedAction === 'reset_password') {
-      const tempPass = `TmpPass#${Math.floor(1000 + Math.random() * 9000)}`;
-      mockPlatformManagementService.initiateMockPasswordReset(selectedUser.id);
-      showToast(`Temporary password (${tempPass}) generated and sent to ${selectedUser.email}.`, 'success');
-      setRefreshKey(k => k + 1);
-      refreshShell();
+      showToast('Personnel credential reset is unavailable until an approved secure mutation contract is deployed.', 'warning');
       closeAction();
       return;
     }
 
     if (selectedAction === 'reassign_branch') {
-      mockPlatformManagementService.updateUser(selectedUser.id, { clinicIds: selectedClinicIds });
-      showToast(`Clinic branch assignment updated for ${selectedUser.fullName}.`, 'success');
-      setRefreshKey(k => k + 1);
-      refreshShell();
-      closeAction();
+      const result = mockPlatformManagementService.updateUser(selectedUser.id, { clinicIds: selectedClinicIds });
+      setIsSubmitting(false);
+      showToast(result.error || 'Branch reassignment is unavailable until an approved secure mutation contract is deployed.', 'warning');
       return;
     }
 
@@ -242,6 +236,7 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
           label: 'Refresh Personnel',
           icon: RefreshCw,
           onClick: () => {
+            void refreshRealData();
             setRefreshKey(k => k + 1);
             refreshShell();
             showToast('Personnel directory refreshed.', 'info');

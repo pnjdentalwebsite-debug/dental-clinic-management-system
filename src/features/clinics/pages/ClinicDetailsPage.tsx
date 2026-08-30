@@ -2,15 +2,12 @@ import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { RowActionMenu } from '../../../components/overlays/RowActionMenu';
 import { Modal } from '../../../components/overlays/Modal';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
+import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService, platformAdminLaboratoryService as mockLaboratoryService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { LaboratoryActionDialog, type LaboratoryDialogAction } from '../../laboratories/components/LaboratoryActionDialog';
-import { mockLaboratoryService } from '../../laboratories/services/mockLaboratoryService';
 import type { ClinicLaboratoryConnection } from '../../laboratories/types';
 import { ClinicActionDialog, type ClinicDialogAction } from '../components/ClinicActionDialog';
 import { ClinicActionMenu } from '../components/ClinicActionMenu';
-import { mockClinicService } from '../services/mockClinicService';
 
 interface Props {
   clinicId: string;
@@ -24,6 +21,8 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const Status = ({ status }: { status: string }) => <span className={`status-badge ${status}`}>{format(status)}</span>;
 
 export function ClinicDetailsPage({ clinicId, navigate, showToast, refreshShell }: Props) {
+  const showReadOnlyNotice = () => showToast('Clinic editing is unavailable until an approved secure mutation contract is deployed.', 'info');
+  usePlatformAdminDetail('clinics', clinicId);
   const [activeTab, setActiveTab] = useState('Overview');
   const [action, setAction] = useState<ClinicDialogAction | null>(null);
   const [labAction, setLabAction] = useState<LaboratoryDialogAction | null>(null);
@@ -32,7 +31,7 @@ export function ClinicDetailsPage({ clinicId, navigate, showToast, refreshShell 
   const [, setVersion] = useState(0);
   const clinic = mockClinicService.getClinicById(clinicId);
 
-  if (!clinic) return <main className="main-content"><button className="btn btn-outline" style={{ width: 'auto' }} onClick={() => navigate('/platform/clinics')}><ArrowLeft size={16} /> Back to Clinics</button><div className="dashboard-panel empty-state" style={{ marginTop: '1rem' }}><h1>Clinic not found</h1><p>This mock clinic record does not exist.</p></div></main>;
+  if (!clinic) return <main className="main-content"><button className="btn btn-outline" style={{ width: 'auto' }} onClick={() => navigate('/platform/clinics')}><ArrowLeft size={16} /> Back to Clinics</button><div className="dashboard-panel empty-state" style={{ marginTop: '1rem' }}><h1>Clinic not found</h1><p>This clinic record does not exist.</p></div></main>;
 
   const subscriber = mockPlatformManagementService.getSubscriberById(clinic.subscriberId);
   const users = mockPlatformManagementService.listUsers();
@@ -66,7 +65,7 @@ export function ClinicDetailsPage({ clinicId, navigate, showToast, refreshShell 
     } else showToast(result.error || 'Clinic action failed.', 'error');
   };
 
-  const menu = <ClinicActionMenu clinic={clinic} onEdit={() => navigate(`/platform/clinics/${clinic.id}/edit`)} onViewSubscriber={() => navigate(`/platform/subscribers/${clinic.subscriberId}`)} onManageUsers={() => setActiveTab('Dentists')} onViewLabs={() => setActiveTab('Laboratories')} onActivate={() => setAction('activate')} onDeactivate={() => setAction('deactivate')} onSetPrimary={() => setAction('set_primary')} onRestore={() => setAction('restore')} onArchive={() => setAction('archive')} />;
+  const menu = <ClinicActionMenu clinic={clinic} onEdit={showReadOnlyNotice} onViewSubscriber={() => navigate(`/platform/subscribers/${clinic.subscriberId}`)} onManageUsers={() => setActiveTab('Dentists')} onViewLabs={() => setActiveTab('Laboratories')} onActivate={() => setAction('activate')} onDeactivate={() => setAction('deactivate')} onSetPrimary={() => setAction('set_primary')} onRestore={() => setAction('restore')} onArchive={() => setAction('archive')} />;
   const openLabAction = (nextAction: LaboratoryDialogAction, connection?: ClinicLaboratoryConnection) => {
     setSelectedConnection(connection || null);
     setSelectedLaboratoryId(connection?.laboratoryId || '');

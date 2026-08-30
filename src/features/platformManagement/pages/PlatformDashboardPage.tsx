@@ -14,6 +14,8 @@ import {
   DollarSign,
   Search
 } from 'lucide-react';
+import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
+import { getPlatformAdminSummary, platformAdminClinicService, platformAdminDirectoryService, platformAdminPaymentService, platformAdminSubscriptionService } from '../realData/platformAdminRealDataService';
 
 export interface PlatformDashboardPageProps {
   navigate: (route: string) => void;
@@ -93,23 +95,32 @@ export interface PlatformDashboardPageProps {
 }
 
 export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
+  const { revision } = usePlatformAdminReadModel();
   const {
     navigate,
     onReviewRegistration,
     onApproveRegistration,
-    registrations,
-    dashboardAnalytics,
-    subscriptionSummary,
-    clinicSummary,
-    laboratorySummary,
-    paymentSummary,
-    notificationSummary,
-    auditSummary,
-    platformSettings,
-    backupSummary,
-    computedPendingPayments,
-    activityLogs
   } = props;
+
+  const registrations = useMemo(() => platformAdminDirectoryService.listRegistrations(), [revision]);
+  const subscriptions = useMemo(() => platformAdminSubscriptionService.listSubscriptions(), [revision]);
+  const summary = useMemo(() => getPlatformAdminSummary(), [revision]);
+  const dashboardAnalytics = useMemo(() => ({
+    totalSubscribers: summary.activeSubscribers,
+    totalClinics: summary.activeClinics,
+    totalLaboratories: 0,
+    mockMonthlyRevenue: subscriptions.filter(item => item.status === 'active').reduce((total, item) => total + (item.billingCycle === 'annual' ? item.priceSnapshot.appliedAmount / 12 : item.priceSnapshot.appliedAmount), 0),
+  }), [summary, subscriptions]);
+  const subscriptionSummary = useMemo(() => platformAdminSubscriptionService.getSubscriptionSummary(), [revision]);
+  const clinicSummary = useMemo(() => platformAdminClinicService.getClinicSummary(), [revision]);
+  const paymentSummary = useMemo(() => platformAdminPaymentService.getPaymentSummary(), [revision]);
+  const laboratorySummary = { active: 0, withoutClinicConnections: 0, withoutActiveServices: 0 };
+  const notificationSummary = { unread: 0, urgent: 0 };
+  const auditSummary = { critical: 0, integrityWarnings: 0, failedLogins: 0 };
+  const platformSettings = { maintenance: { enabled: false } };
+  const backupSummary: PlatformDashboardPageProps['backupSummary'] = {};
+  const computedPendingPayments = summary.pendingPaymentReviews;
+  const activityLogs: PlatformDashboardPageProps['activityLogs'] = [];
 
   const [activeMetricTab, setActiveMetricTab] = useState<'financial' | 'facilities' | 'security'>('financial');
   const [activityCategoryFilter, setActivityCategoryFilter] = useState<'all' | 'auth' | 'payment' | 'system'>('all');
@@ -185,8 +196,8 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
       items.push({
         key: 'all_clear',
         type: 'success',
-        title: 'Operations Healthy',
-        message: 'All platform modules, payments, and background services are functioning with zero pending alerts.',
+        title: 'No supported alerts',
+        message: 'The live Platform Admin read model reports no pending payment, clinic-assignment, or subscription-expiry alerts.',
         link: null
       });
     }
@@ -196,9 +207,10 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
 
   // Plan Distribution Breakdown
   const planDistribution = useMemo(() => {
-    const basic = registrations.filter(r => r.plan?.toLowerCase() === 'basic').length;
-    const plus = registrations.filter(r => r.plan?.toLowerCase() === 'plus').length;
-    const max = registrations.filter(r => r.plan?.toLowerCase() === 'max').length;
+    const activeSubscriptions = subscriptions.filter(subscription => ['active', 'expiring_soon', 'suspended'].includes(subscription.status));
+    const basic = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'basic' || subscription.priceSnapshot.planName.toLowerCase() === 'basic').length;
+    const plus = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'plus' || subscription.priceSnapshot.planName.toLowerCase() === 'plus').length;
+    const max = activeSubscriptions.filter(subscription => subscription.planId.toLowerCase() === 'max' || subscription.priceSnapshot.planName.toLowerCase() === 'max').length;
     const total = Math.max(1, basic + plus + max);
 
     return {
@@ -210,7 +222,7 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
       plusPct: Math.round((plus / total) * 100),
       maxPct: Math.round((max / total) * 100)
     };
-  }, [registrations]);
+  }, [subscriptions]);
 
   // Filtered Pending Registrations for Table
   const pendingRegistrations = useMemo(() => {
@@ -946,12 +958,12 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
                             reg.plan?.toLowerCase() === 'plus' ? '#059669' :
                             '#475569'
                         }}>
-                          {reg.plan || 'Plus'}
+                          {reg.plan || 'Not available'}
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 0.85rem' }}>
                         <span style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', display: 'block' }}>
-                          {reg.paymentMethod || 'GCash / Maya'}
+                          {reg.paymentMethod || 'Not available'}
                         </span>
                         {reg.referenceNumber && (
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>

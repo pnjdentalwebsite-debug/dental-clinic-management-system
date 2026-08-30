@@ -26,10 +26,9 @@ import {
   PlatformPageHeader,
   SectionTabs
 } from '../../../components/PlatformShared';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
+import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import type { SortState, Subscriber, SubscriberFilters } from '../types';
 
 interface SubscribersPageProps {
@@ -81,7 +80,8 @@ const tabOptions = [
   { key: 'expired', label: 'Expired Accounts' }
 ];
 
-export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvisionModal }: SubscribersPageProps) {
+export function SubscribersPage({ navigate, showToast, refreshShell }: SubscribersPageProps) {
+  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<SubscriberFilters>(defaultFilters);
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
@@ -97,15 +97,15 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
 
   const subscribers = useMemo(() => {
     return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey]);
+  }, [refreshKey, revision]);
 
   const summary = useMemo(() => {
     return mockPlatformManagementService.getSubscriberSummary();
-  }, [refreshKey, subscribers]);
+  }, [refreshKey, revision, subscribers]);
 
   const registrations = useMemo(() => {
     return mockPlatformManagementService.listRegistrations();
-  }, [refreshKey]);
+  }, [refreshKey, revision]);
 
   const displayedSubscribers = useMemo(() => {
     const filtered = mockPlatformManagementService.filterSubscribers(subscribers, filters, registrations);
@@ -124,7 +124,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     return subscribers.reduce((sum, s) => {
       if (s.accountStatus !== 'active') return sum;
       const matchedPlan = plans.find(p => p.name.toLowerCase() === s.planId?.toLowerCase() || p.planCode.toLowerCase() === s.planId?.toLowerCase());
-      return sum + (matchedPlan?.monthlyPrice ?? 10000);
+      return sum + (matchedPlan?.monthlyPrice ?? 0);
     }, 0);
   }, [subscribers]);
 
@@ -161,7 +161,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     setIsSubmitting(false);
   };
 
-  const completeAction = () => {
+  const completeAction = async () => {
     if (!selectedSubscriber || !selectedAction) return;
     if ((selectedAction === 'suspend' || selectedAction === 'deactivate') && !reason.trim()) {
       showToast('Please provide a valid reason before confirming.', 'error');
@@ -170,9 +170,21 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
     setIsSubmitting(true);
 
     if (selectedAction === 'reset_password') {
-      showToast(`Temporary password generated and dispatched to ${selectedSubscriber.email}.`, 'success');
-      refreshShell();
-      closeAction();
+      if (!selectedSubscriber.registrationId) {
+        setIsSubmitting(false);
+        showToast('Credential rotation is unavailable because this subscriber has no provisioning registration.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.resendInitialCredential(selectedSubscriber.registrationId);
+        await refreshRealData();
+        showToast(`A rotated initial credential was securely emailed to ${selectedSubscriber.email}.`, 'success');
+        refreshShell();
+        closeAction();
+      } catch (error) {
+        setIsSubmitting(false);
+        showToast(error instanceof Error ? error.message : 'Credential rotation failed.', 'error');
+      }
       return;
     }
 
@@ -239,6 +251,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
           label: 'Refresh Accounts',
           icon: RefreshCw,
           onClick: () => {
+            void refreshRealData();
             setRefreshKey(k => k + 1);
             refreshShell();
             showToast('Accounts refreshed.', 'info');
@@ -394,28 +407,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell, onShowProvi
                         <button
                           className="btn btn-primary"
                           style={{ width: 'auto', padding: '0.25rem 0.65rem', fontSize: '0.75rem', height: 'auto' }}
-                          onClick={() => {
-                            const res = mockPaymentService.approveRegistrationPayment(reg.id);
-                            if (res.ok) {
-                              showToast(`Approved registration for ${reg.clinicName}. Account provisioned!`, 'success');
-                              setRefreshKey(k => k + 1);
-                              refreshShell();
-                              const approvedReg = mockPlatformManagementService.listRegistrations().find(r => r.id === reg.id) || reg;
-                              const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === reg.id || s.email?.toLowerCase() === reg.ownerEmail?.toLowerCase());
-                              if (onShowProvisionModal) {
-                                onShowProvisionModal({
-                                  clinicName: approvedReg.clinicName,
-                                  ownerName: approvedReg.ownerName,
-                                  ownerEmail: approvedReg.ownerEmail,
-                                  plan: approvedReg.plan,
-                                  tempPassword: approvedReg.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === approvedReg.ownerEmail.toLowerCase()) as any)?.tempPassword || '',
-                                  subscriberId: sub?.id
-                                });
-                              }
-                            } else {
-                              showToast(res.error || 'Failed to approve registration.', 'error');
-                            }
-                          }}
+                          onClick={() => navigate(`/platform/registrations/${reg.id}`)}
                         >
                           <Check size={14} style={{ marginRight: '4px', display: 'inline-block', verticalAlign: '-2px' }} /> Approve & Activate
                         </button>

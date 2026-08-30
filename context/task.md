@@ -598,10 +598,14 @@
 - [ ] Perform the separately controlled real browser validation using the existing provisioned Clinic Owner account.
 - [ ] Phase 2E.2: cut over Platform Admin frontend data/actions. Do not start it automatically.
 
-## Phase 2E.2 Platform Admin Real-Data Frontend Cutover — Partial Foundation - August 30, 2026
+## Phase 2E.2 Platform Admin Real-Data Frontend Cutover — Local Implementation Complete - August 30, 2026
 - [x] Replace Platform Admin Login authority with authenticated Supabase session plus RLS-backed `platform_admins` verification.
 - [x] Use deployed registration review, payment review, and provisioning APIs for Dashboard pending-review approval and refetch authoritative data afterward.
 - [x] Add focused source contracts and run the focused suite/build.
-- [ ] Add a separately deployed, safe Platform Admin directory/read DTO for remaining cross-tenant views; no migration is currently required.
-- [ ] Cut over Subscribers, Users, Clinics, Subscriptions, Payments, and Plans runtime paths without localStorage authority.
+- [x] Add a safe, shared-authorized Platform Admin directory/read DTO for all approved cross-tenant views; no migration is required.
+- [x] Cut over Dashboard metrics, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, and detail routes without localStorage runtime authority.
+- [x] Block unsupported mock-only writes and direct mock-backed create/edit routes.
+- [x] Pass local Edge Runtime bundling/anonymous rejection, 11 focused files / 81 tests, and `npm run build`.
+- [ ] Deploy `platform-admin-read` to the linked development project after review.
+- [ ] Complete the exact live browser validation runbook with the existing real Platform Administrator account.
 - [ ] Phase 2 remains incomplete.

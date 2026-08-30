@@ -34,24 +34,21 @@ import { SubscriberDetailsPage } from './features/platformManagement/pages/Subsc
 import { UsersPage } from './features/platformManagement/pages/UsersPage';
 import { UserDetailsPage } from './features/platformManagement/pages/UserDetailsPage';
 import { PlatformDashboardPage } from './features/platformManagement/pages/PlatformDashboardPage';
+import { PlatformAdminReadNotice, PlatformAdminReadProvider } from './features/platformManagement/realData/PlatformAdminReadProvider';
 import { mockPlatformManagementService, generateSecureTemporaryPassword } from './features/platformManagement/services/mockPlatformManagementService';
 import { ConfirmationDialog } from './components/overlays/ConfirmationDialog';
 import { Modal } from './components/overlays/Modal';
 import { PlansPage } from './features/plans/pages/PlansPage';
 import { PlanDetailsPage } from './features/plans/pages/PlanDetailsPage';
-import { PlanFormPage } from './features/plans/pages/PlanFormPage';
 import { mockPlanService } from './features/plans/services/mockPlanService';
 import { SubscriptionsPage } from './features/subscriptions/pages/SubscriptionsPage';
 import { SubscriptionDetailsPage } from './features/subscriptions/pages/SubscriptionDetailsPage';
-import { SubscriptionFormPage } from './features/subscriptions/pages/SubscriptionFormPage';
 import { mockSubscriptionService } from './features/subscriptions/services/mockSubscriptionService';
 import { PaymentsPage } from './features/payments/pages/PaymentsPage';
 import { PaymentDetailsPage } from './features/payments/pages/PaymentDetailsPage';
-import { PaymentFormPage } from './features/payments/pages/PaymentFormPage';
 import { mockPaymentService as centralizedPaymentService } from './features/payments/services/mockPaymentService';
 import { ClinicsPage } from './features/clinics/pages/ClinicsPage';
 import { ClinicDetailsPage } from './features/clinics/pages/ClinicDetailsPage';
-import { ClinicFormPage } from './features/clinics/pages/ClinicFormPage';
 import { mockClinicService } from './features/clinics/services/mockClinicService';
 import { LaboratoriesPage } from './features/laboratories/pages/LaboratoriesPage';
 import { LaboratoryDetailsPage } from './features/laboratories/pages/LaboratoryDetailsPage';
@@ -749,6 +746,19 @@ export const mockPaymentService = {
 // MAIN APP CONTROLLER
 // ----------------------------------------------------
 
+function PlatformReadOnlyRoute({ resource, onBack }: { resource: string; onBack: () => void }) {
+  return (
+    <main className="main-content">
+      <div className="dashboard-panel">
+        <LockKeyhole size={28} color="var(--primary)" />
+        <h1 style={{ marginTop: '0.75rem' }}>{resource} is read-only</h1>
+        <p className="page-title-desc">This write action is unavailable until an approved secure Platform Administrator mutation contract is deployed.</p>
+        <button type="button" className="btn btn-outline" style={{ width: 'auto', marginTop: '1rem' }} onClick={onBack}>Back to {resource}</button>
+      </div>
+    </main>
+  );
+}
+
 export default function App() {
   // Routing & Session State
   const [currentRoute, setCurrentRoute] = useState<string>(getInitialRoute);
@@ -909,7 +919,7 @@ export default function App() {
     const client = getSupabaseClient();
     if (!client || platformAdminAccess.kind !== 'ready') return;
     try {
-      const result = await platformAdminApi.listReview({ page: 1, pageSize: 100, registrationStatus: 'pending_review' }, client);
+      const result = await platformAdminApi.listAllReview({ registrationStatus: 'pending_review' }, client);
       setRegistrations(result.items.map(toPlatformReviewRegistration));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Registration review records are unavailable.', 'error');
@@ -931,7 +941,6 @@ export default function App() {
     ownerName: string;
     ownerEmail: string;
     plan: string;
-    tempPassword: string;
     subscriberId?: string;
   } | null>(null);
 
@@ -1162,9 +1171,6 @@ export default function App() {
   // Sync mock-only non-Clinic-Owner sessions while the Clinic Owner path is
   // derived exclusively from the Supabase session and membership state.
   const syncStateFromStorage = () => {
-    const list = mockStorage.getRegistrations();
-    setRegistrations(list);
-
     if (clinicOwnerAccess.kind === 'loading' || platformAdminAccess.kind === 'loading') return;
     if (platformAdminAccess.kind === 'ready') {
       setLoggedUserEmail(platformAdminAccess.email);
@@ -1218,9 +1224,10 @@ export default function App() {
       return;
     }
 
+    setRegistrations(mockStorage.getRegistrations());
     const session = mockStorage.getSession();
-    if (session?.role === 'clinic_owner') {
-      // A legacy browser session is not authority for Clinic Owner access.
+    if (session?.role === 'clinic_owner' || session?.role === 'platform_owner') {
+      // Legacy browser sessions are not authority for Clinic Owner or Platform Administrator access.
       mockStorage.setSession(null);
       setUserRole('guest');
       if (currentRoute !== '/login') setCurrentRoute('/login');
@@ -1234,12 +1241,7 @@ export default function App() {
       setUserRole(session.role);
 
       // Route Guard
-      if (session.role === 'platform_owner') {
-        if (!currentRoute.startsWith('/platform/')) {
-          setCurrentRoute('/platform/dashboard');
-          setActiveModule('Dashboard');
-        }
-      } else if (session.role === 'associate' || session.role === 'staff') {
+      if (session.role === 'associate' || session.role === 'staff') {
         // Personnel may enter only an assigned branch workspace. Clinic-owner
         // console routes and the shared clinic dashboard are not role targets.
         if (currentRoute.startsWith('/clinic/') && !isSubsystemRoute) {
@@ -1619,7 +1621,6 @@ export default function App() {
       ownerName: data.ownerName,
       ownerEmail: data.ownerEmail,
       plan: data.plan,
-      tempPassword: data.tempPassword || generateSecureTemporaryPassword(),
       subscriberId: data.subscriberId
     });
     setProvisionSuccessModalOpen(true);
@@ -1652,48 +1653,7 @@ export default function App() {
       }
       return;
     }
-    const approvalCorrelationId = `CORR-${new Date().toISOString().split('T')[0].replaceAll('-', '')}-${selectedRegAdmin.id}`;
-    const res = centralizedPaymentService.approveRegistrationPayment(selectedRegAdmin.id);
-    if (res.ok) {
-      const approvedReg = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-      const provisionedSubscriber = mockPlatformManagementService.getSubscriberByRegistrationId(selectedRegAdmin.id)
-        || mockPlatformManagementService.listSubscribers().find(sub => sub.email.toLowerCase() === selectedRegAdmin.ownerEmail.toLowerCase());
-      const tempPass = approvedReg?.tempPassword || generateSecureTemporaryPassword();
-      const provisionedSubscriberId = provisionedSubscriber?.id || approvedReg?.subscriberId;
-      mockClinicService.initializeClinics();
-      mockLaboratoryService.initializeLaboratories();
-      // Sync State
-      const updated = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-      setSelectedRegAdmin(updated);
-      setApprovePaymentModalOpen(false);
-      mockAuditService.createCorrelatedAuditEvents([
-        { action: 'payment.approved', category: 'payment', module: 'payments', targetType: 'payment', targetId: selectedRegAdmin.id, targetLabel: selectedRegAdmin.referenceNumber || selectedRegAdmin.id, result: 'success', severity: 'medium', summary: `Payment approved for ${selectedRegAdmin.clinicName}.`, beforeSnapshot: { paymentStatus: selectedRegAdmin.paymentStatus, registrationStatus: selectedRegAdmin.registrationStatus }, afterSnapshot: { paymentStatus: 'approved', registrationStatus: updated?.registrationStatus || 'account_ready' } },
-        { action: 'registration.account_provisioned', category: 'registration', module: 'registration', targetType: 'registration', targetId: selectedRegAdmin.id, targetLabel: selectedRegAdmin.clinicName, result: 'success', severity: 'medium', summary: `Registration provisioned for ${selectedRegAdmin.ownerEmail}.`, metadata: { temporaryPassword: tempPass } }
-      ], approvalCorrelationId);
-      mockNotificationService.createSystemNotification({
-        eventKey: `payment-approved-${selectedRegAdmin.id}`,
-        category: 'payment',
-        sourceModule: 'payments',
-        sourceRecordId: selectedRegAdmin.id,
-        title: 'Payment Approved & Subscription Active',
-        message: `Subscription provisioned for ${selectedRegAdmin.clinicName} (${selectedRegAdmin.plan} Plan).`,
-        priority: 'high',
-        actionUrl: `/platform/subscribers`,
-        actionLabel: 'View Subscriber'
-      });
-      showToast("Registration approved and clinic owner account provisioned.", "success");
-      syncStateFromStorage();
-      handleShowProvisionSuccess({
-        clinicName: approvedReg?.clinicName || selectedRegAdmin.clinicName,
-        ownerName: approvedReg?.ownerName || selectedRegAdmin.ownerName,
-        ownerEmail: approvedReg?.ownerEmail || selectedRegAdmin.ownerEmail,
-        plan: approvedReg?.plan || selectedRegAdmin.plan,
-        tempPassword: tempPass,
-        subscriberId: provisionedSubscriberId
-      });
-    } else {
-      showToast(res.error || 'Failed to approve payment.', 'error');
-    }
+    showToast('A verified Platform Administrator session is required. No local approval was performed.', 'error');
   };
 
   const handleRejectPayment = async () => {
@@ -1720,39 +1680,7 @@ export default function App() {
       }
       return;
     }
-    const res = centralizedPaymentService.rejectRegistrationPayment(selectedRegAdmin.id, rejectReason);
-    if (!res.ok) {
-      showToast(res.error || 'Failed to reject payment.', 'error');
-      return;
-    }
-    const updated = mockRegistrationService.getRegistrationById(selectedRegAdmin.id);
-    setSelectedRegAdmin(updated);
-    setRejectPaymentModalOpen(false);
-    mockAuditService.appendAuditEvent({
-      action: 'payment.rejected',
-      category: 'payment',
-      module: 'payments',
-      targetType: 'payment',
-      targetId: selectedRegAdmin.id,
-      targetLabel: selectedRegAdmin.referenceNumber || selectedRegAdmin.id,
-      result: 'success',
-      severity: 'medium',
-      summary: `Payment rejected for ${selectedRegAdmin.clinicName}.`,
-      beforeSnapshot: { paymentStatus: selectedRegAdmin.paymentStatus },
-      afterSnapshot: { paymentStatus: 'rejected', rejectionReason: rejectReason }
-    });
-    mockNotificationService.createSystemNotification({
-      eventKey: `payment-rejected-${selectedRegAdmin.id}`,
-      category: 'payment',
-      sourceModule: 'payments',
-      sourceRecordId: selectedRegAdmin.id,
-      title: 'Payment Verification Rejected',
-      message: `Payment for ${selectedRegAdmin.clinicName} was rejected. Reason: ${rejectReason}`,
-      priority: 'high',
-      actionUrl: `/platform/payments`,
-      actionLabel: 'Review Payments'
-    });
-    showToast("Payment details rejected.", "error");
+    showToast('A verified Platform Administrator session is required. No local rejection was performed.', 'error');
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -2126,6 +2054,7 @@ export default function App() {
   const clinicOwnerAccessError = clinicOwnerAccess.kind === 'error' ? clinicOwnerAccess : null;
 
   return (
+    <PlatformAdminReadProvider enabled={platformAdminAccess.kind === 'ready'}>
     <div className="app-container">
       {/* Toast Notifications */}
       <div className="toast-container">
@@ -5049,6 +4978,8 @@ export default function App() {
               showToast={showToast}
             />
 
+            {userRole === 'platform_owner' && <PlatformAdminReadNotice />}
+
             {/* PLATFORM OWNER DASHBOARD */}
             {currentRoute === '/platform/dashboard' && (
               <PlatformDashboardPage
@@ -5131,7 +5062,7 @@ export default function App() {
                     {selectedRegistrationForRoute.paymentStatus === 'approved' && (
                       <div className="banner-alert success" style={{ marginTop: '1rem' }}>
                         <strong>APPROVED</strong>
-                        <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Temp Pass: <code>{selectedRegistrationForRoute.tempPassword}</code></p>
+                        <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Initial credentials are delivered only through the secure email workflow.</p>
                       </div>
                     )}
                   </div>
@@ -5165,20 +5096,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/plans/new' && (
-              <PlanFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Plans" onBack={() => setCurrentRoute('/platform/plans')} />
             )}
 
             {currentRoute.startsWith('/platform/plans/') && currentRoute.endsWith('/edit') && (
-              <PlanFormPage
-                mode="edit"
-                planId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Plans" onBack={() => setCurrentRoute('/platform/plans')} />
             )}
 
             {currentRoute.startsWith('/platform/plans/') && currentRoute !== '/platform/plans/new' && !currentRoute.endsWith('/edit') && (
@@ -5198,20 +5120,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/subscriptions/new' && (
-              <SubscriptionFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Subscriptions" onBack={() => setCurrentRoute('/platform/subscriptions')} />
             )}
 
             {currentRoute.startsWith('/platform/subscriptions/') && currentRoute.endsWith('/edit') && (
-              <SubscriptionFormPage
-                mode="edit"
-                subscriptionId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Subscriptions" onBack={() => setCurrentRoute('/platform/subscriptions')} />
             )}
 
             {currentRoute.startsWith('/platform/subscriptions/') && currentRoute !== '/platform/subscriptions/new' && !currentRoute.endsWith('/edit') && (
@@ -5232,20 +5145,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/payments/new' && (
-              <PaymentFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Payments" onBack={() => setCurrentRoute('/platform/payments')} />
             )}
 
             {currentRoute.startsWith('/platform/payments/') && currentRoute.endsWith('/edit') && (
-              <PaymentFormPage
-                mode="edit"
-                paymentId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Payments" onBack={() => setCurrentRoute('/platform/payments')} />
             )}
 
             {currentRoute.startsWith('/platform/payments/') && currentRoute !== '/platform/payments/new' && !currentRoute.endsWith('/edit') && (
@@ -5266,20 +5170,11 @@ export default function App() {
             )}
 
             {currentRoute === '/platform/clinics/new' && (
-              <ClinicFormPage
-                mode="create"
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Clinics" onBack={() => setCurrentRoute('/platform/clinics')} />
             )}
 
             {currentRoute.startsWith('/platform/clinics/') && currentRoute.endsWith('/edit') && (
-              <ClinicFormPage
-                mode="edit"
-                clinicId={decodeURIComponent(currentRoute.split('/')[3] || '')}
-                navigate={setCurrentRoute}
-                showToast={showToast}
-              />
+              <PlatformReadOnlyRoute resource="Clinics" onBack={() => setCurrentRoute('/platform/clinics')} />
             )}
 
             {currentRoute.startsWith('/platform/clinics/') && currentRoute !== '/platform/clinics/new' && !currentRoute.endsWith('/edit') && (
@@ -5510,7 +5405,7 @@ export default function App() {
       <Modal
         open={provisionSuccessModalOpen}
         title="🎉 Clinic Owner Account Provisioned & Activated"
-        description="Payment has been verified and clinic owner access credentials have been issued."
+        description="Payment has been verified and the clinic owner account has been provisioned."
         onClose={() => setProvisionSuccessModalOpen(false)}
         footer={(
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%', flexWrap: 'wrap' }}>
@@ -5520,13 +5415,13 @@ export default function App() {
               style={{ width: 'auto' }}
               onClick={() => {
                 if (provisionSuccessData) {
-                  const text = `Clinic Name: ${provisionSuccessData.clinicName}\nOwner: ${provisionSuccessData.ownerName}\nLogin Email: ${provisionSuccessData.ownerEmail}\nTemporary Password: ${provisionSuccessData.tempPassword}\nPlan Tier: ${provisionSuccessData.plan} Enterprise Plan\nSign-in URL: ${window.location.origin}/login`;
+                  const text = `Clinic Name: ${provisionSuccessData.clinicName}\nOwner: ${provisionSuccessData.ownerName}\nLogin Email: ${provisionSuccessData.ownerEmail}\nPlan Tier: ${provisionSuccessData.plan} Enterprise Plan\nSign-in URL: ${window.location.origin}/login`;
                   navigator.clipboard.writeText(text);
-                  showToast("Complete credentials copied to clipboard!", "success");
+                  showToast("Provisioned account summary copied to clipboard!", "success");
                 }
               }}
             >
-              Copy Full Credentials
+              Copy Account Summary
             </button>
             {provisionSuccessData?.subscriberId && (
               <button
@@ -5575,37 +5470,10 @@ export default function App() {
 
             <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '1.25rem' }}>
               <span style={{ color: '#166534', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
-                Temporary Access Password (Issued for First Sign-In)
+                Secure Initial Credential Delivery
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <code style={{
-                  flex: 1,
-                  backgroundColor: '#ffffff',
-                  padding: '0.6rem 0.85rem',
-                  borderRadius: '8px',
-                  border: '1px solid #86efac',
-                  fontFamily: 'monospace',
-                  fontSize: '1.1rem',
-                  fontWeight: 800,
-                  color: '#15803d',
-                  letterSpacing: '0.05em'
-                }}>
-                  {provisionSuccessData.tempPassword}
-                </code>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.6rem 1.25rem' }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(provisionSuccessData.tempPassword);
-                    showToast("Temporary password copied to clipboard!", "success");
-                  }}
-                >
-                  Copy Password
-                </button>
-              </div>
               <span style={{ fontSize: '0.75rem', color: '#166534', marginTop: '0.5rem', display: 'block' }}>
-                ℹ️ The clinic owner will use this temporary password to log in and will be prompted to set a permanent password upon first sign-in.
+                Initial credentials are never returned to or displayed by the browser. The Clinic Owner receives them only through the approved email delivery workflow.
               </span>
             </div>
           </div>
@@ -5648,5 +5516,6 @@ export default function App() {
         onConfirm={handleLogoutConfirm}
       />
     </div>
+    </PlatformAdminReadProvider>
   );
 }

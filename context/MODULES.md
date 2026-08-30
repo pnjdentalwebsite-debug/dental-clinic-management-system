@@ -364,7 +364,10 @@
 - Zero/multiple active owner memberships and invalid/expired sessions fail safely without selecting a tenant. The ready path resolves the membership's RLS-scoped `subscriber_id` only after the first-login gate clears.
 - Platform Admin real-data frontend cutover is deliberately not included; it remains Phase 2E.2. The deployed Phase 2 backend and first-login RLS/completion contracts are live-validated.
 
-## Phase 2E.2 Platform Admin Real-Data Cutover — Partial Foundation - August 30, 2026
-- Platform Admin authentication now resolves an authenticated Supabase session against the RLS-protected `platform_admins` table; it no longer accepts the legacy Platform Admin mock account path.
-- The Dashboard pending-review list is sourced from deployed `platform-registration-review-list`; approval delegates to `platform-review-payment` then `platform-approve-registration`, followed by an authoritative refetch.
-- The remaining Platform directory, personnel, clinic, subscription, payment-ledger, and plan pages are not yet fully cut over. Their existing mock-backed runtime must not be represented as real data.
+## Phase 2E.2 Platform Admin Real-Data Cutover — Local Implementation Complete - August 30, 2026
+- Platform Admin authentication remains Supabase-session-authoritative. Dashboard registration review and approved mutations continue through the deployed Phase 2 functions and refetch authoritative state.
+- New `platform-admin-read` provides one shared-authorized safe DTO boundary for summary, Subscribers, personnel memberships, Clinics, Payments, Subscriptions, and the real `public.plans` catalog. It validates resource, UUID, page, page size, search, status, and role inputs.
+- The approved Platform list/detail screens use the real in-memory projection installed only from backend DTOs. No target screen falls back to mock/localStorage records after an API error or empty response.
+- Personnel detail IDs are stable membership UUIDs; real staff/associate work schedules come from existing `work_schedule` JSON. Dashboard plan distribution comes from real current subscriptions and pricing uses server snapshots.
+- Unsupported plan, clinic, payment, subscription, subscriber, and personnel writes fail safely. Mock-backed form URLs render a read-only boundary rather than fake persistence.
+- No database migration is required. Local tests/build pass; remote deployment of `platform-admin-read` and live browser validation remain required before Phase 2E.2 closure.

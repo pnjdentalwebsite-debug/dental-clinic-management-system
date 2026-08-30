@@ -8,9 +8,8 @@ import {
   AlertTriangle,
   Clock
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockSubscriptionService } from '../services/mockSubscriptionService';
+import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import type { Subscription, SubscriptionFilters, SubscriptionSort } from '../types';
@@ -30,6 +29,8 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function SubscriptionsPage({ navigate, showToast, refreshShell }: SubscriptionsPageProps) {
+  const showReadOnlyNotice = () => showToast('Subscription editing is unavailable until an approved secure mutation contract is deployed.', 'info');
+  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -50,15 +51,16 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     tab: 'all'
   });
 
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey]);
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey]);
-  const subscriptions = useMemo(() => mockSubscriptionService.listSubscriptions(), [refreshKey]);
-  const summary = useMemo(() => mockSubscriptionService.getSubscriptionSummary(), [refreshKey]);
+  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
+  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
+  const subscriptions = useMemo(() => mockSubscriptionService.listSubscriptions(), [refreshKey, revision]);
+  const summary = useMemo(() => mockSubscriptionService.getSubscriptionSummary(), [refreshKey, revision]);
   const displayed = useMemo(() => mockSubscriptionService.sortSubscriptions(mockSubscriptionService.filterSubscriptions(subscriptions, filters), sort), [subscriptions, filters, sort]);
   const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
   const paged = mockSubscriptionService.paginateSubscriptions(displayed, page, PAGE_SIZE);
 
   const refresh = () => {
+    void refreshRealData();
     setRefreshKey(prev => prev + 1);
     if (refreshShell) refreshShell();
     showToast('Subscriptions ledger refreshed.', 'info');
@@ -73,7 +75,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     setSort(prev => ({ field, direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
-  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey]);
+  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey, revision]);
   const isPendingRegistrationSubscription = (subscription: Subscription) => subscription.id.startsWith('SCP-PENDING-');
   const getRegistrationForSubscription = (subscription: Subscription) =>
     subscription.registrationId ? registrations.find(item => item.id === subscription.registrationId) : undefined;
@@ -135,7 +137,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     <SubscriptionActionMenu
       subscription={subscription}
       onView={() => navigate(`/platform/subscriptions/${encodeURIComponent(subscription.id)}`)}
-      onEdit={() => navigate(`/platform/subscriptions/${encodeURIComponent(subscription.id)}/edit`)}
+      onEdit={showReadOnlyNotice}
       onViewSubscriber={() => navigate(`/platform/subscribers/${encodeURIComponent(subscription.subscriberId)}`)}
       onViewPlan={() => navigate(`/platform/plans`)}
       onViewPayments={() => navigate('/platform/payments')}
@@ -166,7 +168,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
   const totalMRR = useMemo(() => {
     return subscriptions.reduce((sum, s) => {
       if (s.status !== 'active') return sum;
-      return sum + (s.priceSnapshot?.monthlyPrice || 10000);
+      return sum + (s.priceSnapshot?.monthlyPrice || 0);
     }, 0);
   }, [subscriptions]);
 
@@ -570,7 +572,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
                           {subscriber?.businessName || 'Subscribed Clinic'}
                         </h3>
                         <span style={{ fontSize: '0.75rem', color: '#6d28d9', fontWeight: 700 }}>
-                          {plan?.name || sub.planId} Enterprise Plan
+                          {plan?.name || sub.planId} Plan
                         </span>
                       </div>
                     </div>

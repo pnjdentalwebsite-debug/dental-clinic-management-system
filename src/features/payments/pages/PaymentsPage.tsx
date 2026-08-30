@@ -11,9 +11,9 @@ import {
   X,
   Check
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockPaymentService } from '../services/mockPaymentService';
+import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPaymentService as mockPaymentService, platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
 import type { Payment, PaymentFilters, PaymentSort } from '../types';
@@ -39,7 +39,8 @@ const methods = ['all', 'gcash', 'maya', 'bank_transfer', 'over_the_counter', 'c
 const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => `₱${value.toLocaleString()}`;
 
-export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: PaymentsPageProps) {
+export function PaymentsPage({ navigate, showToast }: PaymentsPageProps) {
+  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [refreshKey, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -65,16 +66,17 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     tab: 'all'
   });
 
-  const payments = useMemo(() => mockPaymentService.listPayments(), [refreshKey]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey]);
-  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey]);
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey]);
-  const summary = useMemo(() => mockPaymentService.getPaymentSummary(), [refreshKey]);
+  const payments = useMemo(() => mockPaymentService.listPayments(), [refreshKey, revision]);
+  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
+  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey, revision]);
+  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
+  const summary = useMemo(() => mockPaymentService.getPaymentSummary(), [refreshKey, revision]);
   const displayed = useMemo(() => mockPaymentService.sortPayments(mockPaymentService.filterPayments(payments, filters), sort), [payments, filters, sort]);
   const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
   const paged = mockPaymentService.paginatePayments(displayed, page, PAGE_SIZE);
 
   const refresh = () => {
+    void refreshRealData();
     setRefreshKey(prev => prev + 1);
     showToast('Payment ledger refreshed.', 'info');
   };
@@ -104,11 +106,25 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     setAction(nextAction);
   };
 
-  const submitAction = (payload: Record<string, string | number>) => {
+  const submitAction = async (payload: Record<string, string | number>) => {
     if (!selectedPayment || !action) return;
+    if (action === 'approve' || action === 'reject') {
+      if (!selectedPayment.registrationId) {
+        showToast('Only registration payments are supported by the approved payment review contract.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.reviewPayment(selectedPayment.registrationId, selectedPayment.id, action, action === 'reject' ? String(payload.reason || '') : undefined);
+        await refreshRealData();
+        showToast(`Payment ${action} completed.`, 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Payment review failed.', 'error');
+      }
+      setAction(null);
+      setSelectedPayment(null);
+      return;
+    }
     const result =
-      action === 'approve' ? mockPaymentService.approvePayment(selectedPayment.id) :
-      action === 'reject' ? mockPaymentService.rejectPayment(selectedPayment.id, String(payload.reason || ''), String(payload.note || '')) :
       action === 'request_info' ? mockPaymentService.requestPaymentInformation(selectedPayment.id, String(payload.reason || ''), String(payload.dueDate || ''), String(payload.note || '')) :
       action === 'allocate' ? mockPaymentService.allocatePayment(selectedPayment.id, { allocationType: String(payload.allocationType || 'manual_adjustment') as never, amount: Number(payload.amount), registrationId: selectedPayment.registrationId, subscriberId: selectedPayment.subscriberId, subscriptionId: selectedPayment.subscriptionId, description: String(payload.description || 'Manual allocation') }) :
       action === 'reverse' ? mockPaymentService.reverseAllocation(String(payload.allocationId || ''), String(payload.reason || '')) :
@@ -121,18 +137,6 @@ export function PaymentsPage({ navigate, showToast, onShowProvisionModal }: Paym
     } else {
       showToast(`Payment ${action.replace('_', ' ')} completed.`, 'success');
       refresh();
-      if (action === 'approve' && onShowProvisionModal && selectedPayment) {
-        const reg = mockPlatformManagementService.listRegistrations().find(r => r.id === selectedPayment.registrationId);
-        const sub = mockPlatformManagementService.listSubscribers().find(s => s.registrationId === selectedPayment.registrationId || s.id === selectedPayment.subscriberId);
-        onShowProvisionModal({
-          clinicName: reg?.clinicName || selectedPayment.payerName,
-          ownerName: reg?.ownerName || selectedPayment.payerName,
-          ownerEmail: reg?.ownerEmail || selectedPayment.payerEmail,
-          plan: reg?.plan || 'Plus',
-          tempPassword: reg?.tempPassword || (mockPlatformManagementService.listUsers().find(u => u.email.toLowerCase() === (reg?.ownerEmail || selectedPayment.payerEmail).toLowerCase()) as any)?.tempPassword || '',
-          subscriberId: sub?.id
-        });
-      }
     }
     setAction(null);
     setSelectedPayment(null);

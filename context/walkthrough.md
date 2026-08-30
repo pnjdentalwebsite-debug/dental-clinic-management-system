@@ -1580,8 +1580,11 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 5. Confirm success refreshes the authoritative first-login state, which returns `mustChangePassword=false`, before `/clinic/dashboard` opens. Verify normal tenant access is restored only then.
 6. Sign out, refresh, and confirm the real Supabase session is removed. Do not perform Platform Admin frontend actions in this phase.
 
-## Phase 2E.2 Partial Platform Admin Validation - August 30, 2026
-1. Sign in using the real Platform Administrator account; confirm the authenticated `platform_admins` authorization check, not a local mock role, opens the Platform dashboard.
-2. Confirm pending registration reviews load through `platform-registration-review-list`.
-3. Review a real pending payment only when separately authorized: the UI calls `platform-review-payment`, then `platform-approve-registration`, and refetches the review list. No temporary password is shown.
-4. Do not treat remaining mock-backed directory pages as real Platform data. A dedicated safe read DTO is still required for cross-tenant personnel identity display.
+## Phase 2E.2 Platform Admin Local Validation and Pending Live Runbook - August 30, 2026
+1. Local verification completed: `platform-admin-read` bundled in the local Edge Runtime, rejected an anonymous request with `401`, passed the 11-file/81-test focused suite, and the production build completed with zero errors.
+2. After deploying only `platform-admin-read`, sign in with the existing real Platform Administrator account and confirm Dashboard counts and pending reviews load without a mock/localStorage fallback.
+3. Open Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm each list and detail refreshes from Supabase, real empty states remain empty, real amounts/statuses match the database, and membership UUID detail routes survive browser refresh.
+4. Confirm Plans and all other unsupported write actions show the read-only/unavailable response; direct `/new` and `/edit` URLs must not mount mock-backed forms.
+5. Confirm existing payment review, registration provisioning, and credential resend still refetch real directory state and never render a temporary password.
+6. Sign out and refresh. Confirm the Supabase session is removed and no Platform route remains authorized by a legacy browser session.
+7. Do not mark Phase 2E.2 complete until this live browser runbook passes. Do not create a new registration or mutate unrelated remote records for validation.

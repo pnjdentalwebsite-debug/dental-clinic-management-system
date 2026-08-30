@@ -487,7 +487,10 @@ flowchart TD
 - Tenant scope is derived from the authenticated owner membership after the gate clears; it is not derived from email, registration records, mock users, or browser storage. SDK-managed Supabase session storage is the only session persistence used by this path.
 - Platform Admin frontend data remains outside this cutover and is the Phase 2E.2 boundary.
 
-## Phase 2E.2 Partial Platform Admin Browser Boundary - August 30, 2026
-- Current real path: `Supabase Auth session -> RLS-protected platform_admins check -> platform-registration-review-list -> platform-review-payment -> platform-approve-registration -> authoritative list refetch`.
-- The browser sends only registration/payment identifiers and a permitted review decision/reason. Actor identity, monetary authority, tenant creation, Auth creation, and credential material remain server-side.
-- A complete Platform directory requires a safe server-side profile/read DTO; `profiles` are not cross-tenant readable to Platform Admin through the existing browser RLS policy.
+## Phase 2E.2 Platform Admin Browser Boundary - August 30, 2026
+- Read path: `Supabase Auth session -> platform-admin-read -> shared requirePlatformAdmin -> server-only admin client -> explicit safe DTO -> real-data adapter -> existing Platform UI`.
+- Mutation path remains `authenticated browser adapter -> existing Phase 2 review/provisioning/resend Edge Function -> authoritative refetch`; the browser never supplies payment amount, actor identity, provisioning scope, or credentials.
+- Cross-tenant tables remain inaccessible through broad browser policies. Service-role access occurs only after server-side Platform Admin verification; no service-role key or secret is included in frontend code.
+- Directory reads are page-size constrained and the typed browser adapter walks all server pages. User/detail identity is membership-UUID based, while the Auth user UUID remains a non-routing safe identity field.
+- Unsupported legacy writes are read-only/blocked and direct mock form routes cannot mount. Backend failure clears the live projection instead of consulting localStorage.
+- The code and local verification are complete. Remote `platform-admin-read` deployment and live browser validation are still pending, so Phase 2E.2 is not yet closed.

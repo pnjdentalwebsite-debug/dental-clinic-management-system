@@ -46,6 +46,39 @@ export class PlatformAdminClientError extends Error {
   }
 }
 
+export type PlatformAdminReadResource = 'summary' | 'subscribers' | 'users' | 'clinics' | 'payments' | 'subscriptions' | 'plans';
+
+export interface PlatformAdminReadPage<T = Record<string, unknown>> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface PlatformReviewPage {
+  items: PlatformReviewRegistration[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface PlatformAdminDirectorySnapshot {
+  summary: {
+    pendingRegistrationReviews: number;
+    pendingPaymentReviews: number;
+    activeSubscribers: number;
+    activeClinics: number;
+    activeSubscriptions: number;
+    platformUsers: number;
+  };
+  subscribers: PlatformAdminReadPage;
+  users: PlatformAdminReadPage;
+  clinics: PlatformAdminReadPage;
+  payments: PlatformAdminReadPage;
+  subscriptions: PlatformAdminReadPage;
+  plans: PlatformAdminReadPage;
+}
+
 async function errorCode(error: unknown): Promise<string | null> {
   const response = (error as { context?: Response } | null)?.context;
   if (!response) return null;
@@ -79,9 +112,70 @@ async function invoke<T>(name: string, body: Record<string, unknown>, client: Au
   return data;
 }
 
+async function readAllDirectoryPages(
+  resource: Exclude<PlatformAdminReadResource, 'summary'>,
+  client: AuthClient,
+): Promise<PlatformAdminReadPage> {
+  const pageSize = 100;
+  const items: Record<string, unknown>[] = [];
+  let page = 1;
+  let total = 0;
+  do {
+    const result = await invoke<PlatformAdminReadPage>('platform-admin-read', { resource, page, pageSize }, client);
+    if (result.items.length === 0) {
+      total = result.total;
+      break;
+    }
+    items.push(...result.items);
+    total = result.total;
+    page += 1;
+  } while (items.length < total);
+  return { items, page: 1, pageSize, total };
+}
+
+async function readAllReviewPages(
+  filters: { registrationStatus?: string; paymentStatus?: string; search?: string },
+  client: AuthClient,
+): Promise<PlatformReviewPage> {
+  const pageSize = 100;
+  const items: PlatformReviewRegistration[] = [];
+  let page = 1;
+  let total = 0;
+  do {
+    const result = await invoke<PlatformReviewPage>('platform-registration-review-list', { ...filters, page, pageSize }, client);
+    if (result.items.length === 0) {
+      total = result.total;
+      break;
+    }
+    items.push(...result.items);
+    total = result.total;
+    page += 1;
+  } while (items.length < total);
+  return { items, page: 1, pageSize, total };
+}
+
 export const platformAdminApi = {
+  getDirectorySnapshot: async (client: AuthClient = requireSupabaseClient()): Promise<PlatformAdminDirectorySnapshot> => {
+    const [summaryResult, subscribers, users, clinics, payments, subscriptions, plans] = await Promise.all([
+      invoke<{ summary: PlatformAdminDirectorySnapshot['summary'] }>('platform-admin-read', { resource: 'summary' }, client),
+      readAllDirectoryPages('subscribers', client),
+      readAllDirectoryPages('users', client),
+      readAllDirectoryPages('clinics', client),
+      readAllDirectoryPages('payments', client),
+      readAllDirectoryPages('subscriptions', client),
+      readAllDirectoryPages('plans', client),
+    ]);
+    return { summary: summaryResult.summary, subscribers, users, clinics, payments, subscriptions, plans };
+  },
+  readDirectory: <T = Record<string, unknown>>(
+    resource: PlatformAdminReadResource,
+    query: { id?: string; page?: number; pageSize?: number; search?: string; status?: string; role?: string } = {},
+    client: AuthClient = requireSupabaseClient(),
+  ) => invoke<PlatformAdminReadPage<T> | { item: T } | { summary: PlatformAdminDirectorySnapshot['summary'] }>('platform-admin-read', { resource, ...query }, client),
   listReview: (filters: { page?: number; pageSize?: number; registrationStatus?: string; paymentStatus?: string; search?: string } = {}, client: AuthClient = requireSupabaseClient()) =>
-    invoke<{ items: PlatformReviewRegistration[]; page: number; pageSize: number; total: number }>('platform-registration-review-list', filters, client),
+    invoke<PlatformReviewPage>('platform-registration-review-list', filters, client),
+  listAllReview: (filters: { registrationStatus?: string; paymentStatus?: string; search?: string } = {}, client: AuthClient = requireSupabaseClient()) =>
+    readAllReviewPages(filters, client),
   getReviewDetail: (registrationId: string, client: AuthClient = requireSupabaseClient()) =>
     invoke<{ registration: PlatformReviewDetail }>('platform-registration-review-detail', { registrationId }, client),
   reviewPayment: (registrationId: string, paymentId: string, decision: 'approve' | 'reject', reason?: string, client: AuthClient = requireSupabaseClient()) =>

@@ -8,11 +8,11 @@ import {
   Printer, 
   Check 
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
+import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPaymentService as mockPaymentService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { PaymentActionDialog, type PaymentDialogAction } from '../components/PaymentActionDialog';
 import { PaymentActionMenu } from '../components/PaymentActionMenu';
-import { mockPaymentService } from '../services/mockPaymentService';
 
 interface PaymentDetailsPageProps {
   paymentId: string;
@@ -24,6 +24,7 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => `₱${value.toLocaleString()}`;
 
 export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDetailsPageProps) {
+  const { refresh: refreshRealData } = usePlatformAdminDetail('payments', paymentId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'allocations' | 'history'>('overview');
   const [action, setAction] = useState<PaymentDialogAction | null>(null);
@@ -50,10 +51,23 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
 
   const refresh = () => setVersion(prev => prev + 1);
 
-  const submitAction = (payload: Record<string, string | number>) => {
+  const submitAction = async (payload: Record<string, string | number>) => {
+    if (action === 'approve' || action === 'reject') {
+      if (!payment.registrationId) {
+        showToast('Only registration payments are supported by the approved payment review contract.', 'error');
+        return;
+      }
+      try {
+        await platformAdminApi.reviewPayment(payment.registrationId, payment.id, action, action === 'reject' ? String(payload.reason || '') : undefined);
+        await refreshRealData();
+        showToast(`Payment ${action} completed.`, 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Payment review failed.', 'error');
+      }
+      setAction(null);
+      return;
+    }
     const result =
-      action === 'approve' ? mockPaymentService.approvePayment(payment.id) :
-      action === 'reject' ? mockPaymentService.rejectPayment(payment.id, String(payload.reason || ''), String(payload.note || '')) :
       action === 'request_info' ? mockPaymentService.requestPaymentInformation(payment.id, String(payload.reason || ''), String(payload.dueDate || ''), String(payload.note || '')) :
       action === 'allocate' ? mockPaymentService.allocatePayment(payment.id, { allocationType: String(payload.allocationType || 'manual_adjustment') as never, amount: Number(payload.amount), registrationId: payment.registrationId, subscriberId: payment.subscriberId, subscriptionId: payment.subscriptionId, description: String(payload.description || 'Manual allocation') }) :
       action === 'reverse' ? mockPaymentService.reverseAllocation(String(payload.allocationId || ''), String(payload.reason || '')) :
@@ -241,7 +255,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Subscriber Organization</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriber?.businessName || 'Angelo Dental Clinic'}</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriber?.businessName || 'Not available'}</div>
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Contract Number</div>

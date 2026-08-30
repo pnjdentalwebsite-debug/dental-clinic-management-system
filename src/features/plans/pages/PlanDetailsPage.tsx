@@ -7,7 +7,8 @@ import {
   DollarSign
 } from 'lucide-react';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
-import { mockPlanService } from '../services/mockPlanService';
+import { platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { PlanActionMenu } from '../components/PlanActionMenu';
 
 interface PlanDetailsPageProps {
@@ -20,10 +21,12 @@ const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}
 const limitText = (type: string, value?: number) => type === 'number' ? String(value ?? 0) : type.replace('_', ' ');
 
 export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPageProps) {
+  usePlatformAdminDetail('plans', planId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'features' | 'limits' | 'subscribers' | 'history'>('overview');
   const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate' | 'archive' | 'restore' | 'delete' | null>(null);
   const plan = mockPlanService.getPlanById(planId);
+  const showReadOnlyNotice = () => showToast('Plan configuration is read-only until an approved secure plan mutation contract is deployed.', 'info');
 
   if (!plan) {
     return (
@@ -176,13 +179,13 @@ export function PlanDetailsPage({ planId, navigate, showToast }: PlanDetailsPage
           <button
             className="btn btn-primary"
             style={{ width: 'auto', padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}
-            onClick={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}/edit`)}
+            onClick={showReadOnlyNotice}
           >
             Edit Configuration
           </button>
           <PlanActionMenu
             plan={plan}
-            onEdit={() => navigate(`/platform/plans/${encodeURIComponent(plan.id)}/edit`)}
+            onEdit={showReadOnlyNotice}
             onDuplicate={duplicate}
             onActivate={() => setConfirmAction('activate')}
             onDeactivate={() => setConfirmAction('deactivate')}

@@ -563,8 +563,12 @@
 - `src/infrastructure/supabase/clinicOwnerAuth.test.ts` and `src/App.firstLoginAuthContract.test.ts`: focused authentication, first-login gate, request-shape, session, sign-out, storage-safety, and preserved-UI-anchor coverage.
 - No visual component, layout, navigation design, typography, spacing, or responsive styling was redesigned.
 
-## August 30, 2026 Phase 2E.2 Partial Platform Admin Components
+## August 30, 2026 Phase 2E.2 Platform Admin Real-Data Components
 - `src/infrastructure/supabase/platformAdminAuth.ts`: authenticated Platform Admin authorization adapter backed by the existing RLS-protected `platform_admins` table.
-- `src/infrastructure/supabase/platformAdminApi.ts`: typed browser client for the deployed review, payment decision, provisioning, and credential-resend Edge Functions; it contains no service-role key or password material.
-- `src/features/platformManagement/pages/PlatformDashboardPage.tsx`: pending-review data/action boundary no longer approves through mock services.
-- `src/infrastructure/supabase/platformAdminCutoverContract.test.ts`: focused authority, API payload, no-secret, and Dashboard-refetch coverage. Remaining Platform page components are not yet real-data components.
+- `supabase/functions/platform-admin-read/index.ts`: JWT-required shared-authorization read endpoint with safe DTOs for summary, subscribers, memberships/users, clinics, payments, subscriptions, plans, real schedules, and bounded query inputs.
+- `src/infrastructure/supabase/platformAdminApi.ts`: typed browser client for paginated directory reads plus the existing deployed review, payment-decision, provisioning, and credential-resend functions; it contains no service-role key or password material.
+- `src/features/platformManagement/realData/PlatformAdminReadProvider.tsx`: authenticated load/refetch/error boundary that installs only backend DTOs and clears data on failure.
+- `src/features/platformManagement/realData/platformAdminRealDataService.ts`: non-persistent compatibility projection for the approved existing UI; unsupported writes return a controlled unavailable result.
+- Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, and their detail pages now read this real projection. Mock-backed create/edit routes are blocked and existing visual structure is preserved.
+- `src/infrastructure/supabase/platformAdminReadContract.test.ts` plus affected page tests cover auth ordering, safe DTOs, pagination, stable detail identity, no mock fallback, read-only routes, empty data, and preserved pages.
+- Local status: Edge Function bundle/anonymous `401`, 11 focused files / 81 tests, and production build passed. Remote deployment and browser validation remain pending.

@@ -759,7 +759,10 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - Local/mock Clinic Owner credentials, temporary-password comparison, email-only mock account lookup, and local password-change authority are removed from this runtime path. Supabase session persistence is SDK-managed; passwords and tokens are not manually persisted.
     - The remotely deployed Phase 2 backend has been live-validated for review, provisioning, credential delivery/rotation, temporary-credential login, the RLS first-login gate, and initial-password completion. This frontend cutover is complete subject to the recorded focused tests and production build; Platform Admin real-data frontend cutover remains Phase 2E.2.
 
-62. **Phase 2E.2 Platform Admin Real-Data Cutover — Partial Foundation (August 30, 2026)**:
-    - Platform Administrator sign-in authority and Dashboard pending-registration approval now use the authenticated Supabase session, the RLS-protected `platform_admins` ledger, and deployed review/provisioning Edge Functions.
-    - The full platform directory/read-model cutover is not complete: existing deployed contracts do not provide a safe cross-tenant profile DTO for Staff/Associate identities, and the remaining legacy Platform pages still rely on prototype services. No mock record is used as authority by the new Platform Admin auth/review path.
-    - No database migration, database push, Edge Function deployment, or remote data mutation was performed in this partial foundation step.
+62. **Phase 2E.2 Platform Admin Real-Data Cutover — Local Implementation Complete, Remote Validation Pending (August 30, 2026)**:
+    - Platform Administrator sign-in, review, payment decision, provisioning, and credential resend continue to use the authenticated Supabase session and the existing deployed Phase 2 APIs.
+    - Added JWT-required `platform-admin-read`, which reuses the shared `platform_admins` authorization helper before service-role reads and returns explicit safe DTOs for Dashboard summary, Subscribers, memberships/users, Clinics, Payments, Subscriptions, and Plans.
+    - Dashboard and all approved list/detail screens now consume the real read adapter. Backend empty arrays remain empty, errors never fall back to localStorage, detail routes use stable real UUIDs, and authoritative amounts remain server-sourced.
+    - Existing mock-only create/edit routes and unsupported actions are blocked/read-only. Initial credentials are not returned, displayed, copied, or persisted by the real Platform Admin path.
+    - No migration is required. Local Edge Runtime bundling passed and an anonymous request returned `401`; 11 focused files / 81 tests and `npm run build` passed.
+    - `platform-admin-read` is not yet remotely deployed and the completed directory cutover has not yet received live browser validation. Phase 2E.2 must not be marked closed until both steps pass.

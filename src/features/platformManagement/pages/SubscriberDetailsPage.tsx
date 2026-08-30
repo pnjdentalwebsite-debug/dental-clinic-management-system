@@ -18,12 +18,9 @@ import {
   Lock
 } from 'lucide-react';
 import { Modal } from '../../../components/overlays/Modal';
-import { mockPlatformManagementService } from '../services/mockPlatformManagementService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockSubscriptionService } from '../../subscriptions/services/mockSubscriptionService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
-import { mockLaboratoryService } from '../../laboratories/services/mockLaboratoryService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
+import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService, platformAdminLaboratoryService as mockLaboratoryService, platformAdminPaymentService as mockPaymentService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 
 interface SubscriberDetailsPageProps {
   subscriberId: string;
@@ -41,6 +38,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: SubscriberDetailsPageProps) {
+  const { refresh: refreshRealData } = usePlatformAdminDetail('subscribers', subscriberId);
   const [activeTab, setActiveTab] = useState('Overview');
   const [activeModal, setActiveModal] = useState<'change_plan' | 'renew' | 'suspend' | 'reactivate' | 'reset_password' | 'delete' | null>(null);
   const [plan, setPlan] = useState('Max');
@@ -78,9 +76,9 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
   const ownerFullName = owner?.fullName || registration?.ownerName || subscriber.businessName;
   const ownerEmail = owner?.email || registration?.ownerEmail || subscriber.email;
   const ownerMobile = owner?.mobileNumber || registration?.ownerMobile || subscriber.mobileNumber;
-  const tempPassword = registration?.tempPassword || (owner as any)?.tempPassword || '';
-  const activePlanObj = mockPlanService.getPlanByCode(subscriber.planId || 'Max') || mockPlanService.getPlanById(subscriber.planId || '');
-  const activePlanPrice = activePlanObj ? activePlanObj.monthlyPrice : 10000;
+  const credentialDeliveryStatus = 'Delivered by secure email; plaintext credentials are not available in Platform Admin.';
+  const activePlanObj = mockPlanService.getPlanByCode(subscriber.planId) || mockPlanService.getPlanById(subscriber.planId);
+  const activePlanPrice = activePlanObj?.monthlyPrice ?? 0;
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -104,11 +102,22 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
     ? subscriber.businessName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
     : 'AD';
 
-  const handleModalSubmit = () => {
+  const handleModalSubmit = async () => {
     setIsSubmitting(true);
     if (activeModal === 'reset_password') {
-      showToast(`Temporary password generated and dispatched to ${subscriber.email}.`, 'success');
-      setActiveModal(null);
+      if (!subscriber.registrationId) {
+        showToast('Credential rotation is unavailable because this subscriber has no provisioning registration.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+      try {
+        await platformAdminApi.resendInitialCredential(subscriber.registrationId);
+        await refreshRealData();
+        showToast(`A rotated initial credential was securely emailed to ${subscriber.email}.`, 'success');
+        setActiveModal(null);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Credential rotation failed.', 'error');
+      }
       setIsSubmitting(false);
       return;
     }
@@ -267,13 +276,13 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <code style={{ backgroundColor: '#ffffff', padding: '0.2rem 0.5rem', borderRadius: '6px', border: '1px solid #86efac', color: '#15803d', fontWeight: 700, fontSize: '0.82rem', fontFamily: 'monospace' }}>
-                      {tempPassword}
+                      {credentialDeliveryStatus}
                     </code>
                     <button
                       type="button"
                       className="btn btn-outline"
                       style={{ width: 'auto', padding: '0.2rem 0.5rem', fontSize: '0.72rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                      onClick={() => handleCopy(tempPassword, 'Temporary Password')}
+                      onClick={() => handleCopy(credentialDeliveryStatus, 'Credential Delivery Status')}
                     >
                       {copiedField === 'Temporary Password' ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
                       {copiedField === 'Temporary Password' ? 'Copied' : 'Copy'}
@@ -394,7 +403,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                     <td>{u.email}</td>
                     <td>{u.mobileNumber}</td>
                     <td><StatusBadge status={u.accountStatus} /></td>
-                    <td>{u.lastLoginAt || 'Recent'}</td>
+                    <td>{u.lastLoginAt || 'Not available'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -413,7 +422,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ color: '#64748b' }}>Plan Tier:</span>
-                <strong style={{ color: '#2563eb' }}>{subscriber.planId} Enterprise Plan</strong>
+                <strong style={{ color: '#2563eb' }}>{subscriber.planId || 'Not available'} Plan</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ color: '#64748b' }}>Billing Cycle:</span>
@@ -484,17 +493,17 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                       display: 'inline-block',
                       marginTop: '0.2rem'
                     }}>
-                      {tempPassword}
+                      {credentialDeliveryStatus}
                     </code>
                   </div>
                   <button
                     type="button"
                     className="btn btn-primary"
                     style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.35rem 0.85rem', fontSize: '0.78rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCopy(tempPassword, 'Temporary Password')}
+                    onClick={() => handleCopy(credentialDeliveryStatus, 'Credential Delivery Status')}
                   >
                     {copiedField === 'Temporary Password' ? <Check size={13} /> : <Copy size={13} />}
-                    {copiedField === 'Temporary Password' ? 'Copied Password' : 'Copy Password'}
+                    {copiedField === 'Credential Delivery Status' ? 'Copied Status' : 'Copy Status'}
                   </button>
                 </div>
               </div>
@@ -508,7 +517,7 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                   className="btn btn-outline"
                   style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', height: 'auto', borderColor: '#16a34a', color: '#166534' }}
                   onClick={() => {
-                    const text = `Clinic: ${subscriber.businessName}\nLogin Email: ${ownerEmail}\nTemporary Password: ${tempPassword}\nSign-in URL: ${window.location.origin}/login`;
+                    const text = `Clinic: ${subscriber.businessName}\nLogin Email: ${ownerEmail}\nCredential Status: ${credentialDeliveryStatus}\nSign-in URL: ${window.location.origin}/login`;
                     handleCopy(text, 'Full Sign-In Details');
                   }}
                 >
@@ -665,13 +674,13 @@ export function SubscriberDetailsPage({ subscriberId, navigate, showToast }: Sub
                     fontSize: '1rem',
                     fontFamily: 'monospace'
                   }}>
-                    {tempPassword}
+                    {credentialDeliveryStatus}
                   </code>
                   <button
                     type="button"
                     className="btn btn-primary"
                     style={{ width: 'auto', backgroundColor: '#16a34a', borderColor: '#16a34a', padding: '0.5rem 0.85rem', fontSize: '0.75rem', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    onClick={() => handleCopy(tempPassword, 'Temporary Password')}
+                    onClick={() => handleCopy(credentialDeliveryStatus, 'Credential Delivery Status')}
                   >
                     {copiedField === 'Temporary Password' ? <Check size={13} /> : <Copy size={13} />}
                     {copiedField === 'Temporary Password' ? 'Copied' : 'Copy'}

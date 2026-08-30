@@ -7,10 +7,8 @@ import {
   Sparkles, 
   DollarSign
 } from 'lucide-react';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { mockPlanService } from '../../plans/services/mockPlanService';
-import { mockPaymentService } from '../../payments/services/mockPaymentService';
-import { mockSubscriptionService } from '../services/mockSubscriptionService';
+import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPaymentService as mockPaymentService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import type { Subscription } from '../types';
 import { SubscriptionActionMenu } from '../components/SubscriptionActionMenu';
 import { SubscriptionActionDialog, type SubscriptionDialogAction } from '../components/SubscriptionActionDialog';
@@ -25,6 +23,7 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }: SubscriptionDetailsPageProps) {
+  usePlatformAdminDetail('subscriptions', subscriptionId);
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState<'overview' | 'financial' | 'payments' | 'history'>('overview');
   const [action, setAction] = useState<SubscriptionDialogAction | null>(null);
@@ -120,7 +119,7 @@ export function SubscriptionDetailsPage({ subscriptionId, navigate, showToast }:
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#0f172a' }}>
-                {subscriber?.businessName || 'Angelo Dental Clinic'}
+                {subscriber?.businessName || 'Not available'}
               </h1>
               <span style={{
                 display: 'inline-flex',

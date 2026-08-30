@@ -75,6 +75,7 @@ export interface PlatformUser {
   mobileNumber: string;
   role: PlatformUserRole;
   position: string;
+  workSchedule?: Record<string, { enabled: boolean; startTime: string; endTime: string }>;
   accountStatus: AccountStatus;
   mustChangePassword: boolean;
   registeredAt: string;

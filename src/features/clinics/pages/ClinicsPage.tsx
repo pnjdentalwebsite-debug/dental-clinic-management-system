@@ -11,10 +11,10 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
+import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { usePlatformAdminReadModel } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ClinicActionDialog, type ClinicDialogAction } from '../components/ClinicActionDialog';
 import { ClinicActionMenu } from '../components/ClinicActionMenu';
-import { mockClinicService } from '../services/mockClinicService';
 import type { Clinic, ClinicFilters, ClinicSort } from '../types';
 
 interface Props {
@@ -40,6 +40,8 @@ const defaultFilters: ClinicFilters = {
 };
 
 export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
+  const showReadOnlyNotice = () => showToast('Clinic editing is unavailable until an approved secure mutation contract is deployed.', 'info');
+  const { revision, refresh: refreshRealData } = usePlatformAdminReadModel();
   const [filters, setFilters] = useState<ClinicFilters>(defaultFilters);
   const [sort, setSort] = useState<ClinicSort>({ field: 'createdAt', direction: 'desc' });
   const [page, setPage] = useState(1);
@@ -48,15 +50,16 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
   const [action, setAction] = useState<ClinicDialogAction | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const clinics = useMemo(() => mockClinicService.listClinics(), [refreshKey]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey]);
-  const users = useMemo(() => mockPlatformManagementService.listUsers(), [refreshKey]);
-  const summary = useMemo(() => mockClinicService.getClinicSummary(), [refreshKey]);
+  const clinics = useMemo(() => mockClinicService.listClinics(), [refreshKey, revision]);
+  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
+  const users = useMemo(() => mockPlatformManagementService.listUsers(), [refreshKey, revision]);
+  const summary = useMemo(() => mockClinicService.getClinicSummary(), [refreshKey, revision]);
   const displayed = useMemo(() => mockClinicService.sortClinics(mockClinicService.filterClinics(clinics, filters), sort), [clinics, filters, sort]);
   const pageCount = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
   const paged = mockClinicService.paginateClinics(displayed, page, PAGE_SIZE);
 
   const refresh = () => { 
+    void refreshRealData();
     setRefreshKey(prev => prev + 1); 
     refreshShell(); 
     showToast('Clinics registry refreshed.', 'info');
@@ -114,7 +117,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
     <ClinicActionMenu 
       clinic={clinic} 
       onView={() => navigate(`/platform/clinics/${clinic.id}`)} 
-      onEdit={() => navigate(`/platform/clinics/${clinic.id}/edit`)} 
+      onEdit={showReadOnlyNotice}
       onViewSubscriber={() => navigate(`/platform/subscribers/${clinic.subscriberId}`)} 
       onManageUsers={() => navigate(`/platform/clinics/${clinic.id}`)} 
       onViewLabs={() => showToast('Open the Partner Laboratories module to view real laboratory connections.', 'info')} 
@@ -533,7 +536,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '10px' }}>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>Subscriber:</strong> {sub?.businessName || 'Angelo Dental Clinic'}
+                      <strong style={{ color: '#0f172a' }}>Subscriber:</strong> {sub?.businessName || 'Not available'}
                     </div>
                     <div>
                       <strong style={{ color: '#0f172a' }}>Clinic Owner:</strong> {ownerName(clinic.primaryOwnerUserId)} ({sub?.email || 'gelomhyr@gmail.com'})
