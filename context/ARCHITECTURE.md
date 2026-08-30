@@ -508,3 +508,8 @@ flowchart TD
 - Clinic plan display is resolved only from the exact Clinic DTO's current subscription summary.
 - Payment allocation display is an association projection, not a persisted allocation row: `payment -> subscription.source_payment_id -> plan`. Its count, plan label, and allocated amount are all derived from that same exact relation.
 - Plan detail remains `exact plan UUID -> real catalog DTO -> aggregate subscriber count`; it never fabricates subscriber identities. No backend/schema contract changed in this display-only pass.
+
+## Phase 2E.2 Closure - August 30, 2026
+- The deployed `platform-admin-read` boundary and real-data frontend were live browser validated end-to-end. Exact detail routes reconstruct authoritative related summaries after direct refresh without cross-page cache authority.
+- The verified payment display uses the real `source_payment_id` subscription association; it is not a synthetic allocation table record. Credentials and privileged server material remain outside browser DTOs.
+- **Status: COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**
