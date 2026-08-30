@@ -35,19 +35,19 @@ const tabs = [
 const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}` : 'Free';
 
 export function PlansPage({ navigate, showToast }: PlansPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [confirmPlan, setConfirmPlan] = useState<Plan | null>(null);
   const [confirmAction, setConfirmAction] = useState<'activate' | 'deactivate' | 'archive' | 'restore' | 'delete' | null>(null);
   const [filters, setFilters] = useState<PlanFilters>({ search: '', status: 'all', visibility: 'all', tab: 'all' });
   const [sort, setSort] = useState<PlanSort>({ field: 'displayOrder', direction: 'asc' });
   const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : filters.visibility === 'public' ? 'active' : undefined;
-  const { revision, refresh: refreshRealData } = usePlatformAdminDirectoryPage('plans', {
+  const { refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('plans', {
     page: 1, pageSize: 25, search: filters.search.trim() || undefined, status: requestedStatus,
   });
 
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
-  const summary = useMemo(() => mockPlanService.getPlanSummary(), [refreshKey, revision]);
+  const plans = directoryPage.items as Plan[];
+  const summary = { total: directoryPage.total, active: plans.filter(item => item.status === 'active').length, draft: plans.filter(item => item.status === 'draft').length, inactive: plans.filter(item => item.status === 'inactive').length, archived: plans.filter(item => item.status === 'archived').length, subscriberUsage: plans.reduce((sum, item) => sum + item.subscriberCount, 0) };
   const filteredPlans = useMemo(() => mockPlanService.sortPlans(plans, sort), [plans, sort]);
   const entryPlan = useMemo(() => [...plans].sort((a, b) => a.monthlyPrice - b.monthlyPrice)[0] ?? null, [plans]);
   const showReadOnlyNotice = () => showToast('Plan configuration is read-only until an approved secure plan mutation contract is deployed.', 'info');

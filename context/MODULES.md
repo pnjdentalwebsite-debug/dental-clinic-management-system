@@ -364,11 +364,12 @@
 - Zero/multiple active owner memberships and invalid/expired sessions fail safely without selecting a tenant. The ready path resolves the membership's RLS-scoped `subscriber_id` only after the first-login gate clears.
 - Platform Admin real-data frontend cutover is deliberately not included; it remains Phase 2E.2. The deployed Phase 2 backend and first-login RLS/completion contracts are live-validated.
 
-## Phase 2E.2 Platform Admin Real-Data Cutover — Local Implementation Complete - August 30, 2026
+## Phase 2E.2 Platform Admin Real-Data Cutover — Live Validation Defect Fix - August 30, 2026
 - Platform Admin authentication remains Supabase-session-authoritative. Dashboard registration review and approved mutations continue through the deployed Phase 2 functions and refetch authoritative state.
 - New `platform-admin-read` provides one shared-authorized safe DTO boundary for summary, Subscribers, personnel memberships, Clinics, Payments, Subscriptions, and the real `public.plans` catalog. It validates resource, UUID, page, page size, search, status, and role inputs.
 - The approved Platform list/detail screens use a per-resource bounded projection installed only from the requested backend page/DTO. Platform sign-in no longer downloads all cross-tenant directories; Dashboard requests aggregate summary and pending review data only. No target screen falls back to mock/localStorage records after an API error or empty response.
 - Personnel detail IDs are stable membership UUIDs; real staff/associate work schedules come from existing `work_schedule` JSON. Users and subscriptions apply search before `.range()` so filtered totals/pagination remain authoritative. Dashboard plan distribution and MRR are aggregate summary fields computed from real active subscription snapshots.
 - Subscriber clinic, laboratory, associate, and staff totals count active/current rows only where the schema exposes status/account status.
 - Unsupported plan, clinic, payment, subscription, subscriber, and personnel writes fail safely. Mock-backed form URLs render a read-only boundary rather than fake persistence.
-- No database migration is required. Local tests/build pass; remote deployment of `platform-admin-read` and live browser validation remain required before Phase 2E.2 closure.
+- The deployed read function passed initial live authentication/data checks. The correction removes shared page-snapshot list authority: each directory renders its own bounded response, Dashboard/Subscriber KPIs use server summary aggregates, and safe owner/related labels travel in the resource DTO instead of requiring another page cache.
+- No database migration is required. The corrected `platform-admin-read` must be redeployed and the second live browser pass must succeed before Phase 2E.2 closure.

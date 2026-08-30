@@ -11,7 +11,7 @@ import {
   X,
   Check
 } from 'lucide-react';
-import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPaymentService as mockPaymentService, platformAdminPlanService as mockPlanService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { platformAdminPaymentService as mockPaymentService } from '../../platformManagement/realData/platformAdminRealDataService';
 import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
@@ -40,7 +40,7 @@ const format = (value: string) => value.replaceAll('_', ' ');
 const formatMoney = (value: number) => `₱${value.toLocaleString()}`;
 
 export function PaymentsPage({ navigate, showToast }: PaymentsPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [action, setAction] = useState<PaymentDialogAction | null>(null);
@@ -65,16 +65,16 @@ export function PaymentsPage({ navigate, showToast }: PaymentsPageProps) {
     tab: 'all'
   });
   const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' && filters.tab !== 'fully_allocated' ? filters.tab : undefined;
-  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('payments', {
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('payments', {
     page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
     paymentMethod: filters.paymentMethod !== 'all' ? filters.paymentMethod : undefined,
   });
 
-  const payments = useMemo(() => mockPaymentService.listPayments(), [refreshKey, revision]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
-  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey, revision]);
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
-  const summary = useMemo(() => mockPaymentService.getPaymentSummary(), [refreshKey, revision]);
+  const payments = directoryPage.items as Payment[];
+  const subscribers = Array.from(new Map(payments.filter(item => item.subscriberId).map(item => [item.subscriberId, { id: item.subscriberId!, subscriberNumber: item.subscriberId!, businessName: item.payerName, email: item.payerEmail, planId: item.planId || '' }])).values());
+  const registrations = Array.from(new Map(payments.filter(item => item.registrationId).map(item => [item.registrationId, { id: item.registrationId!, ownerName: item.payerName, ownerEmail: item.payerEmail, clinicName: item.payerName, plan: item.planId || '' }])).values());
+  const plans = Array.from(new Map(payments.filter(item => item.planId).map(item => [item.planId, { id: item.planId!, name: item.planName || item.planId!, planCode: item.planId! }])).values());
+  const summary = { ...platformSummary.paymentSummary, collectedAmount: platformSummary.paymentSummary.approvedAmountCentavos / 100, refundedAmount: platformSummary.paymentSummary.refundedAmountCentavos / 100 };
   const displayed = useMemo(() => mockPaymentService.sortPayments(payments, sort), [payments, sort]);
   const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
   const paged = displayed;

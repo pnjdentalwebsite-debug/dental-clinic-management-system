@@ -19,7 +19,7 @@ import {
 import { Modal } from '../../../components/overlays/Modal';
 import { RowActionMenu } from '../../../components/overlays/RowActionMenu';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
 import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
 import type { PlatformUser, SortState, UserFilters } from '../types';
 
@@ -53,7 +53,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<UserFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState<'all' | 'associate' | 'staff' | 'suspended'>('all');
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
@@ -66,24 +66,18 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const requestedRole = activeTab === 'associate' || activeTab === 'staff' ? activeTab : filters.role !== 'all' ? filters.role : undefined;
   const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : activeTab === 'suspended' ? 'suspended' : undefined;
-  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('users', {
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('users', {
     page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, role: requestedRole, excludeRole: 'clinic_owner', status: requestedStatus,
     subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
     clinicId: filters.clinicId !== 'all' ? filters.clinicId : undefined,
   });
 
   // Exclude primary subscriber accounts (clinic_owner) so this page exclusively manages clinic personnel
-  const allUsers = useMemo(() => {
-    return mockPlatformManagementService.listUsers().filter(u => u.role !== 'clinic_owner');
-  }, [refreshKey, revision]);
+  const allUsers = (directoryPage.items as PlatformUser[]).filter(user => user.role !== 'clinic_owner');
 
-  const subscribers = useMemo(() => {
-    return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey, revision]);
+  const subscribers = Array.from(new Map(allUsers.filter(user => user.subscriberId).map(user => [user.subscriberId, { id: user.subscriberId!, subscriberNumber: user.subscriberNumber, businessName: user.subscriberName || 'Subscriber unavailable', primaryClinicName: user.subscriberName || 'Subscriber unavailable', email: user.email }])).values());
 
-  const clinics = useMemo(() => {
-    return mockClinicService.listClinics();
-  }, [refreshKey, revision]);
+  const clinics = Array.from(new Map(allUsers.flatMap(user => user.clinicSummaries ?? []).map(clinic => [clinic.id, clinic])).values());
 
   // Tab and search filtering
   const displayedUsers = useMemo(() => mockPlatformManagementService.sortUsers(allUsers, sort), [allUsers, sort]);
@@ -92,10 +86,10 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   const pagedUsers = displayedUsers;
 
   // Hero KPI Computations
-  const totalPersonnel = allUsers.length;
-  const activePersonnel = allUsers.filter(u => u.accountStatus === 'active').length;
-  const totalDentists = allUsers.filter(u => u.role === 'associate').length;
-  const totalStaff = allUsers.filter(u => u.role === 'staff').length;
+  const totalPersonnel = platformSummary.personnelSummary.total;
+  const activePersonnel = platformSummary.personnelSummary.active;
+  const totalDentists = platformSummary.personnelSummary.associates;
+  const totalStaff = platformSummary.personnelSummary.staff;
 
   const changeSort = (field: string) => {
     setSort(prev => ({
@@ -110,7 +104,7 @@ export function UsersPage({ navigate, showToast, refreshShell }: UsersPageProps)
   };
 
   const getUserClinics = (user: PlatformUser) => {
-    return clinics.filter(clinic => user.clinicIds.includes(clinic.id));
+    return user.clinicSummaries ?? [];
   };
 
   const getWorkScheduleText = (user: PlatformUser) => {

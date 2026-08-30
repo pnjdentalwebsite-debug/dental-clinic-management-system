@@ -768,8 +768,6 @@ export default function App() {
   const [logoutModalOpen, setLogoutModalOpen] = useState<boolean>(false);
   const [resetMockModalOpen, setResetMockModalOpen] = useState<boolean>(false);
   const [resetMockConfirmation, setResetMockConfirmation] = useState<string>('');
-  const [staleSafePurgeModalOpen, setStaleSafePurgeModalOpen] = useState<boolean>(false);
-  const [staleSafePurgeConfirmation, setStaleSafePurgeConfirmation] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
   // Platform Sidebar Collapsible Dropdown Sections State (Default: all closed)
@@ -1770,18 +1768,6 @@ export default function App() {
     setEmail('');
     setPassword('');
     setCurrentRoute('/login');
-    syncStateFromStorage();
-  };
-
-  const handleStaleSafePurge = () => {
-    const result = mockBackupRestoreService.staleSafePurge(staleSafePurgeConfirmation);
-    if (!result.ok) {
-      showToast(result.error || 'Stale-safe purge blocked.', 'error');
-      return;
-    }
-    setStaleSafePurgeModalOpen(false);
-    setStaleSafePurgeConfirmation('');
-    showToast('Stale-safe purge completed. Processed platform ledgers were cleared.', 'success');
     syncStateFromStorage();
   };
 
@@ -4900,7 +4886,7 @@ export default function App() {
             </nav>
 
             <div className="sidebar-footer">
-              <button 
+              {userRole !== 'platform_owner' && <button
                 className="sidebar-link warning" 
                 style={{ border: '1px solid rgba(255,255,255,0.1)', padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }} 
                 onClick={() => setResetMockModalOpen(true)}
@@ -4908,7 +4894,7 @@ export default function App() {
               >
                 <RotateCcw size={18} />
                 <span className="sidebar-link-text">Reset Mock Data</span>
-              </button>
+              </button>}
               <button 
                 className="sidebar-link danger" 
                 style={{ padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
@@ -4929,26 +4915,7 @@ export default function App() {
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{userRole === 'platform_owner' ? 'Platform Administration System' : 'Clinic Console'}</h3>
               </div>
               <div className="top-nav-right">
-                <span className="badge-prototype"><ShieldAlert size={12} /> Prototype Mode</span>
-                {userRole === 'platform_owner' && (
-                  <button
-                    className="top-nav-btn"
-                    onClick={() => setStaleSafePurgeModalOpen(true)}
-                    title="Stale-Safe Purge"
-                    style={{
-                      width: 'auto',
-                      paddingInline: '0.9rem',
-                      gap: '0.45rem',
-                      color: '#dc2626',
-                      borderColor: '#fecaca',
-                      background: '#fff5f5',
-                      fontWeight: 700
-                    }}
-                  >
-                    <Database size={16} />
-                    <span>Stale-Safe Purge</span>
-                  </button>
-                )}
+                {userRole !== 'platform_owner' && <span className="badge-prototype"><ShieldAlert size={12} /> Prototype Mode</span>}
                 <button className="top-nav-btn" onClick={triggerRefresh}>
                   <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}} />
                 </button>
@@ -5335,7 +5302,6 @@ export default function App() {
                     {currentRoute === '/platform/notifications' && 'This module is under development and will display administrative alerts for payment confirmations.'}
                     {currentRoute === '/platform/settings' && 'This module is under development and will manage logo branding and payment vendor key setups.'}
                   </p>
-                  <span className="badge-prototype" style={{ display: 'inline-block', marginBottom: '1.5rem' }}><ShieldAlert size={12} /> Prototype Mode Only</span>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
                     <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => setCurrentRoute('/platform/dashboard')}>
                       Return to Dashboard
@@ -5351,31 +5317,7 @@ export default function App() {
     )}
 
       <Modal
-        open={staleSafePurgeModalOpen}
-        title="Purge stale processed platform data?"
-        description="This clears processed records under Clinic Owners, Clinic Staff & Doctors, Dental Clinics, Partner Laboratories, Subscription Plans, Active Subscriptions, Payments & Receipts, plus linked branch workspace traces. Platform admin access, settings baseline, and restore checkpoints will be preserved. Type PURGE STALE DATA to continue."
-        role="alertdialog"
-        onClose={() => { setStaleSafePurgeModalOpen(false); setStaleSafePurgeConfirmation(''); }}
-        footer={(
-          <>
-            <button className="btn btn-outline" style={{ width: 'auto' }} onClick={() => { setStaleSafePurgeModalOpen(false); setStaleSafePurgeConfirmation(''); }}>Cancel</button>
-            <button className="btn btn-danger" style={{ width: 'auto' }} disabled={staleSafePurgeConfirmation !== 'PURGE STALE DATA'} onClick={handleStaleSafePurge}>Run Stale-Safe Purge</button>
-          </>
-        )}
-      >
-        <div style={{ display: 'grid', gap: '0.9rem' }}>
-          <div style={{ padding: '0.9rem 1rem', borderRadius: '14px', border: '1px solid #fecaca', background: '#fff5f5', color: '#991b1b', fontSize: '0.9rem', lineHeight: 1.6 }}>
-            Use this before end-to-end testing when ghost, embedded, stale, seeded, or processed cross-module records are causing confusion in registration, payments, subscriptions, clinics, laboratories, or linked branch workspaces.
-          </div>
-          <label className="form-control">
-            <span>Confirmation Phrase</span>
-            <input className="form-input" value={staleSafePurgeConfirmation} onChange={event => setStaleSafePurgeConfirmation(event.target.value)} placeholder="PURGE STALE DATA" />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal
-        open={resetMockModalOpen}
+        open={userRole !== 'platform_owner' && resetMockModalOpen}
         title="Reset all prototype data?"
         description="This creates a pre-reset local checkpoint, clears non-session prototype data, reseeds mock records, signs out, and returns to Login. Type RESET MOCK DATA to continue."
         role="alertdialog"

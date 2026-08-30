@@ -15,6 +15,10 @@ export interface PlatformAdminSummary {
   activeSubscriptionMrrCentavos: number;
   subscriptionStatuses: { active: number; pending: number; expiringSoon: number; expired: number; suspended: number; cancelled: number };
   activePlanDistribution: Record<string, number>;
+  subscriberSummary: { total: number; active: number; pending: number; suspended: number; deactivated: number };
+  clinicSummary: { total: number; active: number; pending: number; draft: number; inactive: number; archived: number; primary: number; withoutDentists: number; withoutStaff: number };
+  paymentSummary: { total: number; pendingVerification: number; approved: number; rejected: number; refunded: number; voided: number; approvedAmountCentavos: number; refundedAmountCentavos: number };
+  personnelSummary: { total: number; active: number; associates: number; staff: number };
 }
 
 interface RealDataSnapshot {
@@ -29,7 +33,7 @@ interface RealDataSnapshot {
 }
 
 const emptySnapshot = (): RealDataSnapshot => ({
-  summary: { pendingRegistrationReviews: 0, pendingPaymentReviews: 0, activeSubscribers: 0, activeClinics: 0, activeSubscriptions: 0, platformUsers: 0, activeSubscriptionMrrCentavos: 0, subscriptionStatuses: { active: 0, pending: 0, expiringSoon: 0, expired: 0, suspended: 0, cancelled: 0 }, activePlanDistribution: {} },
+  summary: { pendingRegistrationReviews: 0, pendingPaymentReviews: 0, activeSubscribers: 0, activeClinics: 0, activeSubscriptions: 0, platformUsers: 0, activeSubscriptionMrrCentavos: 0, subscriptionStatuses: { active: 0, pending: 0, expiringSoon: 0, expired: 0, suspended: 0, cancelled: 0 }, activePlanDistribution: {}, subscriberSummary: { total: 0, active: 0, pending: 0, suspended: 0, deactivated: 0 }, clinicSummary: { total: 0, active: 0, pending: 0, draft: 0, inactive: 0, archived: 0, primary: 0, withoutDentists: 0, withoutStaff: 0 }, paymentSummary: { total: 0, pendingVerification: 0, approved: 0, rejected: 0, refunded: 0, voided: 0, approvedAmountCentavos: 0, refundedAmountCentavos: 0 }, personnelSummary: { total: 0, active: 0, associates: 0, staff: 0 } },
   subscribers: [], users: [], clinics: [], payments: [], subscriptions: [], plans: [], registrations: [],
 });
 
@@ -78,11 +82,15 @@ function toSubscriber(value: unknown): Subscriber {
     subscriberNumber: String(item.subscriberNumber ?? item.id),
     registrationId: item.registrationId ? String(item.registrationId) : undefined,
     ownerUserId: owner.membershipId ? String(owner.membershipId) : undefined,
+    ownerDisplayName: owner.displayName ? String(owner.displayName) : undefined,
     businessName: String(item.businessName ?? ''),
     primaryClinicName: String(clinic.name ?? item.businessName ?? ''),
     email: String(owner.email ?? item.email ?? ''),
     mobileNumber: String(owner.mobileNumber ?? item.mobileNumber ?? ''),
     planId: String(subscription.planCode ?? subscription.planName ?? subscription.planId ?? ''),
+    planName: subscription.planName ? String(subscription.planName) : undefined,
+    monthlyPlanAmount: Number(subscription.monthlyAmountCentavos ?? 0) / 100,
+    annualPlanAmount: Number(subscription.annualAmountCentavos ?? 0) / 100,
     subscriptionId: String(subscription.id ?? ''),
     paymentStatus: String(item.paymentStatus ?? 'unpaid') as Subscriber['paymentStatus'],
     subscriptionStatus: String(subscription.status ?? 'pending') as Subscriber['subscriptionStatus'],
@@ -106,6 +114,9 @@ function toUser(value: unknown): PlatformUser {
     id: String(item.id),
     userNumber: String(item.userNumber ?? item.id),
     subscriberId: item.subscriberId ? String(item.subscriberId) : undefined,
+    subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined,
+    subscriberName: item.subscriberName ? String(item.subscriberName) : undefined,
+    clinicSummaries: records<Record<string, unknown>>(item.clinics).map(clinic => ({ id: String(clinic.id), name: String(clinic.name ?? ''), subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, addressLine1: clinic.addressLine1 ? String(clinic.addressLine1) : undefined, city: clinic.city ? String(clinic.city) : undefined })),
     clinicIds: records<string>(item.clinicIds).map(String),
     fullName: String(item.fullName ?? item.email ?? ''),
     firstName: String(item.firstName ?? ''),
@@ -125,9 +136,9 @@ function toUser(value: unknown): PlatformUser {
 }
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-function toClinic(value: unknown, users: PlatformUser[]): Clinic {
+function toClinic(value: unknown): Clinic {
   const item = object(value);
-  const ownerUser = users.find(user => user.id === String(item.ownerMembershipId ?? ''));
+  const owner = object(item.owner);
   const dentistIds = records<string>(item.dentistMembershipIds).map(String);
   const staffIds = records<string>(item.staffMembershipIds).map(String);
   const businessHours = Object.fromEntries(records<Record<string, any>>(item.businessHours).map(hours => [dayNames[Number(hours.dayOfWeek)] ?? String(hours.dayOfWeek), {
@@ -135,7 +146,7 @@ function toClinic(value: unknown, users: PlatformUser[]): Clinic {
     breakEnabled: Boolean(hours.breakStart && hours.breakEnd), breakStart: String(hours.breakStart ?? ''), breakEnd: String(hours.breakEnd ?? ''),
   }]));
   return {
-    id: String(item.id), clinicNumber: String(item.clinicNumber ?? item.id), subscriberId: String(item.subscriberId), primaryOwnerUserId: ownerUser?.id ?? (item.ownerMembershipId ? String(item.ownerMembershipId) : undefined),
+    id: String(item.id), clinicNumber: String(item.clinicNumber ?? item.id), subscriberId: String(item.subscriberId), subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined, subscriberName: item.subscriberName ? String(item.subscriberName) : undefined, primaryOwnerUserId: owner.membershipId ? String(owner.membershipId) : undefined, ownerDisplayName: owner.displayName ? String(owner.displayName) : undefined, ownerEmail: owner.email ? String(owner.email) : undefined,
     branchType: String(item.branchType ?? 'main') as Clinic['branchType'], name: String(item.name ?? ''), legalBusinessName: String(item.legalBusinessName ?? item.name ?? ''),
     email: String(item.email ?? ''), contactNumber: String(item.contactNumber ?? ''), alternativeContactNumber: item.alternativeContactNumber ? String(item.alternativeContactNumber) : undefined,
     addressLine1: String(item.addressLine1 ?? ''), addressLine2: item.addressLine2 ? String(item.addressLine2) : undefined, barangay: item.barangay ? String(item.barangay) : undefined,
@@ -157,7 +168,7 @@ function toPayment(value: unknown): Payment {
   return {
     id: String(item.id), paymentNumber: String(item.id), registrationId: item.registrationId ? String(item.registrationId) : undefined,
     subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, subscriptionId: item.subscriptionId ? String(item.subscriptionId) : undefined,
-    planId: item.planId ? String(item.planId) : undefined, payerName: String(item.payerName ?? ''), payerEmail: String(item.payerEmail ?? ''),
+    planId: item.planId ? String(item.planId) : undefined, planName: item.planName ? String(item.planName) : undefined, payerName: String(item.payerName ?? ''), payerEmail: String(item.payerEmail ?? ''),
     amount, allocatedAmount: approved ? amount : 0, unallocatedAmount: approved ? 0 : amount, refundedAmount: status === 'refunded' ? amount : 0, currency: 'PHP',
     paymentMethod: String(item.paymentMethod ?? 'other') as Payment['paymentMethod'], referenceNumber: String(item.referenceNumber ?? ''), paymentDate: dateOnly(item.submittedAt),
     submittedAt: item.submittedAt ? dateOnly(item.submittedAt) : undefined, verifiedAt: item.reviewedAt && approved ? dateOnly(item.reviewedAt) : undefined,
@@ -174,7 +185,7 @@ function toSubscription(value: unknown): Subscription {
   const annualPrice = Number(item.annualAmountCentavos ?? 0) / 100;
   const appliedAmount = Number(item.amountCentavos ?? 0) / 100;
   return {
-    id: String(item.id), subscriptionNumber: String(item.id), subscriberId: String(item.subscriberId), planId: String(item.planCode ?? item.planId),
+    id: String(item.id), subscriptionNumber: String(item.id), subscriberId: String(item.subscriberId), subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined, subscriberName: item.subscriberName ? String(item.subscriberName) : undefined, subscriberEmail: item.subscriberEmail ? String(item.subscriberEmail) : undefined, ownerDisplayName: item.ownerDisplayName ? String(item.ownerDisplayName) : undefined, ownerEmail: item.ownerEmail ? String(item.ownerEmail) : undefined, planId: String(item.planCode ?? item.planId),
     registrationId: item.registrationId ? String(item.registrationId) : undefined, status: String(item.status ?? 'pending') as Subscription['status'], billingCycle,
     startDate: dateOnly(item.startsAt ?? item.createdAt), expirationDate: dateOnly(item.expiresAt), startedAt: dateOnly(item.startsAt ?? item.createdAt), expiresAt: dateOnly(item.expiresAt),
     autoRenew: false, paymentStatus: String(item.sourcePaymentStatus ?? 'unpaid') as Subscription['paymentStatus'],
@@ -211,12 +222,22 @@ export function installPlatformAdminSnapshot(data: PlatformAdminDirectorySnapsho
 }
 
 export function installPlatformAdminDirectoryPage(resource: Exclude<PlatformAdminReadResource, 'summary'>, values: unknown[]): void {
-  if (resource === 'subscribers') snapshot.subscribers = values.map(toSubscriber);
-  if (resource === 'users') snapshot.users = values.map(toUser);
-  if (resource === 'clinics') snapshot.clinics = values.map(item => toClinic(item, snapshot.users));
-  if (resource === 'payments') snapshot.payments = values.map(toPayment);
-  if (resource === 'subscriptions') snapshot.subscriptions = values.map(toSubscription);
-  if (resource === 'plans') snapshot.plans = values.map(toPlan);
+  const mapped = mapPlatformAdminDirectoryItems(resource, values);
+  if (resource === 'subscribers') snapshot.subscribers = mapped as Subscriber[];
+  if (resource === 'users') snapshot.users = mapped as PlatformUser[];
+  if (resource === 'clinics') snapshot.clinics = mapped as Clinic[];
+  if (resource === 'payments') snapshot.payments = mapped as Payment[];
+  if (resource === 'subscriptions') snapshot.subscriptions = mapped as Subscription[];
+  if (resource === 'plans') snapshot.plans = mapped as Plan[];
+}
+
+export function mapPlatformAdminDirectoryItems(resource: Exclude<PlatformAdminReadResource, 'summary'>, values: unknown[]): Array<Subscriber | PlatformUser | Clinic | Payment | Subscription | Plan> {
+  if (resource === 'subscribers') return values.map(toSubscriber);
+  if (resource === 'users') return values.map(toUser);
+  if (resource === 'clinics') return values.map(toClinic);
+  if (resource === 'payments') return values.map(toPayment);
+  if (resource === 'subscriptions') return values.map(toSubscription);
+  return values.map(toPlan);
 }
 
 export function clearPlatformAdminResource(resource: Exclude<PlatformAdminReadResource, 'summary'>): void {
@@ -229,7 +250,7 @@ export function getPlatformAdminSummary(): PlatformAdminSummary { return snapsho
 export function installPlatformAdminDirectoryItem(resource: 'subscribers' | 'users' | 'clinics' | 'payments' | 'subscriptions' | 'plans', value: unknown): void {
   if (resource === 'subscribers') snapshot.subscribers = [toSubscriber(value), ...snapshot.subscribers.filter(item => item.id !== object(value).id)];
   if (resource === 'users') snapshot.users = [toUser(value), ...snapshot.users.filter(item => item.id !== object(value).id)];
-  if (resource === 'clinics') snapshot.clinics = [toClinic(value, snapshot.users), ...snapshot.clinics.filter(item => item.id !== object(value).id)];
+  if (resource === 'clinics') snapshot.clinics = [toClinic(value), ...snapshot.clinics.filter(item => item.id !== object(value).id)];
   if (resource === 'payments') snapshot.payments = [toPayment(value), ...snapshot.payments.filter(item => item.id !== object(value).id)];
   if (resource === 'subscriptions') snapshot.subscriptions = [toSubscription(value), ...snapshot.subscriptions.filter(item => item.id !== object(value).id)];
   if (resource === 'plans') snapshot.plans = [toPlan(value, snapshot.plans.findIndex(item => item.id === object(value).id)), ...snapshot.plans.filter(item => item.id !== object(value).id)];

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { platformAdminApi, PlatformAdminClientError, type PlatformAdminReadPage, type PlatformAdminReadQuery, type PlatformAdminReadResource } from '../../../infrastructure/supabase/platformAdminApi';
-import { clearPlatformAdminResource, clearPlatformAdminSnapshot, installPlatformAdminDashboard, installPlatformAdminDirectoryItem, installPlatformAdminDirectoryPage } from './platformAdminRealDataService';
+import { clearPlatformAdminResource, clearPlatformAdminSnapshot, installPlatformAdminDashboard, installPlatformAdminDirectoryItem, installPlatformAdminDirectoryPage, mapPlatformAdminDirectoryItems, type PlatformAdminSummary } from './platformAdminRealDataService';
 
 type DetailResource = Exclude<PlatformAdminReadResource, 'summary'>;
 
@@ -8,16 +8,19 @@ interface PlatformAdminReadContextValue {
   loading: boolean;
   error: string | null;
   revision: number;
+  summary: PlatformAdminSummary;
   refresh: () => Promise<void>;
-  loadPage: (resource: DetailResource, query: PlatformAdminReadQuery) => Promise<PlatformAdminReadPage>;
+  loadPage: (resource: DetailResource, query: PlatformAdminReadQuery) => Promise<PlatformAdminReadPage<any>>;
   loadDetail: (resource: DetailResource, id: string) => Promise<void>;
 }
 
 const PlatformAdminReadContext = createContext<PlatformAdminReadContextValue | null>(null);
+const emptySummary: PlatformAdminSummary = { pendingRegistrationReviews: 0, pendingPaymentReviews: 0, activeSubscribers: 0, activeClinics: 0, activeSubscriptions: 0, platformUsers: 0, activeSubscriptionMrrCentavos: 0, subscriptionStatuses: { active: 0, pending: 0, expiringSoon: 0, expired: 0, suspended: 0, cancelled: 0 }, activePlanDistribution: {}, subscriberSummary: { total: 0, active: 0, pending: 0, suspended: 0, deactivated: 0 }, clinicSummary: { total: 0, active: 0, pending: 0, draft: 0, inactive: 0, archived: 0, primary: 0, withoutDentists: 0, withoutStaff: 0 }, paymentSummary: { total: 0, pendingVerification: 0, approved: 0, rejected: 0, refunded: 0, voided: 0, approvedAmountCentavos: 0, refundedAmountCentavos: 0 }, personnelSummary: { total: 0, active: 0, associates: 0, staff: 0 } };
 const standaloneReadContext: PlatformAdminReadContextValue = {
   loading: false,
   error: null,
   revision: 0,
+  summary: emptySummary,
   refresh: async () => undefined,
   loadPage: async () => ({ items: [], page: 1, pageSize: 25, total: 0 }),
   loadDetail: async () => undefined,
@@ -31,6 +34,7 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [summary, setSummary] = useState<PlatformAdminSummary>(emptySummary);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -42,9 +46,11 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
         platformAdminApi.listAllReview({ registrationStatus: 'pending_review' }),
       ]);
       installPlatformAdminDashboard(summaryResult.summary, review.items);
+      setSummary(summaryResult.summary);
       setRevision(value => value + 1);
     } catch (requestError) {
       clearPlatformAdminSnapshot();
+      setSummary(emptySummary);
       setRevision(value => value + 1);
       setError(safeMessage(requestError));
     } finally {
@@ -60,7 +66,7 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
       installPlatformAdminDirectoryPage(resource, result.items);
       setError(null);
       setRevision(value => value + 1);
-      return result;
+      return { ...result, items: mapPlatformAdminDirectoryItems(resource, result.items) };
     } catch (requestError) {
       clearPlatformAdminResource(resource);
       setRevision(value => value + 1);
@@ -87,20 +93,21 @@ export function PlatformAdminReadProvider({ enabled, children }: { enabled: bool
     if (enabled) void refresh();
     else {
       clearPlatformAdminSnapshot();
+      setSummary(emptySummary);
       setError(null);
       setLoading(false);
       setRevision(value => value + 1);
     }
   }, [enabled, refresh]);
 
-  const value = useMemo(() => ({ loading, error, revision, refresh, loadPage, loadDetail }), [loading, error, revision, refresh, loadPage, loadDetail]);
+  const value = useMemo(() => ({ loading, error, revision, summary, refresh, loadPage, loadDetail }), [loading, error, revision, summary, refresh, loadPage, loadDetail]);
   return <PlatformAdminReadContext.Provider value={value}>{children}</PlatformAdminReadContext.Provider>;
 }
 
 export function usePlatformAdminDirectoryPage(resource: DetailResource, query: PlatformAdminReadQuery) {
   const model = usePlatformAdminReadModel();
   const queryKey = JSON.stringify(query);
-  const [result, setResult] = useState<PlatformAdminReadPage>({ items: [], page: query.page ?? 1, pageSize: query.pageSize ?? 25, total: 0 });
+  const [result, setResult] = useState<PlatformAdminReadPage<any>>({ items: [], page: query.page ?? 1, pageSize: query.pageSize ?? 25, total: 0 });
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {

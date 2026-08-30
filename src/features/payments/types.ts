@@ -28,6 +28,7 @@ export interface Payment {
   subscriberId?: string;
   subscriptionId?: string;
   planId?: string;
+  planName?: string;
   payerName: string;
   payerEmail: string;
   amount: number;

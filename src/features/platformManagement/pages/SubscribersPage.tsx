@@ -26,7 +26,7 @@ import {
   PlatformPageHeader,
   SectionTabs
 } from '../../../components/PlatformShared';
-import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../realData/platformAdminRealDataService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
 import { usePlatformAdminDirectoryPage } from '../realData/PlatformAdminReadProvider';
 import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import type { SortState, Subscriber, SubscriberFilters } from '../types';
@@ -68,8 +68,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 const getSubscriberOwner = (subscriber: Subscriber) => {
-  const users = mockPlatformManagementService.getUsersBySubscriberId(subscriber.id);
-  return users.find(user => user.role === 'clinic_owner')?.fullName || subscriber.businessName || 'Lead Dentist';
+  return subscriber.ownerDisplayName || 'Owner identity unavailable';
 };
 
 const tabOptions = [
@@ -81,7 +80,7 @@ const tabOptions = [
 ];
 
 export function SubscribersPage({ navigate, showToast, refreshShell }: SubscribersPageProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<SubscriberFilters>(defaultFilters);
   const [sort, setSort] = useState<SortState>({ field: 'registeredAt', direction: 'desc' });
   const [page, setPage] = useState(1);
@@ -94,24 +93,20 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
   const [renewalDays, setRenewalDays] = useState(365);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const requestedStatus = filters.accountStatus !== 'all' ? filters.accountStatus : filters.tab === 'active' || filters.tab === 'suspended' ? filters.tab : undefined;
-  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscribers', {
+  const { revision, summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscribers', {
     page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: filters.tab === 'pending' ? 'pending' : requestedStatus,
     plan: filters.plan !== 'all' ? filters.plan : undefined,
     paymentStatus: filters.paymentStatus !== 'all' ? filters.paymentStatus : undefined,
     subscriptionStatus: filters.tab === 'expired' ? 'expired' : filters.subscriptionStatus !== 'all' ? filters.subscriptionStatus : undefined,
   });
 
-  const subscribers = useMemo(() => {
-    return mockPlatformManagementService.listSubscribers();
-  }, [refreshKey, revision]);
+  const subscribers = directoryPage.items as Subscriber[];
 
-  const summary = useMemo(() => {
-    return mockPlatformManagementService.getSubscriberSummary();
-  }, [refreshKey, revision, subscribers]);
+  const summary = { ...platformSummary.subscriberSummary, pendingRegistrations: platformSummary.pendingRegistrationReviews, expired: platformSummary.subscriptionStatuses.expired, rejectedRegistrations: 0 };
 
   const registrations = useMemo(() => {
     return mockPlatformManagementService.listRegistrations();
-  }, [refreshKey, revision]);
+  }, [revision]);
 
   const displayedSubscribers = useMemo(() => mockPlatformManagementService.sortSubscribers(subscribers, sort), [subscribers, sort]);
 
@@ -122,18 +117,9 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
   const showingRegistrations = filters.tab === 'pending';
 
   // Calculate MRR from subscribers
-  const totalSubscriberMRR = useMemo(() => {
-    const plans = mockPlanService.listPlans();
-    return subscribers.reduce((sum, s) => {
-      if (s.accountStatus !== 'active') return sum;
-      const matchedPlan = plans.find(p => p.name.toLowerCase() === s.planId?.toLowerCase() || p.planCode.toLowerCase() === s.planId?.toLowerCase());
-      return sum + (matchedPlan?.monthlyPrice ?? 0);
-    }, 0);
-  }, [subscribers]);
+  const totalSubscriberMRR = platformSummary.activeSubscriptionMrrCentavos / 100;
 
-  const maxPlanCount = useMemo(() => {
-    return subscribers.filter(s => s.planId?.toLowerCase() === 'max').length;
-  }, [subscribers]);
+  const maxPlanCount = platformSummary.activePlanDistribution.max ?? 0;
 
   const setFilter = (key: keyof SubscriberFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -211,8 +197,8 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
     }
   };
 
-  const allPlans = mockPlanService.listPlans();
-  const activePlans = mockPlanService.getSelectableSubscriberPlans();
+  const allPlans = Array.from(new Map(subscribers.filter(item => item.planId).map(item => [item.planId, { id: item.planId, name: item.planName || item.planId, monthlyPrice: item.monthlyPlanAmount ?? 0 }])).values());
+  const activePlans = allPlans;
 
   const getDaysRemaining = (expiresAt?: string) => {
     if (!expiresAt) return null;
@@ -221,7 +207,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
   };
 
   const renderActions = (subscriber: Subscriber) => {
-    const subscription = mockSubscriptionService.getCurrentSubscriptionBySubscriberId(subscriber.id);
+    const subscriptionId = subscriber.subscriptionId;
     return (
       <RowActionMenu
         ariaLabel={`Actions for subscriber ${subscriber.subscriberNumber}`}
@@ -231,7 +217,7 @@ export function SubscribersPage({ navigate, showToast, refreshShell }: Subscribe
           { id: 'renew', label: 'Renew / Extend Validity', icon: RotateCcw, hidden: subscriber.accountStatus === 'deactivated', onSelect: () => openAction(subscriber, 'renew') },
           { id: 'reset-pwd', label: 'Reset Owner Password', icon: KeyRound, onSelect: () => openAction(subscriber, 'reset_password') },
           { id: 'sep-related', separator: true },
-          { id: 'subscription', label: 'View Active Plan Details', icon: RefreshCw, onSelect: () => navigate(subscription ? `/platform/subscriptions/${subscription.id}` : '/platform/subscriptions') },
+          { id: 'subscription', label: 'View Active Plan Details', icon: RefreshCw, onSelect: () => navigate(subscriptionId ? `/platform/subscriptions/${subscriptionId}` : '/platform/subscriptions') },
           { id: 'payments', label: 'Payment History & Receipts', icon: CreditCard, onSelect: () => navigate('/platform/payments') },
           { id: 'sep-account', separator: true },
           { id: 'suspend', label: 'Place Account on Hold', icon: PauseCircle, hidden: subscriber.accountStatus !== 'active', destructive: true, onSelect: () => openAction(subscriber, 'suspend') },

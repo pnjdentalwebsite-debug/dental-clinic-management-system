@@ -18,6 +18,11 @@ export interface Subscription {
   id: string;
   subscriptionNumber: string;
   subscriberId: string;
+  subscriberNumber?: string;
+  subscriberName?: string;
+  subscriberEmail?: string;
+  ownerDisplayName?: string;
+  ownerEmail?: string;
   planId: string;
   registrationId?: string;
   status: SubscriptionLifecycleStatus;

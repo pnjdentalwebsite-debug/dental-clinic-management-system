@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { mapPlatformAdminDirectoryItems } from '../../features/platformManagement/realData/platformAdminRealDataService';
+import { makePlatformAdminRealDataTestSnapshot } from '../../features/platformManagement/realData/platformAdminRealDataTestFixture';
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const edge = read('supabase/functions/platform-admin-read/index.ts');
@@ -153,8 +155,43 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
 
   it('drives Dashboard from summary/review state without requiring directory downloads', () => {
     const dashboard = targetPages[0];
-    expect(dashboard).toContain('getPlatformAdminSummary()');
+    expect(dashboard).toContain('const { revision, summary } = usePlatformAdminReadModel()');
+    expect(dashboard).toContain('summary.paymentSummary');
+    expect(dashboard).toContain('summary.clinicSummary');
     expect(dashboard).not.toContain('mockPlatformManagementService');
     expect(provider).toContain('installPlatformAdminDashboard(summaryResult.summary, review.items)');
+  });
+
+  it('keeps an unfiltered subscriptions page consistent with the authoritative active count', () => {
+    const snapshot = makePlatformAdminRealDataTestSnapshot();
+    const subscriptions = mapPlatformAdminDirectoryItems('subscriptions', snapshot.subscriptions.items);
+    expect(snapshot.summary.activeSubscriptions).toBe(1);
+    expect(snapshot.subscriptions.total).toBe(1);
+    expect(subscriptions).toHaveLength(1);
+    expect(subscriptions[0]).toMatchObject({ status: 'active', subscriberName: 'Harbor Dental Clinic' });
+    expect(provider).toContain('items: mapPlatformAdminDirectoryItems(resource, result.items)');
+  });
+
+  it('keeps list pages independent from other resource snapshots', () => {
+    const subscribers = targetPages[1];
+    const users = targetPages[3];
+    const clinics = targetPages[5];
+    const payments = targetPages[7];
+    const subscriptions = targetPages[9];
+    const plans = targetPages[11];
+    for (const page of [subscribers, users, clinics, payments, subscriptions, plans]) {
+      expect(page).toContain('directoryPage.items');
+    }
+    expect(subscribers).toContain('subscriber.ownerDisplayName');
+    expect(subscribers).toContain('platformSummary.activeSubscriptionMrrCentavos');
+    expect(clinics).toContain('clinic.ownerDisplayName');
+    expect(subscriptions).not.toContain('listSubscriptions()');
+    expect(payments).not.toContain('listPayments()');
+  });
+
+  it('hides mock reset and prototype authority from the real Platform Administrator shell', () => {
+    expect(app).toContain("{userRole !== 'platform_owner' && <span className=\"badge-prototype\"");
+    expect(app).toContain("{userRole !== 'platform_owner' && <button");
+    expect(app).not.toContain('Stale-Safe Purge');
   });
 });

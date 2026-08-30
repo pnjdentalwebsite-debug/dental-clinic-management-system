@@ -11,7 +11,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
-import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { platformAdminClinicService as mockClinicService } from '../../platformManagement/realData/platformAdminRealDataService';
 import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ClinicActionDialog, type ClinicDialogAction } from '../components/ClinicActionDialog';
 import { ClinicActionMenu } from '../components/ClinicActionMenu';
@@ -47,17 +47,17 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
   const [action, setAction] = useState<ClinicDialogAction | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : undefined;
-  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('clinics', {
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('clinics', {
     page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
     subscriberId: filters.subscriberId !== 'all' ? filters.subscriberId : undefined,
   });
 
-  const clinics = useMemo(() => mockClinicService.listClinics(), [refreshKey, revision]);
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
-  const users = useMemo(() => mockPlatformManagementService.listUsers(), [refreshKey, revision]);
-  const summary = useMemo(() => mockClinicService.getClinicSummary(), [refreshKey, revision]);
+  const clinics = directoryPage.items as Clinic[];
+  const subscribers = Array.from(new Map(clinics.map(clinic => [clinic.subscriberId, { id: clinic.subscriberId, subscriberNumber: clinic.subscriberNumber, businessName: clinic.subscriberName || 'Subscriber unavailable', email: clinic.ownerEmail || '' }])).values());
+  const users: never[] = [];
+  const summary = platformSummary.clinicSummary;
   const displayed = useMemo(() => mockClinicService.sortClinics(clinics, sort), [clinics, sort]);
   const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
   const paged = displayed;
@@ -69,12 +69,9 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
     showToast('Clinics registry refreshed.', 'info');
   };
 
-  const getSubscriber = (id: string) => subscribers.find(item => item.id === id || item.subscriberNumber === id) || subscribers[0];
+  const getSubscriber = (id: string) => subscribers.find(item => item.id === id || item.subscriberNumber === id);
   
-  const ownerName = (id?: string) => {
-    const user = users.find(item => item.id === id || item.userNumber === id);
-    return user?.fullName || 'Owner unavailable';
-  };
+  const ownerName = (clinic: Clinic) => clinic.ownerDisplayName || 'Owner identity unavailable';
 
   const setFilter = (key: keyof ClinicFilters, value: string) => { 
     setPage(1); 
@@ -349,7 +346,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
                           {sub?.businessName || clinic.name || 'Clinic'}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '0.15rem' }}>
-                          <span style={{ color: '#64748b' }}>Owner:</span> <strong style={{ color: '#0f172a' }}>{ownerName(clinic.primaryOwnerUserId)}</strong>
+                          <span style={{ color: '#64748b' }}>Owner:</span> <strong style={{ color: '#0f172a' }}>{ownerName(clinic)}</strong>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 600, marginTop: '0.1rem' }}>
                           {sub?.email || clinic.email || ''}
@@ -543,7 +540,7 @@ export function ClinicsPage({ navigate, showToast, refreshShell }: Props) {
                       <strong style={{ color: '#0f172a' }}>Subscriber:</strong> {sub?.businessName || 'Not available'}
                     </div>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>Clinic Owner:</strong> {ownerName(clinic.primaryOwnerUserId)} ({sub?.email || 'gelomhyr@gmail.com'})
+                      <strong style={{ color: '#0f172a' }}>Clinic Owner:</strong> {ownerName(clinic)} ({clinic.ownerEmail || 'Email unavailable'})
                     </div>
                     <div>
                       <strong style={{ color: '#0f172a' }}>Location:</strong> {clinic.addressLine1 ? `${clinic.addressLine1}, ` : ''}{clinic.city}, {clinic.province}

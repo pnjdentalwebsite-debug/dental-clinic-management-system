@@ -1590,3 +1590,9 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 5. Confirm existing payment review, registration provisioning, and credential resend still refetch real directory state and never render a temporary password.
 6. Sign out and refresh. Confirm the Supabase session is removed and no Platform route remains authorized by a legacy browser session.
 7. Do not mark Phase 2E.2 complete until this live browser runbook passes. Do not create a new registration or mutate unrelated remote records for validation.
+
+## Phase 2E.2 First Live Pass and Defect Revalidation Boundary - August 30, 2026
+1. The original `platform-admin-read` is remotely deployed. Live sign-in and real Dashboard/Subscriber/Clinic/Payment/Plan reads succeeded, while the Subscriptions page and navigation-order-dependent KPI/owner labels exposed frontend projection defects.
+2. The local fix makes every list render the typed items returned by its own request, expands summary aggregates for payments/clinics/subscribers, and supplies safe owner summaries directly in related DTOs. Unsupported Platform `Prototype Mode`, `Reset Mock Data`, and `Stale-Safe Purge` controls are not available in the real Platform Administrator shell.
+3. Redeploy only `platform-admin-read`, restart/rebuild the frontend, then repeat direct-login navigation and refresh checks for Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm active subscriptions `1`, MRR `₱8,500`, approved payments `1`, and truthful owner names without visiting another directory first.
+4. Do not mutate the existing pending Phase 1 development registration/payment during revalidation. Phase 2E.2 remains open until this second browser pass succeeds.

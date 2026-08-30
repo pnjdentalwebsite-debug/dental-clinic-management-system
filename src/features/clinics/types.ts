@@ -29,7 +29,11 @@ export interface Clinic {
   id: string;
   clinicNumber: string;
   subscriberId: string;
+  subscriberNumber?: string;
+  subscriberName?: string;
   primaryOwnerUserId?: string;
+  ownerDisplayName?: string;
+  ownerEmail?: string;
   branchType?: ClinicBranchType;
   name: string;
   legalBusinessName: string;

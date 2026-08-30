@@ -1,19 +1,24 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { installPlatformAdminSnapshot } from '../../platformManagement/realData/platformAdminRealDataService';
 import { makePlatformAdminRealDataTestSnapshot } from '../../platformManagement/realData/platformAdminRealDataTestFixture';
+import { PlatformAdminReadProvider } from '../../platformManagement/realData/PlatformAdminReadProvider';
+import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { SubscriptionsPage } from './SubscriptionsPage';
 
 describe('SubscriptionsPage', () => {
   beforeEach(() => {
-    installPlatformAdminSnapshot(makePlatformAdminRealDataTestSnapshot());
+    const snapshot = makePlatformAdminRealDataTestSnapshot();
+    vi.spyOn(platformAdminApi, 'getSummary').mockResolvedValue({ summary: snapshot.summary });
+    vi.spyOn(platformAdminApi, 'listAllReview').mockResolvedValue({ items: [], page: 1, pageSize: 100, total: 0 });
+    vi.spyOn(platformAdminApi, 'readDirectory').mockImplementation(async resource => snapshot[resource as keyof typeof snapshot] as never);
   });
 
   it('renders the list, filters, tabs, and row action menu', async () => {
     const user = userEvent.setup();
-    render(<SubscriptionsPage navigate={vi.fn()} showToast={vi.fn()} />);
+    render(<PlatformAdminReadProvider enabled><SubscriptionsPage navigate={vi.fn()} showToast={vi.fn()} /></PlatformAdminReadProvider>);
 
+    expect(await screen.findByText('Harbor Dental Clinic')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Active Clinic Subscriptions' })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText(/subscriber, clinic name, owner/i), 'Basic');
     expect(screen.getByText(/showing/i)).toBeInTheDocument();

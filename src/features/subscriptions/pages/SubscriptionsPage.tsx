@@ -8,7 +8,7 @@ import {
   AlertTriangle,
   Clock
 } from 'lucide-react';
-import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPlanService as mockPlanService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
 import { usePlatformAdminDirectoryPage } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
 import { PlatformPageHeader } from '../../../components/PlatformShared';
@@ -30,7 +30,7 @@ const formatMoney = (value: number) => value > 0 ? `₱${value.toLocaleString()}
 
 export function SubscriptionsPage({ navigate, showToast, refreshShell }: SubscriptionsPageProps) {
   const showReadOnlyNotice = () => showToast('Subscription editing is unavailable until an approved secure mutation contract is deployed.', 'info');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [action, setAction] = useState<SubscriptionDialogAction | null>(null);
@@ -50,17 +50,16 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     tab: 'all'
   });
   const requestedStatus = filters.status !== 'all' ? filters.status : filters.tab !== 'all' ? filters.tab : undefined;
-  const { revision, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscriptions', {
+  const { summary: platformSummary, refresh: refreshRealData, result: directoryPage } = usePlatformAdminDirectoryPage('subscriptions', {
     page, pageSize: PAGE_SIZE, search: filters.search.trim() || undefined, status: requestedStatus,
     plan: filters.planId !== 'all' ? filters.planId : undefined,
     paymentStatus: filters.paymentStatus !== 'all' ? filters.paymentStatus : undefined,
     billingCycle: filters.billingCycle !== 'all' ? filters.billingCycle : undefined,
   });
 
-  const subscribers = useMemo(() => mockPlatformManagementService.listSubscribers(), [refreshKey, revision]);
-  const plans = useMemo(() => mockPlanService.listPlans(), [refreshKey, revision]);
-  const subscriptions = useMemo(() => mockSubscriptionService.listSubscriptions(), [refreshKey, revision]);
-  const summary = useMemo(() => mockSubscriptionService.getSubscriptionSummary(), [refreshKey, revision]);
+  const subscriptions = directoryPage.items as Subscription[];
+  const plans = Array.from(new Map(subscriptions.map(item => [item.planId, { id: item.priceSnapshot.planId || item.planId, planCode: item.planId, name: item.priceSnapshot.planName || item.planId }])).values());
+  const summary = { ...platformSummary.subscriptionStatuses, total: Object.values(platformSummary.subscriptionStatuses).reduce((sum, count) => sum + count, 0), draft: 0 };
   const displayed = useMemo(() => mockSubscriptionService.sortSubscriptions(subscriptions, sort), [subscriptions, sort]);
   const pageCount = Math.max(1, Math.ceil(directoryPage.total / PAGE_SIZE));
   const paged = displayed;
@@ -81,27 +80,18 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     setSort(prev => ({ field, direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
-  const registrations = useMemo(() => mockPlatformManagementService.listRegistrations(), [refreshKey, revision]);
-  const isPendingRegistrationSubscription = (subscription: Subscription) => subscription.id.startsWith('SCP-PENDING-');
-  const getRegistrationForSubscription = (subscription: Subscription) =>
-    subscription.registrationId ? registrations.find(item => item.id === subscription.registrationId) : undefined;
-  const getSubscriber = (subscription: Subscription) => {
-    const linked = subscribers.find(item => item.id === subscription.subscriberId || item.subscriberNumber === subscription.subscriberId);
-    if (linked) return linked;
-    const registration = getRegistrationForSubscription(subscription);
-    if (!registration) return null;
-    return {
-      id: subscription.subscriberId,
-      subscriberNumber: subscription.subscriberId,
-      businessName: registration.clinicName,
-      primaryClinicName: registration.ownerName,
-      email: registration.ownerEmail
-    };
-  };
+  const isPendingRegistrationSubscription = (_subscription: Subscription) => false;
+  const getSubscriber = (subscription: Subscription) => ({
+    id: subscription.subscriberId,
+    subscriberNumber: subscription.subscriberNumber || subscription.subscriberId,
+    businessName: subscription.subscriberName || 'Subscriber unavailable',
+    primaryClinicName: subscription.ownerDisplayName || 'Owner identity unavailable',
+    email: subscription.ownerEmail || subscription.subscriberEmail || 'Email unavailable',
+  });
 
   const getPlanInfo = (subscription: Subscription) => {
     const planName = subscription.priceSnapshot?.planName || subscription.planId;
-    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.planCode.toLowerCase() === planName.toLowerCase()) || plans[plans.length - 1];
+    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.planCode.toLowerCase() === planName.toLowerCase()) || { id: subscription.priceSnapshot.planId, planCode: subscription.planId, name: planName };
   };
 
   const openAction = (subscription: Subscription, nextAction: SubscriptionDialogAction) => {
@@ -171,12 +161,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
     setDeleteTarget(null);
   };
 
-  const totalMRR = useMemo(() => {
-    return subscriptions.reduce((sum, s) => {
-      if (s.status !== 'active') return sum;
-      return sum + (s.priceSnapshot?.monthlyPrice || 0);
-    }, 0);
-  }, [subscriptions]);
+  const totalMRR = platformSummary.activeSubscriptionMrrCentavos / 100;
 
   return (
     <main className="main-content">
@@ -406,10 +391,10 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
                     <td style={{ padding: '0.85rem 1rem' }}>
                       <div>
                         <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.9rem' }}>
-                          {formatMoney(sub.priceSnapshot.monthlyPrice || 7990)} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>/ mo</span>
+                          {formatMoney(sub.priceSnapshot.monthlyPrice)} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>/ mo</span>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
-                          {format(sub.billingCycle)} cycle ({formatMoney(sub.priceSnapshot.appliedAmount || 86292)})
+                          {format(sub.billingCycle)} cycle ({formatMoney(sub.priceSnapshot.appliedAmount)})
                         </div>
                       </div>
                     </td>
@@ -599,7 +584,7 @@ export function SubscriptionsPage({ navigate, showToast, refreshShell }: Subscri
                       <strong style={{ color: '#0f172a' }}>Owner:</strong> {subscriber?.primaryClinicName || subscriber?.businessName || 'N/A'} ({subscriber?.email || 'N/A'})
                     </div>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>Rate:</strong> {formatMoney(sub.priceSnapshot.monthlyPrice || 7990)} / mo ({format(sub.billingCycle)})
+                      <strong style={{ color: '#0f172a' }}>Rate:</strong> {formatMoney(sub.priceSnapshot.monthlyPrice)} / mo ({format(sub.billingCycle)})
                     </div>
                     <div>
                       <strong style={{ color: '#0f172a' }}>Validity:</strong> {sub.startDate} to {sub.expirationDate} ({daysRemaining} days left)

@@ -66,7 +66,7 @@ const defaultFeatures = (): Record<string, FeatureFlagStatus> => ({
 });
 
 const defaults = (): PlatformSettings => ({
-  general: { platformName: 'Dental Clinic Management Platform', supportEmail: 'support@pnj-dental.test', supportPhone: '+63 900 000 0000', defaultAdminName: 'PNJ Platform Administrator', environmentLabel: 'Prototype Mode' },
+  general: { platformName: 'Dental Clinic Management Platform', supportEmail: 'support@pnj-dental.test', supportPhone: '+63 900 000 0000', defaultAdminName: 'PNJ Platform Administrator', environmentLabel: 'Development Environment' },
   branding: { logoText: 'Dental Clinic Platform', primaryColor: '#2563eb', accentColor: '#14b8a6', sidebarTheme: 'dark', faviconLabel: 'PNJ' },
   regional: { timezone: 'Asia/Manila', locale: 'en-PH', currency: 'PHP', dateFormat: 'MMM d, yyyy', timeFormat: '12h' },
   registration: { registrationEnabled: true, requireEmailVerification: true, requirePaymentBeforeApproval: true, defaultPlanId: 'plan-basic', allowDemoPayment: true },

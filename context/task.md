@@ -608,6 +608,7 @@
 - [x] Apply Users and Subscriptions search before server pagination/counting and count only active/current subscriber resources where status authority exists.
 - [x] Block unsupported mock-only writes and direct mock-backed create/edit routes.
 - [x] Pass local Edge Runtime bundling/anonymous rejection, 11 focused files / 79 tests, and `npm run build`.
-- [ ] Deploy `platform-admin-read` to the linked development project after review.
-- [ ] Complete the exact live browser validation runbook with the existing real Platform Administrator account.
+- [x] Deploy the original `platform-admin-read` to the linked development project and complete the first live browser pass.
+- [x] Correct the live-discovered subscriptions zero-row projection, summary navigation-order metrics, owner identity DTOs, and unsupported Platform mock controls locally.
+- [ ] Redeploy the corrected `platform-admin-read` and complete the second live browser validation with the existing real Platform Administrator account.
 - [ ] Phase 2 remains incomplete.

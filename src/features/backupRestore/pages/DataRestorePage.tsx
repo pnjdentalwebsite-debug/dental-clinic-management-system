@@ -70,8 +70,6 @@ export function DataRestorePage({ route: _route, navigate: _navigate, showToast,
   const [, setVersion] = useState(0);
   const [backupOpen, setBackupOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetText, setResetText] = useState('');
   const [description, setDescription] = useState('Manual prototype backup');
   const [selectedModules, setSelectedModules] = useState<string[]>(mockBackupRestoreService.moduleRegistry().map(item => item.key));
   const [backupType, setBackupType] = useState<'full' | 'selected_modules' | 'settings_only'>('full');
@@ -286,19 +284,6 @@ export function DataRestorePage({ route: _route, navigate: _navigate, showToast,
     }
   };
 
-  const reset = () => {
-    const result = mockBackupRestoreService.resetMockData(resetText);
-    if (!result.ok) {
-      showToast(result.error || 'Reset blocked.', 'error');
-    } else {
-      setResetOpen(false);
-      setResetText('');
-      refresh();
-      refreshShell?.();
-      showToast('Prototype mock data reset safely.', 'success');
-    }
-  };
-
   const exportHistoryCsv = () => {
     const csv = mockBackupRestoreService.exportRestoreHistory();
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -342,8 +327,7 @@ export function DataRestorePage({ route: _route, navigate: _navigate, showToast,
         }}
         overflowActions={[
           { id: 'rollback', label: 'Undo Latest Recovery', icon: RotateCcw, onSelect: () => setConfirmRollbackOpen(true) },
-          { id: 'history-csv', label: 'Export History CSV', icon: Download, onSelect: exportHistoryCsv },
-          { id: 'reset', label: 'Reset System Data', icon: Trash2, destructive: true, onSelect: () => setResetOpen(true) }
+          { id: 'history-csv', label: 'Export History CSV', icon: Download, onSelect: exportHistoryCsv }
         ]}
       />
 
@@ -1943,43 +1927,6 @@ export function DataRestorePage({ route: _route, navigate: _navigate, showToast,
         )}
       </Modal>
 
-      {/* PROTOTYPE RESET MODAL */}
-      <Modal
-        open={resetOpen}
-        title="Reset Prototype Mock Database"
-        description="A pre-reset checkpoint will be created automatically before clearing live tables. Type RESET MOCK DATA below to proceed."
-        onClose={() => setResetOpen(false)}
-        footer={(
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-            <button type="button" className="btn btn-outline" style={{ width: 'auto' }} onClick={() => setResetOpen(false)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger"
-              style={{ width: 'auto' }}
-              disabled={resetText !== 'RESET MOCK DATA'}
-              onClick={reset}
-            >
-              Reset Mock Data
-            </button>
-          </div>
-        )}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <p style={{ fontSize: '0.825rem', color: '#b91c1c', margin: 0, fontWeight: 600 }}>
-            ⚠️ Caution: This will re-seed all clinics, users, subscribers, patients, and audit ledgers to fresh baseline state.
-          </p>
-          <input
-            type="text"
-            className="form-input"
-            value={resetText}
-            onChange={e => setResetText(e.target.value)}
-            placeholder="RESET MOCK DATA"
-            style={{ width: '100%', fontFamily: 'monospace' }}
-          />
-        </div>
-      </Modal>
     </main>
   );
 }

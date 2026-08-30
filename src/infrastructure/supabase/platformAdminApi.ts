@@ -91,6 +91,10 @@ export interface PlatformAdminDirectorySnapshot {
     activeSubscriptionMrrCentavos: number;
     subscriptionStatuses: { active: number; pending: number; expiringSoon: number; expired: number; suspended: number; cancelled: number };
     activePlanDistribution: Record<string, number>;
+    subscriberSummary: { total: number; active: number; pending: number; suspended: number; deactivated: number };
+    clinicSummary: { total: number; active: number; pending: number; draft: number; inactive: number; archived: number; primary: number; withoutDentists: number; withoutStaff: number };
+    paymentSummary: { total: number; pendingVerification: number; approved: number; rejected: number; refunded: number; voided: number; approvedAmountCentavos: number; refundedAmountCentavos: number };
+    personnelSummary: { total: number; active: number; associates: number; staff: number };
   };
   subscribers: PlatformAdminReadPage;
   users: PlatformAdminReadPage;

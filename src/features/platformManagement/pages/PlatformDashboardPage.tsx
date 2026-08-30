@@ -15,7 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { usePlatformAdminReadModel } from '../realData/PlatformAdminReadProvider';
-import { getPlatformAdminSummary, platformAdminClinicService, platformAdminDirectoryService, platformAdminPaymentService } from '../realData/platformAdminRealDataService';
+import { platformAdminDirectoryService } from '../realData/platformAdminRealDataService';
 
 export interface PlatformDashboardPageProps {
   navigate: (route: string) => void;
@@ -95,7 +95,7 @@ export interface PlatformDashboardPageProps {
 }
 
 export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
-  const { revision } = usePlatformAdminReadModel();
+  const { revision, summary } = usePlatformAdminReadModel();
   const {
     navigate,
     onReviewRegistration,
@@ -103,7 +103,6 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
   } = props;
 
   const registrations = useMemo(() => platformAdminDirectoryService.listRegistrations(), [revision]);
-  const summary = useMemo(() => getPlatformAdminSummary(), [revision]);
   const dashboardAnalytics = useMemo(() => ({
     totalSubscribers: summary.activeSubscribers,
     totalClinics: summary.activeClinics,
@@ -111,8 +110,8 @@ export function PlatformDashboardPage(props: PlatformDashboardPageProps) {
     mockMonthlyRevenue: summary.activeSubscriptionMrrCentavos / 100,
   }), [summary]);
   const subscriptionSummary = useMemo(() => ({ ...summary.subscriptionStatuses, total: Object.values(summary.subscriptionStatuses).reduce((total, value) => total + value, 0), draft: 0 }), [summary]);
-  const clinicSummary = useMemo(() => platformAdminClinicService.getClinicSummary(), [revision]);
-  const paymentSummary = useMemo(() => platformAdminPaymentService.getPaymentSummary(), [revision]);
+  const clinicSummary = summary.clinicSummary;
+  const paymentSummary = { ...summary.paymentSummary, collectedAmount: summary.paymentSummary.approvedAmountCentavos / 100, refundedAmount: summary.paymentSummary.refundedAmountCentavos / 100 };
   const laboratorySummary = { active: 0, withoutClinicConnections: 0, withoutActiveServices: 0 };
   const notificationSummary = { unread: 0, urgent: 0 };
   const auditSummary = { critical: 0, integrityWarnings: 0, failedLogins: 0 };

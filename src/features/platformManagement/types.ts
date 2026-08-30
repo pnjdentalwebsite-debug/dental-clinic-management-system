@@ -38,11 +38,15 @@ export interface Subscriber {
   subscriberNumber: string;
   registrationId?: string;
   ownerUserId?: string;
+  ownerDisplayName?: string;
   businessName: string;
   primaryClinicName: string;
   email: string;
   mobileNumber: string;
   planId: string;
+  planName?: string;
+  monthlyPlanAmount?: number;
+  annualPlanAmount?: number;
   subscriptionId: string;
   paymentStatus: PaymentStatus;
   subscriptionStatus: SubscriptionStatus;
@@ -66,6 +70,9 @@ export interface PlatformUser {
   id: string;
   userNumber: string;
   subscriberId?: string;
+  subscriberNumber?: string;
+  subscriberName?: string;
+  clinicSummaries?: Array<{ id: string; name: string; subscriberId?: string; addressLine1?: string; city?: string }>;
   clinicIds: string[];
   fullName: string;
   firstName: string;
