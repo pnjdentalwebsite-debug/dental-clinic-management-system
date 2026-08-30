@@ -388,3 +388,11 @@
 - Real Platform Admin authentication, dashboard, directories, search, direct-refresh detail routes, real Plus plan/payment associations, and logout protection passed final live browser validation.
 - No mock/prototype Platform Admin controls or plaintext temporary credentials are present in the validated runtime.
 - **PHASE 2E.2 = COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**
+
+## Phase 2E.3A Clinic Owner Tenant Read Foundation - August 30, 2026
+- `clinicOwnerApi.ts` derives the tenant only from the authenticated active Clinic Owner membership and loads safe RLS-scoped subscriber, profile, current subscription, plan, clinic, and active resource-count data.
+- `ClinicOwnerReadProvider.tsx` exposes loading, ready, unauthorized, membership-conflict, subscription-unavailable, and data-unavailable states plus authoritative refresh. Failures clear data instead of consulting mock/localStorage services.
+- The existing Clinic Owner shell consumes the real owner display name, organization name, email, and plan name without redesign. Business pages remain queued for 2E.3B-2E.3E.
+- Live validation confirmed the provisioned owner reads Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus from real membership-scoped data; all bootstrap reads, direct dashboard refresh, logout clearing, and post-logout protected-route behavior passed without a visible runtime/RLS failure. Reset Mock Data is absent from the authenticated shell.
+- The existing Dashboard's welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity are legacy/non-authoritative and explicitly deferred to Phase 2E.3B.
+- **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**

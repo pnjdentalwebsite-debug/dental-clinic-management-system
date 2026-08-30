@@ -19,7 +19,7 @@ interface Props {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   onNavigate: (name: string, route: string) => void;
-  onResetMock: () => void;
+  onResetMock?: () => void;
   onLogout: () => void;
   mobileSidebarOpen: boolean;
 }
@@ -110,15 +110,17 @@ export function ClinicOwnerSidebar({
       </nav>
 
       <div className="sidebar-footer">
-        <button 
-          className="sidebar-link warning" 
-          style={{ border: '1px solid rgba(255,255,255,0.1)', padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }} 
-          onClick={onResetMock}
-          title="Reset Mock Data"
-        >
-          <RotateCcw size={18} />
-          <span className="sidebar-link-text">Reset Mock Data</span>
-        </button>
+        {onResetMock && (
+          <button
+            className="sidebar-link warning"
+            style={{ border: '1px solid rgba(255,255,255,0.1)', padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+            onClick={onResetMock}
+            title="Reset Mock Data"
+          >
+            <RotateCcw size={18} />
+            <span className="sidebar-link-text">Reset Mock Data</span>
+          </button>
+        )}
         <button 
           className="sidebar-link danger" 
           style={{ padding: sidebarCollapsed ? '0' : '0.625rem 0.75rem', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}

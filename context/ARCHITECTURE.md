@@ -513,3 +513,11 @@ flowchart TD
 - The deployed `platform-admin-read` boundary and real-data frontend were live browser validated end-to-end. Exact detail routes reconstruct authoritative related summaries after direct refresh without cross-page cache authority.
 - The verified payment display uses the real `source_payment_id` subscription association; it is not a synthetic allocation table record. Credentials and privileged server material remain outside browser DTOs.
 - **Status: COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**
+
+## Phase 2E.3A Clinic Owner Read Boundary - August 30, 2026
+- Owner shell reads now follow `authenticated Auth user -> get_my_first_login_state() -> exactly one active clinic_owner membership -> RLS-visible subscriber_id -> subscriber/profile/current subscription/plan/clinics/resource counts`.
+- The browser adapter accepts no subscriber identifier. Every tenant query uses only the subscriber ID resolved from the authenticated membership, while existing RLS remains the security boundary.
+- Live browser validation confirmed the provisioned Clinic Owner resolves Angelo Mhyr Lagsac, Angelo Dental Clinic, and the active Plus plan; membership/profile/subscriber/subscription/plan/clinic/resource reads succeed, including a direct `/clinic/dashboard` refresh, without a visible runtime or RLS failure.
+- Plan limits are normalized from `plans.limits`; missing values remain unavailable and are never promoted to Max, unlimited, or a fabricated number. Logout clears protected access and provider data, and a subsequent refresh/direct dashboard URL does not restore the prior owner scope. The Reset Mock Data control remains absent.
+- The legacy Dashboard content—welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity—remains non-authoritative and deferred to Phase 2E.3B. Other owner business-page cutovers remain queued for 2E.3B-2E.3E.
+- **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** No migration, Edge Function, RPC, remote deployment, merge, or Phase 2E.3B work was introduced during closure.

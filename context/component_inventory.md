@@ -590,3 +590,12 @@
 - The Platform Admin real-data components, exact-detail DTO mappings, and direct-refresh regressions have passed final live browser validation against the deployed development project.
 - Verified details include Subscriber authority, Clinic Plus usage, Payment Plus source-payment association/count, Subscription Plus/approved/active state, and Plan catalog values/aggregate enrollment.
 - **Status: COMPLETE / REMOTE FUNCTION DEPLOYED / LIVE BROWSER VALIDATED / READY TO MERGE.**
+
+## August 30, 2026 Phase 2E.3A Components
+- `src/infrastructure/supabase/clinicOwnerApi.ts`: typed, caller-derived Clinic Owner bootstrap adapter with exact membership cardinality, current subscription/plan lookup, tenant clinics, active resource counts, and catalog-driven quota normalization.
+- `src/features/clinic-owner/realData/ClinicOwnerReadProvider.tsx`: no-fallback read state provider with refresh and logout/disable clearing.
+- `App.tsx`: authoritative Clinic Owner shell boundary for owner, organization, and plan labels while deferred pages remain unchanged.
+- `ClinicOwnerLayout.tsx` / `ClinicOwnerSidebar.tsx`: preserve existing layout and hide the mock reset control when no development reset action is supplied by the real owner shell.
+- Live browser validation confirms the shell reads Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus through the real active `clinic_owner` membership; RLS-scoped reads, direct dashboard refresh, logout clearing, and post-logout route protection passed without visible runtime/RLS failure.
+- Dashboard content itself is not catalogued as authoritative in this subphase: welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity are deferred to Phase 2E.3B.
+- **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**

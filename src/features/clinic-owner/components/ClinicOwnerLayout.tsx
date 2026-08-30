@@ -14,7 +14,7 @@ interface Props {
   onRefresh: () => void;
   onLogout: () => void;
   onNavigate: (name: string, route: string) => void;
-  onResetMock: () => void;
+  onResetMock?: () => void;
   children: ReactNode;
 }
 

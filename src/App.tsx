@@ -89,6 +89,7 @@ import { ClinicAnalyticsPage } from './features/clinic-owner/pages/ClinicAnalyti
 import { SalesOverviewPage } from './features/clinic-owner/pages/SalesOverviewPage';
 import { DailyReportsPage } from './features/clinic-owner/pages/DailyReportsPage';
 import { GeneralSettingsPage } from './features/clinic-owner/pages/GeneralSettingsPage';
+import { ClinicOwnerReadProvider, useClinicOwnerRead } from './features/clinic-owner/realData/ClinicOwnerReadProvider';
 import { ClinicWorkspaceLayout } from './features/clinic-subsystem/components/ClinicWorkspaceLayout';
 import { ClinicDashboardPage } from './features/clinic-subsystem/pages/ClinicDashboardPage';
 import { PatientsPage } from './features/clinic-subsystem/patients/pages/PatientsPage';
@@ -756,6 +757,53 @@ function PlatformReadOnlyRoute({ resource, onBack }: { resource: string; onBack:
         <button type="button" className="btn btn-outline" style={{ width: 'auto', marginTop: '1rem' }} onClick={onBack}>Back to {resource}</button>
       </div>
     </main>
+  );
+}
+
+function ClinicOwnerAuthoritativeShell({
+  currentRoute,
+  legacyEmail,
+  onLogout,
+  onNavigate,
+  children,
+}: {
+  currentRoute: string;
+  legacyEmail: string;
+  onLogout: () => void;
+  onNavigate: (name: string, route: string) => void;
+  children: React.ReactNode;
+}) {
+  const ownerRead = useClinicOwnerRead();
+  const bootstrap = ownerRead.bootstrap;
+  const ready = ownerRead.status === 'ready' && bootstrap !== null;
+
+  return (
+    <ClinicOwnerLayout
+      currentRoute={currentRoute}
+      loggedUserName={ready ? bootstrap.owner.displayName : 'Clinic Owner'}
+      loggedClinicName={ready ? bootstrap.subscriber.businessName : 'Clinic organization'}
+      loggedPlanName={ready ? bootstrap.plan.name : 'Plan unavailable'}
+      loggedUserEmail={ready ? bootstrap.owner.email : legacyEmail}
+      isRefreshing={ownerRead.loading}
+      onRefresh={() => void ownerRead.refresh()}
+      onLogout={onLogout}
+      onNavigate={onNavigate}
+    >
+      {ready ? children : (
+        <div className="dashboard-panel" role={ownerRead.loading ? 'status' : 'alert'} style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}>
+          <h2 style={{ marginTop: 0 }}>{ownerRead.loading ? 'Loading Clinic Owner workspace…' : 'Clinic Owner data unavailable'}</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: ownerRead.loading ? 0 : '1rem' }}>
+            {ownerRead.loading ? 'Verifying your organization, subscription, and tenant scope.' : ownerRead.error}
+          </p>
+          {!ownerRead.loading && (
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary" style={{ width: 'auto' }} onClick={() => void ownerRead.refresh()}>Retry</button>
+              <button type="button" className="btn btn-outline" style={{ width: 'auto' }} onClick={onLogout}>Sign Out</button>
+            </div>
+          )}
+        </div>
+      )}
+    </ClinicOwnerLayout>
   );
 }
 
@@ -4365,17 +4413,12 @@ export default function App() {
             </ClinicWorkspaceLayout>
           )
         ) : userRole !== 'platform_owner' ? (
-          <ClinicOwnerLayout
+          <ClinicOwnerReadProvider enabled={clinicOwnerAccess.kind === 'ready'}>
+          <ClinicOwnerAuthoritativeShell
             currentRoute={currentRoute}
-            loggedUserName={loggedUserName}
-            loggedClinicName={loggedClinicName}
-            loggedPlanName={loggedPlanName}
-            loggedUserEmail={loggedUserEmail}
-            isRefreshing={isRefreshing}
-            onRefresh={triggerRefresh}
+            legacyEmail={loggedUserEmail}
             onLogout={() => setLogoutModalOpen(true)}
             onNavigate={handleSidebarClick}
-            onResetMock={() => setResetMockModalOpen(true)}
           >
             {currentRoute === '/clinic/dashboard' ? (
               <ClinicOwnerDashboardPage
@@ -4592,7 +4635,8 @@ export default function App() {
                 </div>
               </div>
             )}
-          </ClinicOwnerLayout>
+          </ClinicOwnerAuthoritativeShell>
+          </ClinicOwnerReadProvider>
         ) : (
           <div className="dashboard-layout">
           {/* Sidebar */}

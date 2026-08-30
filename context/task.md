@@ -621,3 +621,14 @@
 - [x] Make Payment Details' plan, allocation percentage, association count, and association content use one real `source_payment_id` subscription relation.
 - [x] Re-audit Plan Details for exact catalog values and aggregate-only enrollment authority.
 - [x] Run the absolute final live browser validation; Phase 2E.2 is ready to merge.
+
+## Phase 2E.3A Authenticated Clinic Owner Read Foundation - August 30, 2026
+- [x] Derive the Clinic Owner tenant from exactly one authenticated active membership with completed initial-password state.
+- [x] Load RLS-scoped subscriber, owner profile, current subscription, plan, tenant clinics, and active resource counts without mock/localStorage fallback.
+- [x] Normalize clinic, laboratory, associate, and staff limits from the real plan JSON; preserve unknown values as unavailable.
+- [x] Cut over only the Clinic Owner shell identity and remove its Reset Mock Data control without redesigning the approved UI.
+- [x] Keep `tenantScope.ts` and deferred owner pages unchanged for 2E.3B-2E.3E.
+- [x] Complete live browser validation with the existing provisioned Clinic Owner account: authenticated membership-scoped owner/profile/subscriber/subscription/plan/clinic/resource reads, direct `/clinic/dashboard` refresh, logout clearing, and post-logout protected-route behavior all passed without visible runtime/RLS failure.
+- [x] Confirm the real shell displays Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus, while Reset Mock Data remains absent.
+- [x] Record the Phase 2E.3B boundary: legacy Dashboard welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity remain non-authoritative and deferred.
+- **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** Do not start 2E.3B automatically.
