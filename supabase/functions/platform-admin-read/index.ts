@@ -267,9 +267,12 @@ async function subscribers(admin: any, options: QueryOptions) {
     id, subscriber_number, registration_id, business_name, email, mobile_number, account_status,
     created_at, updated_at, activated_at, deactivated_at,
     registrations(id, plan_id, submitted_at, payment_status),
-    clinics(id, clinic_number, name, status, is_primary), laboratories(id, status),
+    clinics(id, clinic_number, name, status, is_primary, address_line_1, city, province),
+    laboratories(id, laboratory_number, name, status, city, province),
     subscriptions(id, plan_id, status, billing_cycle, amount_centavos, starts_at, expires_at, plans(id, plan_code, name, monthly_amount_centavos, annual_amount_centavos)),
-    subscriber_memberships(id, user_id, role, account_status, must_change_password, created_at, updated_at, profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number))
+    subscriber_memberships(id, user_id, role, account_status, must_change_password, created_at, updated_at,
+      profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number),
+      staff_profiles(position, phone_number), associate_dentist_profiles(designation))
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('account_status', options.status);
@@ -298,10 +301,14 @@ async function subscribers(admin: any, options: QueryOptions) {
   const from = (options.page - 1) * options.pageSize;
   const { data, count, error } = await query.range(from, from + options.pageSize - 1);
   if (error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscribers are temporarily unavailable.');
+  const detailPayments = options.id && data?.[0]
+    ? await admin.from('payments').select('id, payment_method, reference_number, amount_centavos, status, submitted_at').eq('subscriber_id', data[0].id).order('submitted_at', { ascending: false })
+    : { data: [], error: null };
+  if (detailPayments.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscriber payment summary is temporarily unavailable.');
   const items = (data ?? []).map((row: any) => {
     const registration = first(row.registrations);
     const memberships = list(row.subscriber_memberships);
-    const ownerMembership = memberships.find(membership => membership.role === 'clinic_owner') ?? null;
+    const ownerMembership = memberships.find(membership => membership.role === 'clinic_owner' && membership.account_status === 'active') ?? memberships.find(membership => membership.role === 'clinic_owner') ?? null;
     const ownerProfile = first(ownerMembership?.profiles);
     const clinics = list(row.clinics);
     const activeClinics = clinics.filter(clinic => clinic.status === 'active');
@@ -311,6 +318,7 @@ async function subscribers(admin: any, options: QueryOptions) {
     const subscriptions = list(row.subscriptions);
     const currentSubscription = subscriptions.find(subscription => ['pending', 'active', 'expiring_soon', 'suspended'].includes(subscription.status)) ?? subscriptions[0] ?? null;
     const plan = first(currentSubscription?.plans);
+    const payments = options.id ? list(detailPayments.data) : [];
     return {
       id: row.id,
       subscriberNumber: row.subscriber_number,
@@ -347,6 +355,25 @@ async function subscribers(admin: any, options: QueryOptions) {
         startsAt: currentSubscription.starts_at,
         expiresAt: currentSubscription.expires_at,
       } : null,
+      facilities: {
+        clinics: options.id ? activeClinics.map(clinic => ({ id: clinic.id, clinicNumber: clinic.clinic_number, name: clinic.name, status: clinic.status, isPrimary: clinic.is_primary, addressLine1: clinic.address_line_1 ?? '', city: clinic.city ?? '', province: clinic.province ?? '' })) : [],
+        laboratories: options.id ? activeLaboratories.map(laboratory => ({ id: laboratory.id, laboratoryNumber: laboratory.laboratory_number, name: laboratory.name, status: laboratory.status, city: laboratory.city ?? '', province: laboratory.province ?? '' })) : [],
+      },
+      personnel: options.id ? activeMemberships.map(membership => {
+        const profile = first(membership.profiles);
+        const staff = first(membership.staff_profiles);
+        const associate = first(membership.associate_dentist_profiles);
+        const displayName = profile?.display_name ?? [profile?.first_name, profile?.middle_name, profile?.last_name].filter(Boolean).join(' ');
+        return { id: membership.id, fullName: displayName || profile?.email || 'Unnamed user', email: profile?.email ?? '', mobileNumber: profile?.mobile_number ?? staff?.phone_number ?? '', role: membership.role, position: staff?.position ?? associate?.designation ?? (membership.role === 'clinic_owner' ? 'Clinic Owner' : membership.role), accountStatus: membership.account_status };
+      }) : [],
+      payments: payments.map(payment => ({ id: payment.id, paymentMethod: payment.payment_method, referenceNumber: payment.reference_number, amountCentavos: payment.amount_centavos, status: payment.status, submittedAt: payment.submitted_at })),
+      financialSummary: payments.reduce((summary, payment) => {
+        summary.paymentCount += 1;
+        if (payment.status === 'approved') summary.approvedPaidAmountCentavos += Number(payment.amount_centavos ?? 0);
+        if (payment.status === 'pending_verification') summary.pendingAmountCentavos += Number(payment.amount_centavos ?? 0);
+        if (payment.status === 'refunded') summary.refundedAmountCentavos += Number(payment.amount_centavos ?? 0);
+        return summary;
+      }, { approvedPaidAmountCentavos: 0, pendingAmountCentavos: 0, refundedAmountCentavos: 0, paymentCount: 0 }),
       counts: {
         clinics: activeClinics.length,
         laboratories: activeLaboratories.length,
@@ -365,7 +392,7 @@ async function users(admin: any, options: QueryOptions) {
     profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number, created_at, updated_at),
     staff_profiles(staff_number, position, phone_number, work_schedule),
     associate_dentist_profiles(associate_number, designation, specialization, work_schedule),
-    clinic_assignments(clinic_id, assignment_role, status, clinics(id, name, address_line_1, city))
+    clinic_assignments(clinic_id, assignment_role, status, clinics(id, name, address_line_1, city, province, status, is_primary))
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
   if (options.status) query = query.eq('account_status', options.status);
@@ -414,7 +441,7 @@ async function users(admin: any, options: QueryOptions) {
       accountStatus: row.account_status,
       mustChangePassword: Boolean(row.must_change_password),
       clinicIds: list(row.clinic_assignments).filter(assignment => assignment.status === 'active').map(assignment => assignment.clinic_id),
-      clinics: list(row.clinic_assignments).filter(assignment => assignment.status === 'active').map(assignment => { const clinic = first(assignment.clinics); return { id: assignment.clinic_id, name: clinic?.name ?? '', addressLine1: clinic?.address_line_1 ?? null, city: clinic?.city ?? null }; }),
+      clinics: list(row.clinic_assignments).filter(assignment => assignment.status === 'active').map(assignment => { const clinic = first(assignment.clinics); return { id: assignment.clinic_id, name: clinic?.name ?? '', addressLine1: clinic?.address_line_1 ?? null, city: clinic?.city ?? null, province: clinic?.province ?? null, status: clinic?.status ?? null, isPrimaryClinic: Boolean(clinic?.is_primary) }; }),
       activatedAt: row.activated_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -429,7 +456,8 @@ async function clinics(admin: any, options: QueryOptions) {
     alternative_contact_number, address_line_1, address_line_2, barangay, city, province, postal_code,
     country, timezone, description, status, visibility, is_primary, created_at, updated_at, activated_at,
     deactivated_at, archived_at, subscribers(id, subscriber_number, business_name),
-    clinic_assignments(membership_id, assignment_role, status),
+    clinic_assignments(membership_id, assignment_role, status,
+      subscriber_memberships(id, role, account_status, profiles(email, display_name, first_name, middle_name, last_name, mobile_number), staff_profiles(position, phone_number), associate_dentist_profiles(designation))),
     clinic_business_hours(day_of_week, is_open, opening_time, closing_time, break_start, break_end)
   `, { count: 'exact' }).order('created_at', { ascending: false });
   if (options.id) query = query.eq('id', options.id);
@@ -443,9 +471,14 @@ async function clinics(admin: any, options: QueryOptions) {
   const { data, count, error } = await query.range(from, from + options.pageSize - 1);
   if (error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Clinics are temporarily unavailable.');
   const owners = await activeOwnerSummaries(admin, uuidIn((data ?? []).map((row: any) => row.subscriber_id)));
+  const subscriberIds = uuidIn((data ?? []).map((row: any) => row.subscriber_id));
+  const subscriptionResult = subscriberIds.length ? await admin.from('subscriptions').select('id, subscriber_id, plan_id, status, billing_cycle, plans(plan_code, name)').in('subscriber_id', subscriberIds).in('status', ['pending', 'active', 'expiring_soon', 'suspended']).order('created_at', { ascending: false }) : { data: [], error: null };
+  if (subscriptionResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Clinic subscription summary is temporarily unavailable.');
   const items = (data ?? []).map((row: any) => {
     const subscriber = first(row.subscribers);
     const assignments = list(row.clinic_assignments).filter(assignment => assignment.status === 'active');
+    const subscription = list(subscriptionResult.data).find(item => item.subscriber_id === row.subscriber_id) ?? null;
+    const plan = first(subscription?.plans);
     return {
       id: row.id,
       subscriberId: row.subscriber_id,
@@ -471,6 +504,15 @@ async function clinics(admin: any, options: QueryOptions) {
       visibility: row.visibility,
       isPrimary: row.is_primary,
       owner: owners.get(row.subscriber_id) ?? null,
+      personnel: options.id ? assignments.map(assignment => {
+        const membership = first(assignment.subscriber_memberships);
+        const profile = first(membership?.profiles);
+        const staff = first(membership?.staff_profiles);
+        const associate = first(membership?.associate_dentist_profiles);
+        const joinedName = [profile?.first_name, profile?.middle_name, profile?.last_name].filter(Boolean).join(' ');
+        return { id: assignment.membership_id, fullName: profile?.display_name ?? (joinedName || profile?.email || 'Unnamed user'), email: profile?.email ?? '', mobileNumber: profile?.mobile_number ?? staff?.phone_number ?? '', role: membership?.role ?? assignment.assignment_role, position: staff?.position ?? associate?.designation ?? (assignment.assignment_role === 'clinic_owner' ? 'Clinic Owner' : assignment.assignment_role), accountStatus: membership?.account_status ?? 'pending' };
+      }) : [],
+      subscription: options.id && subscription ? { id: subscription.id, status: subscription.status, planId: subscription.plan_id, planName: plan?.name ?? '', planCode: plan?.plan_code ?? '', billingCycle: subscription.billing_cycle } : null,
       dentistMembershipIds: assignments.filter(assignment => assignment.assignment_role === 'associate').map(assignment => assignment.membership_id),
       staffMembershipIds: assignments.filter(assignment => assignment.assignment_role === 'staff').map(assignment => assignment.membership_id),
       businessHours: list(row.clinic_business_hours).map(hours => ({ dayOfWeek: hours.day_of_week, isOpen: hours.is_open, openingTime: hours.opening_time, closingTime: hours.closing_time, breakStart: hours.break_start, breakEnd: hours.break_end })),
@@ -522,6 +564,7 @@ async function payments(admin: any, options: QueryOptions) {
       registrationNumber: registration?.registration_number ?? null,
       subscriberId: row.subscriber_id,
       subscriberNumber: subscriber?.subscriber_number ?? null,
+      subscriberName: subscriber?.business_name ?? null,
       subscriptionId: subscription?.id ?? null,
       planId,
       planName: plan?.name ?? plan?.plan_code ?? null,
@@ -578,13 +621,14 @@ async function subscriptions(admin: any, options: QueryOptions) {
   const owners = await activeOwnerSummaries(admin, uuidIn((data ?? []).map((row: any) => row.subscriber_id)));
   const sourcePaymentIds = (data ?? []).map((row: any) => row.source_payment_id).filter(Boolean);
   const paymentResult = sourcePaymentIds.length
-    ? await admin.from('payments').select('id, status').in('id', sourcePaymentIds)
+    ? await admin.from('payments').select('id, status, payment_method, reference_number, amount_centavos, submitted_at').in('id', sourcePaymentIds)
     : { data: [], error: null };
   if (paymentResult.error) throw new PlatformAdminApiError('DIRECTORY_QUERY_FAILED', 503, 'Subscription payment state is temporarily unavailable.');
   const items = (data ?? []).map((row: any) => {
     const subscriber = first(row.subscribers);
     const plan = first(row.plans);
     const owner = owners.get(row.subscriber_id) ?? null;
+    const sourcePayment = list(paymentResult.data).find(payment => payment.id === row.source_payment_id) ?? null;
     return {
       id: row.id,
       subscriberId: row.subscriber_id,
@@ -602,7 +646,15 @@ async function subscriptions(admin: any, options: QueryOptions) {
       monthlyAmountCentavos: plan?.monthly_amount_centavos ?? null,
       annualAmountCentavos: plan?.annual_amount_centavos ?? null,
       sourcePaymentId: row.source_payment_id,
-      sourcePaymentStatus: list(paymentResult.data).find(payment => payment.id === row.source_payment_id)?.status ?? null,
+      sourcePaymentStatus: sourcePayment?.status ?? null,
+      sourcePayment: options.id && sourcePayment ? {
+        id: sourcePayment.id,
+        status: sourcePayment.status,
+        paymentMethod: sourcePayment.payment_method,
+        referenceNumber: sourcePayment.reference_number,
+        amountCentavos: sourcePayment.amount_centavos,
+        submittedAt: sourcePayment.submitted_at,
+      } : null,
       status: row.status,
       startsAt: row.starts_at,
       expiresAt: row.expires_at,

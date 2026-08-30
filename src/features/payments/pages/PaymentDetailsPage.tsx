@@ -8,7 +8,7 @@ import {
   Printer, 
   Check 
 } from 'lucide-react';
-import { platformAdminDirectoryService as mockPlatformManagementService, platformAdminPaymentService as mockPaymentService, platformAdminSubscriptionService as mockSubscriptionService } from '../../platformManagement/realData/platformAdminRealDataService';
+import { platformAdminPaymentService as mockPaymentService } from '../../platformManagement/realData/platformAdminRealDataService';
 import { usePlatformAdminDetail } from '../../platformManagement/realData/PlatformAdminReadProvider';
 import { platformAdminApi } from '../../../infrastructure/supabase/platformAdminApi';
 import { PaymentActionDialog, type PaymentDialogAction } from '../components/PaymentActionDialog';
@@ -44,8 +44,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
     );
   }
 
-  const subscriber = payment.subscriberId ? mockPlatformManagementService.getSubscriberById(payment.subscriberId) : null;
-  const subscription = payment.subscriptionId ? mockSubscriptionService.getSubscriptionById(payment.subscriptionId) : null;
+  const subscriberName = payment.subscriberName || payment.payerName || 'Not available';
   const allocations = mockPaymentService.getPaymentAllocations(payment.id);
   const history = mockPaymentService.getPaymentHistory(payment.id);
 
@@ -151,7 +150,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
               </span>
             </div>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-              Ref: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{payment.referenceNumber}</strong> • Payer: <strong style={{ color: '#0f172a' }}>Angelo Mhyr Lagsac</strong> ({payment.payerEmail})
+              Ref: <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{payment.referenceNumber}</strong> • Payer: <strong style={{ color: '#0f172a' }}>{payment.payerName || 'Payer unavailable'}</strong> ({payment.payerEmail})
             </p>
           </div>
         </div>
@@ -223,7 +222,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
             </div>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed' }}>100% Allocated</div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Applied to Max Plan</div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Applied to {payment.planName || 'authoritative plan unavailable'}</div>
         </div>
       </div>
 
@@ -255,11 +254,11 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Subscriber Organization</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriber?.businessName || 'Not available'}</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem' }}>{subscriberName}</div>
             </div>
             <div style={{ padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Contract Number</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem', fontFamily: 'monospace' }}>{subscription?.subscriptionNumber || 'SUBS-000001'}</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#0f172a', marginTop: '0.25rem', fontFamily: 'monospace' }}>{payment.subscriptionId || 'Not available'}</div>
             </div>
           </div>
         )}
@@ -284,7 +283,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Allocation to Max Plan</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Allocation to {payment.planName || 'plan unavailable'}</div>
                       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
                         Subscription: <span style={{ fontFamily: 'monospace' }}>{a.subscriptionId}</span> • Type: {format(a.allocationType)}
                       </div>
@@ -297,12 +296,7 @@ export function PaymentDetailsPage({ paymentId, navigate, showToast }: PaymentDe
               </div>
             ) : (
               <div style={{ padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>Default Allocation to Max Plan</div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-                    Subscription: <span style={{ fontFamily: 'monospace' }}>SCP-000101</span> • Fully Applied
-                  </div>
-                </div>
+                <div><div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>No allocation records available</div><div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>The approved payment detail contract does not expose allocation rows.</div></div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>
                   {formatMoney(payment.amount)}
                 </div>

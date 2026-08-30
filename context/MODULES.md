@@ -373,3 +373,8 @@
 - Unsupported plan, clinic, payment, subscription, subscriber, and personnel writes fail safely. Mock-backed form URLs render a read-only boundary rather than fake persistence.
 - The deployed read function passed initial live authentication/data checks. The correction removes shared page-snapshot list authority: each directory renders its own bounded response, Dashboard/Subscriber KPIs use server summary aggregates, and safe owner/related labels travel in the resource DTO instead of requiring another page cache.
 - No database migration is required. The corrected `platform-admin-read` must be redeployed and the second live browser pass must succeed before Phase 2E.2 closure.
+
+## Phase 2E.2 Final Detail Coherence - August 30, 2026
+- The second list/dashboard browser validation passed. The remaining Subscriber Details direct-refresh issue is fixed locally by making the exact subscriber DTO self-contained for safe owner, subscription price, active facilities/personnel, payments, and financial totals.
+- All Platform detail pages now avoid other resource-page caches for identity and financial authority. Unsupported related detail and write workflows display a controlled unavailable state instead of local defaults or fabricated records.
+- Status: **LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No migration or remote deployment was performed.

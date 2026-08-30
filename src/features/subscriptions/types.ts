@@ -23,6 +23,7 @@ export interface Subscription {
   subscriberEmail?: string;
   ownerDisplayName?: string;
   ownerEmail?: string;
+  sourcePayment?: { id: string; status: string; paymentMethod: string; referenceNumber: string; amount: number; submittedAt: string };
   planId: string;
   registrationId?: string;
   status: SubscriptionLifecycleStatus;

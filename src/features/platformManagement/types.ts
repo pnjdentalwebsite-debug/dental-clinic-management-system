@@ -47,6 +47,15 @@ export interface Subscriber {
   planName?: string;
   monthlyPlanAmount?: number;
   annualPlanAmount?: number;
+  billingCycle?: 'monthly' | 'annual';
+  subscriptionAmount?: number;
+  subscriptionStartsAt?: string;
+  ownerAccountStatus?: AccountStatus;
+  detailClinics?: Array<{ id: string; clinicNumber: string; name: string; status: string; isPrimary: boolean; addressLine1: string; city: string; province: string }>;
+  detailLaboratories?: Array<{ id: string; laboratoryNumber: string; name: string; status: string; city: string; province: string }>;
+  detailPersonnel?: Array<{ id: string; fullName: string; email: string; mobileNumber: string; role: PlatformUserRole; position: string; accountStatus: AccountStatus }>;
+  detailPayments?: Array<{ id: string; paymentMethod: string; referenceNumber: string; amount: number; status: string; submittedAt: string }>;
+  financialSummary?: { approvedPaidAmount: number; pendingAmount: number; refundedAmount: number; paymentCount: number };
   subscriptionId: string;
   paymentStatus: PaymentStatus;
   subscriptionStatus: SubscriptionStatus;
@@ -72,7 +81,7 @@ export interface PlatformUser {
   subscriberId?: string;
   subscriberNumber?: string;
   subscriberName?: string;
-  clinicSummaries?: Array<{ id: string; name: string; subscriberId?: string; addressLine1?: string; city?: string }>;
+  clinicSummaries?: Array<{ id: string; name: string; subscriberId?: string; addressLine1?: string; city?: string; province?: string; status?: string; isPrimaryClinic?: boolean }>;
   clinicIds: string[];
   fullName: string;
   firstName: string;

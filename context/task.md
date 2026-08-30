@@ -612,3 +612,8 @@
 - [x] Correct the live-discovered subscriptions zero-row projection, summary navigation-order metrics, owner identity DTOs, and unsupported Platform mock controls locally.
 - [ ] Redeploy the corrected `platform-admin-read` and complete the second live browser validation with the existing real Platform Administrator account.
 - [ ] Phase 2 remains incomplete.
+- [x] Complete the second live browser validation for Platform Admin login, Dashboard, all bounded lists, direct subscriber routing, and logout.
+- [x] Patch exact detail DTO coherence locally: authoritative subscriber owner/Plus rate/active clinic/approved paid total, plus cross-resource cache removal across User, Clinic, Payment, Subscription, and Plan details.
+- [x] Preserve approved UI and controlled read-only behavior; do not add migrations or expose credentials.
+- [ ] Redeploy only `platform-admin-read` and run the final direct-refresh detail-page browser validation.
+- [ ] Close Phase 2E.2 only after the final detail coherence validation passes. Phase 2 remains incomplete.

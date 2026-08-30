@@ -573,3 +573,9 @@
 - `src/infrastructure/supabase/platformAdminReadContract.test.ts` plus affected page tests cover auth ordering, safe DTOs, no automatic full snapshot, page/filter query forwarding, pre-pagination users/subscriptions search, authoritative totals, stable detail identity, no mock fallback, read-only routes, empty data, and preserved pages.
 - Live-fix additions: self-contained payment/clinic/subscriber summary aggregates; safe Subscriber, Clinic, Subscription, Payment, and User relation labels; direct page-response rendering; and hidden unsupported Platform prototype/reset/purge controls.
 - Status: original Edge Function remotely deployed; first live browser validation completed; corrected function pending redeploy and second live browser validation. Phase 2E.2 remains open.
+
+## August 30, 2026 Phase 2E.2 Final Detail Coherence Components
+- `platform-admin-read`: exact subscriber DTO now includes safe active-owner identity, current plan pricing, bounded facilities/personnel/payments, and server-computed financial summaries; exact Clinic, Payment, and Subscription DTOs include only the safe related summaries their detail pages require.
+- `platformAdminRealDataService.ts` and Platform detail pages: map and render exact-resource DTOs without consulting unrelated directory pages. Plan subscriber identities, clinic laboratory links/limits, and unsupported writes remain controlled unavailable when the approved DTO does not support them.
+- `platformAdminReadContract.test.ts`: covers authoritative owner/Plus price/clinic count/paid-total mapping, exact-detail self-containment, removal of cross-directory authority, and absence of hardcoded detail defaults.
+- Status: second list/dashboard live pass complete; **FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No migration or remote deployment was performed.

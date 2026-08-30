@@ -497,3 +497,9 @@ flowchart TD
 - `platform-admin-read` is remotely deployed and the first live browser pass is complete. That pass exposed a split-authority defect where list hooks received a page but screens rendered a separate mutable compatibility snapshot; the corrected path is now `bounded response -> typed mapper -> requesting page`.
 - Dashboard and global Subscriber KPIs are self-contained summary DTO fields. Subscriber, Clinic, Subscription, Payment, and User safe related labels are supplied by their own resource DTOs, so direct navigation/refresh does not require a different directory cache.
 - Current status: **REMOTE READ FUNCTION DEPLOYED / LIVE VALIDATION IN PROGRESS / DEFECT FIX PENDING REDEPLOY/REVALIDATION**. No migration was introduced.
+
+## Phase 2E.2 Exact Detail DTO Coherence Boundary - August 30, 2026
+- Direct detail navigation is now `exact UUID request -> resource-owned safe related summaries -> typed detail model -> existing UI`; it does not depend on which list or detail page was visited first.
+- Subscriber detail includes the active owner membership/profile, authoritative plan amounts, active facilities and personnel, safe payment rows, and server-computed approved/pending/refunded totals. Payment and Subscription detail include their own safe association summaries; Clinic and User detail include bounded relation summaries. Plan detail exposes aggregate subscriber count only, not a cross-resource identity directory.
+- The frontend never derives paid totals from plan price and never derives owner identity from subscriber business name. Missing unsupported relation data is explicit and non-authoritative.
+- Status: **PHASE 2E.2 / LIVE VALIDATION IN PROGRESS / FINAL DETAIL COHERENCE FIX PENDING REDEPLOY AND REVALIDATION**. No schema change was required.

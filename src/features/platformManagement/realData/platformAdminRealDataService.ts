@@ -77,6 +77,8 @@ function toSubscriber(value: unknown): Subscriber {
   const clinic = object(item.primaryClinic);
   const subscription = object(item.subscription);
   const counts = object(item.counts);
+  const facilities = object(item.facilities);
+  const financialSummary = object(item.financialSummary);
   return {
     id: String(item.id),
     subscriberNumber: String(item.subscriberNumber ?? item.id),
@@ -91,6 +93,15 @@ function toSubscriber(value: unknown): Subscriber {
     planName: subscription.planName ? String(subscription.planName) : undefined,
     monthlyPlanAmount: Number(subscription.monthlyAmountCentavos ?? 0) / 100,
     annualPlanAmount: Number(subscription.annualAmountCentavos ?? 0) / 100,
+    billingCycle: subscription.billingCycle === 'annual' ? 'annual' : 'monthly',
+    subscriptionAmount: Number(subscription.amountCentavos ?? 0) / 100,
+    subscriptionStartsAt: subscription.startsAt ? dateOnly(subscription.startsAt) : undefined,
+    ownerAccountStatus: owner.accountStatus ? String(owner.accountStatus) as Subscriber['accountStatus'] : undefined,
+    detailClinics: records<Record<string, any>>(facilities.clinics).map(clinicItem => ({ id: String(clinicItem.id), clinicNumber: String(clinicItem.clinicNumber ?? clinicItem.id), name: String(clinicItem.name ?? ''), status: String(clinicItem.status ?? ''), isPrimary: Boolean(clinicItem.isPrimary), addressLine1: String(clinicItem.addressLine1 ?? ''), city: String(clinicItem.city ?? ''), province: String(clinicItem.province ?? '') })),
+    detailLaboratories: records<Record<string, any>>(facilities.laboratories).map(lab => ({ id: String(lab.id), laboratoryNumber: String(lab.laboratoryNumber ?? lab.id), name: String(lab.name ?? ''), status: String(lab.status ?? ''), city: String(lab.city ?? ''), province: String(lab.province ?? '') })),
+    detailPersonnel: records<Record<string, any>>(item.personnel).map(person => ({ id: String(person.id), fullName: String(person.fullName ?? ''), email: String(person.email ?? ''), mobileNumber: String(person.mobileNumber ?? ''), role: String(person.role) as PlatformUser['role'], position: String(person.position ?? ''), accountStatus: String(person.accountStatus ?? 'pending') as PlatformUser['accountStatus'] })),
+    detailPayments: records<Record<string, any>>(item.payments).map(payment => ({ id: String(payment.id), paymentMethod: String(payment.paymentMethod ?? 'other'), referenceNumber: String(payment.referenceNumber ?? ''), amount: Number(payment.amountCentavos ?? 0) / 100, status: String(payment.status ?? ''), submittedAt: dateOnly(payment.submittedAt) })),
+    financialSummary: { approvedPaidAmount: Number(financialSummary.approvedPaidAmountCentavos ?? 0) / 100, pendingAmount: Number(financialSummary.pendingAmountCentavos ?? 0) / 100, refundedAmount: Number(financialSummary.refundedAmountCentavos ?? 0) / 100, paymentCount: Number(financialSummary.paymentCount ?? 0) },
     subscriptionId: String(subscription.id ?? ''),
     paymentStatus: String(item.paymentStatus ?? 'unpaid') as Subscriber['paymentStatus'],
     subscriptionStatus: String(subscription.status ?? 'pending') as Subscriber['subscriptionStatus'],
@@ -116,7 +127,7 @@ function toUser(value: unknown): PlatformUser {
     subscriberId: item.subscriberId ? String(item.subscriberId) : undefined,
     subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined,
     subscriberName: item.subscriberName ? String(item.subscriberName) : undefined,
-    clinicSummaries: records<Record<string, unknown>>(item.clinics).map(clinic => ({ id: String(clinic.id), name: String(clinic.name ?? ''), subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, addressLine1: clinic.addressLine1 ? String(clinic.addressLine1) : undefined, city: clinic.city ? String(clinic.city) : undefined })),
+    clinicSummaries: records<Record<string, unknown>>(item.clinics).map(clinic => ({ id: String(clinic.id), name: String(clinic.name ?? ''), subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, addressLine1: clinic.addressLine1 ? String(clinic.addressLine1) : undefined, city: clinic.city ? String(clinic.city) : undefined, province: clinic.province ? String(clinic.province) : undefined, status: clinic.status ? String(clinic.status) : undefined, isPrimaryClinic: Boolean(clinic.isPrimaryClinic) })),
     clinicIds: records<string>(item.clinicIds).map(String),
     fullName: String(item.fullName ?? item.email ?? ''),
     firstName: String(item.firstName ?? ''),
@@ -139,6 +150,7 @@ const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 function toClinic(value: unknown): Clinic {
   const item = object(value);
   const owner = object(item.owner);
+  const subscription = object(item.subscription);
   const dentistIds = records<string>(item.dentistMembershipIds).map(String);
   const staffIds = records<string>(item.staffMembershipIds).map(String);
   const businessHours = Object.fromEntries(records<Record<string, any>>(item.businessHours).map(hours => [dayNames[Number(hours.dayOfWeek)] ?? String(hours.dayOfWeek), {
@@ -147,6 +159,8 @@ function toClinic(value: unknown): Clinic {
   }]));
   return {
     id: String(item.id), clinicNumber: String(item.clinicNumber ?? item.id), subscriberId: String(item.subscriberId), subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined, subscriberName: item.subscriberName ? String(item.subscriberName) : undefined, primaryOwnerUserId: owner.membershipId ? String(owner.membershipId) : undefined, ownerDisplayName: owner.displayName ? String(owner.displayName) : undefined, ownerEmail: owner.email ? String(owner.email) : undefined,
+    detailPersonnel: records<Record<string, any>>(item.personnel).map(person => ({ id: String(person.id), fullName: String(person.fullName ?? ''), email: String(person.email ?? ''), mobileNumber: String(person.mobileNumber ?? ''), role: String(person.role) as PlatformUser['role'], position: String(person.position ?? ''), accountStatus: String(person.accountStatus ?? 'pending') as PlatformUser['accountStatus'] })),
+    subscriptionSummary: subscription.id ? { id: String(subscription.id), status: String(subscription.status ?? ''), planId: String(subscription.planId ?? ''), planName: String(subscription.planName ?? ''), planCode: String(subscription.planCode ?? ''), billingCycle: String(subscription.billingCycle ?? '') } : undefined,
     branchType: String(item.branchType ?? 'main') as Clinic['branchType'], name: String(item.name ?? ''), legalBusinessName: String(item.legalBusinessName ?? item.name ?? ''),
     email: String(item.email ?? ''), contactNumber: String(item.contactNumber ?? ''), alternativeContactNumber: item.alternativeContactNumber ? String(item.alternativeContactNumber) : undefined,
     addressLine1: String(item.addressLine1 ?? ''), addressLine2: item.addressLine2 ? String(item.addressLine2) : undefined, barangay: item.barangay ? String(item.barangay) : undefined,
@@ -168,6 +182,7 @@ function toPayment(value: unknown): Payment {
   return {
     id: String(item.id), paymentNumber: String(item.id), registrationId: item.registrationId ? String(item.registrationId) : undefined,
     subscriberId: item.subscriberId ? String(item.subscriberId) : undefined, subscriptionId: item.subscriptionId ? String(item.subscriptionId) : undefined,
+    subscriberNumber: item.subscriberNumber ? String(item.subscriberNumber) : undefined, subscriberName: item.subscriberName ? String(item.subscriberName) : undefined, registrationNumber: item.registrationNumber ? String(item.registrationNumber) : undefined,
     planId: item.planId ? String(item.planId) : undefined, planName: item.planName ? String(item.planName) : undefined, payerName: String(item.payerName ?? ''), payerEmail: String(item.payerEmail ?? ''),
     amount, allocatedAmount: approved ? amount : 0, unallocatedAmount: approved ? 0 : amount, refundedAmount: status === 'refunded' ? amount : 0, currency: 'PHP',
     paymentMethod: String(item.paymentMethod ?? 'other') as Payment['paymentMethod'], referenceNumber: String(item.referenceNumber ?? ''), paymentDate: dateOnly(item.submittedAt),
@@ -190,6 +205,7 @@ function toSubscription(value: unknown): Subscription {
     startDate: dateOnly(item.startsAt ?? item.createdAt), expirationDate: dateOnly(item.expiresAt), startedAt: dateOnly(item.startsAt ?? item.createdAt), expiresAt: dateOnly(item.expiresAt),
     autoRenew: false, paymentStatus: String(item.sourcePaymentStatus ?? 'unpaid') as Subscription['paymentStatus'],
     priceSnapshot: { planId: String(item.planId), planName: String(item.planName ?? item.planCode ?? ''), monthlyPrice, annualPrice, billingCycle, appliedAmount, currency: 'PHP' },
+    sourcePayment: item.sourcePayment ? (() => { const payment = object(item.sourcePayment); return { id: String(payment.id), status: String(payment.status), paymentMethod: String(payment.paymentMethod ?? ''), referenceNumber: String(payment.referenceNumber ?? ''), amount: Number(payment.amountCentavos ?? 0) / 100, submittedAt: dateOnly(payment.submittedAt) }; })() : undefined,
     currency: 'PHP', createdAt: dateOnly(item.createdAt), updatedAt: dateOnly(item.updatedAt), createdBy: 'system', updatedBy: 'system', renewalStatus: String(item.status ?? 'pending'), changeHistory: [],
   };
 }

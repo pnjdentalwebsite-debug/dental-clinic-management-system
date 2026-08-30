@@ -1596,3 +1596,10 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 2. The local fix makes every list render the typed items returned by its own request, expands summary aggregates for payments/clinics/subscribers, and supplies safe owner summaries directly in related DTOs. Unsupported Platform `Prototype Mode`, `Reset Mock Data`, and `Stale-Safe Purge` controls are not available in the real Platform Administrator shell.
 3. Redeploy only `platform-admin-read`, restart/rebuild the frontend, then repeat direct-login navigation and refresh checks for Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, and Plans. Confirm active subscriptions `1`, MRR `₱8,500`, approved payments `1`, and truthful owner names without visiting another directory first.
 4. Do not mutate the existing pending Phase 1 development registration/payment during revalidation. Phase 2E.2 remains open until this second browser pass succeeds.
+
+## Phase 2E.2 Final Detail Coherence Revalidation - August 30, 2026
+1. The second browser pass has already validated login, Dashboard, Subscribers, Users, Clinics, Payments, Subscriptions, Plans, direct subscriber routing, logout, and refresh protection.
+2. After redeploying only the corrected `platform-admin-read` and rebuilding the frontend, open the real Subscriber Details URL directly in a fresh authenticated tab and refresh it.
+3. Confirm owner `Angelo Mhyr Lagsac`, Plus monthly rate `₱8,500`, active clinic count `1`, and approved paid total `₱8,500`; these values must be correct without first opening any other Platform list.
+4. Direct-refresh one real User, Clinic, Payment, Subscription, and Plan detail route. Confirm related labels come from that exact DTO, unsupported sections say unavailable, and no hardcoded person, amount, subscription number, or allocation appears.
+5. Confirm credential delivery status has no password/status copy control and that no response contains password, token, or service-role material. Phase 2E.2 remains open until this final detail pass succeeds.

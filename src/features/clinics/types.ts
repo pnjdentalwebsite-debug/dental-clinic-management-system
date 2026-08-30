@@ -1,4 +1,4 @@
-import type { PlatformUserRole } from '../platformManagement/types';
+import type { AccountStatus, PlatformUserRole } from '../platformManagement/types';
 
 export type ClinicStatus = 'draft' | 'pending' | 'active' | 'inactive' | 'archived';
 export type ClinicVisibility = 'visible' | 'hidden';
@@ -34,6 +34,8 @@ export interface Clinic {
   primaryOwnerUserId?: string;
   ownerDisplayName?: string;
   ownerEmail?: string;
+  detailPersonnel?: Array<{ id: string; fullName: string; email: string; mobileNumber: string; role: PlatformUserRole; position: string; accountStatus: AccountStatus }>;
+  subscriptionSummary?: { id: string; status: string; planId: string; planName: string; planCode: string; billingCycle: string };
   branchType?: ClinicBranchType;
   name: string;
   legalBusinessName: string;

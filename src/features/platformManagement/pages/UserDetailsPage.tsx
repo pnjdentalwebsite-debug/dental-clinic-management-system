@@ -13,7 +13,7 @@ import {
   Users
 } from 'lucide-react';
 import { Modal } from '../../../components/overlays/Modal';
-import { platformAdminClinicService as mockClinicService, platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
+import { platformAdminDirectoryService as mockPlatformManagementService } from '../realData/platformAdminRealDataService';
 import { usePlatformAdminDetail } from '../realData/PlatformAdminReadProvider';
 
 interface UserDetailsPageProps {
@@ -60,9 +60,9 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
     );
   }
 
-  const subscriber = user.subscriberId ? mockPlatformManagementService.getSubscriberById(user.subscriberId) : null;
-  const clinics = mockClinicService.getClinicsByUserId(user.id);
-  const allSubscriberClinics = mockClinicService.listClinics().filter(c => !user.subscriberId || c.subscriberId === user.subscriberId);
+  const subscriber = user.subscriberId ? { id: user.subscriberId, businessName: user.subscriberName || 'Subscriber unavailable', primaryClinicName: user.subscriberName || 'Subscriber unavailable', email: '' } : null;
+  const clinics = user.clinicSummaries ?? [];
+  const allSubscriberClinics = clinics;
 
   const activity = mockPlatformManagementService.listActivity().filter(log =>
     log.details.includes(user.fullName) ||
@@ -244,7 +244,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
                 <div><span style={{ color: '#64748b' }}>Employer Org:</span> <strong style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber?.businessName || 'Unassigned'}</strong></div>
-                <div><span style={{ color: '#64748b' }}>Subscriber Plan:</span> <span style={{ color: '#2563eb', fontWeight: 600, marginLeft: '6px' }}>{subscriber?.planId} Plan</span></div>
+                <div><span style={{ color: '#64748b' }}>Subscriber Plan:</span> <span style={{ color: '#2563eb', fontWeight: 600, marginLeft: '6px' }}>Available from Subscriber Details</span></div>
                 <div><span style={{ color: '#64748b' }}>Subscriber Owner:</span> <span style={{ color: '#0f172a', marginLeft: '6px' }}>{subscriber?.email}</span></div>
                 {subscriber && (
                   <button className="btn btn-outline" style={{ width: 'auto', marginTop: '0.5rem', fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={() => navigate(`/platform/subscribers/${subscriber.id}`)}>
@@ -280,7 +280,7 @@ export function UserDetailsPage({ userId, navigate, showToast }: UserDetailsPage
                       <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{clinic.name}</h4>
                       <span style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{clinic.id}</span>
                     </div>
-                    <StatusBadge status={clinic.status} />
+                    <StatusBadge status={clinic.status || 'unknown'} />
                   </div>
                   <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' }}>
                     <MapPin size={12} style={{ marginRight: '4px', verticalAlign: '-1px' }} />

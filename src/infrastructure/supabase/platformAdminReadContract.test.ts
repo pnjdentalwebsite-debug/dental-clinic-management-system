@@ -11,6 +11,12 @@ const api = read('src/infrastructure/supabase/platformAdminApi.ts');
 const provider = read('src/features/platformManagement/realData/PlatformAdminReadProvider.tsx');
 const service = read('src/features/platformManagement/realData/platformAdminRealDataService.ts');
 const app = read('src/App.tsx');
+const subscriberDetails = read('src/features/platformManagement/pages/SubscriberDetailsPage.tsx');
+const userDetails = read('src/features/platformManagement/pages/UserDetailsPage.tsx');
+const clinicDetails = read('src/features/clinics/pages/ClinicDetailsPage.tsx');
+const paymentDetails = read('src/features/payments/pages/PaymentDetailsPage.tsx');
+const subscriptionDetails = read('src/features/subscriptions/pages/SubscriptionDetailsPage.tsx');
+const planDetails = read('src/features/plans/pages/PlanDetailsPage.tsx');
 
 const targetPages = [
   'src/features/platformManagement/pages/PlatformDashboardPage.tsx',
@@ -100,7 +106,7 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
   });
 
   it('counts only active subscriber resources where status authority exists', () => {
-    expect(edge).toContain('laboratories(id, status)');
+    expect(edge).toContain('laboratories(id, laboratory_number, name, status');
     expect(edge).toContain("clinics.filter(clinic => clinic.status === 'active')");
     expect(edge).toContain("list(row.laboratories).filter(laboratory => laboratory.status === 'active')");
     expect(edge).toContain("memberships.filter(membership => membership.account_status === 'active')");
@@ -132,6 +138,41 @@ describe('Phase 2E.2B secure Platform Administrator read model', () => {
     for (const resource of ['subscribers', 'users', 'clinics', 'payments', 'subscriptions', 'plans']) {
       expect(details.some(page => page.includes(`usePlatformAdminDetail('${resource}'`))).toBe(true);
     }
+  });
+
+  it('keeps detail pages coherent from their exact resource DTO without cross-directory authority', () => {
+    expect(edge).toContain('financialSummary: payments.reduce');
+    expect(edge).toContain('approvedPaidAmountCentavos');
+    expect(edge).toContain('monthlyAmountCentavos: plan?.monthly_amount_centavos');
+    expect(edge).toContain('sourcePayment: options.id && sourcePayment ?');
+    expect(subscriberDetails).toContain("subscriber.ownerDisplayName || owner?.fullName || 'Owner identity unavailable'");
+    expect(subscriberDetails).toContain('subscriber.financialSummary');
+    expect(subscriberDetails).not.toContain('activePlanPrice *');
+    expect(subscriberDetails).not.toContain("handleCopy(credentialDeliveryStatus");
+    expect(subscriberDetails).not.toMatch(/initialPassword|temporaryPassword|plaintextPassword/);
+    expect(userDetails).not.toContain('platformAdminClinicService');
+    expect(clinicDetails).not.toContain('platformAdminDirectoryService');
+    expect(clinicDetails).not.toContain('platformAdminLaboratoryService');
+    expect(paymentDetails).not.toContain('platformAdminDirectoryService');
+    expect(paymentDetails).not.toContain('platformAdminSubscriptionService');
+    expect(subscriptionDetails).not.toContain('platformAdminDirectoryService');
+    expect(subscriptionDetails).not.toContain('platformAdminPaymentService');
+    expect(subscriptionDetails).not.toContain('platformAdminPlanService');
+    expect(planDetails).not.toContain('getPlanSubscribers');
+    expect([paymentDetails, subscriptionDetails, planDetails].join('\n')).not.toMatch(/Angelo Mhyr|7990|86292|SUBS-000001|SCP-000101/);
+  });
+
+  it('maps the authoritative subscriber owner, price, facilities, and paid total', () => {
+    const [subscriber] = mapPlatformAdminDirectoryItems('subscribers', [{
+      id: '11111111-1111-4111-8111-111111111111', subscriberNumber: 'SUB-DETAIL-001', businessName: 'Angelo Dental Clinic', email: 'owner@example.test', mobileNumber: '09170000000', accountStatus: 'active', paymentStatus: 'approved', createdAt: '2026-08-30T00:00:00Z', updatedAt: '2026-08-30T00:00:00Z',
+      owner: { membershipId: '99999999-9999-4999-8999-999999999991', userId: '22222222-2222-4222-8222-222222222222', displayName: 'Angelo Mhyr Lagsac', email: 'owner@example.test', accountStatus: 'active' },
+      primaryClinic: { id: '44444444-4444-4444-8444-444444444444', name: 'Angelo Dental Clinic' },
+      subscription: { id: '66666666-6666-4666-8666-666666666666', planCode: 'plus', planName: 'Plus', monthlyAmountCentavos: 850000, annualAmountCentavos: 8670000, amountCentavos: 850000, billingCycle: 'monthly', status: 'active' },
+      facilities: { clinics: [{ id: '44444444-4444-4444-8444-444444444444', clinicNumber: 'CLN-DETAIL-001', name: 'Angelo Dental Clinic', status: 'active', isPrimary: true, addressLine1: 'Development Address', city: 'Manila', province: 'Metro Manila' }], laboratories: [] },
+      personnel: [], payments: [{ id: '77777777-7777-4777-8777-777777777777', paymentMethod: 'gcash', referenceNumber: 'DEV-DETAIL-001', amountCentavos: 850000, status: 'approved', submittedAt: '2026-08-30T00:00:00Z' }],
+      financialSummary: { approvedPaidAmountCentavos: 850000, pendingAmountCentavos: 0, refundedAmountCentavos: 0, paymentCount: 1 }, counts: { clinics: 1, laboratories: 0, associates: 0, staff: 0 },
+    }]);
+    expect(subscriber).toMatchObject({ ownerDisplayName: 'Angelo Mhyr Lagsac', planName: 'Plus', monthlyPlanAmount: 8500, clinicCount: 1, financialSummary: { approvedPaidAmount: 8500, paymentCount: 1 } });
   });
 
   it('uses existing approved secure mutations and blocks all other fake writes', () => {
