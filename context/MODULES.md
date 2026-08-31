@@ -421,3 +421,10 @@
 - The form preserves the approved stepper while making organization ownership, primary changes, and personnel assignment truthful deferred/read-only states. Quota display is catalog/provider UX only; `CLINIC_QUOTA_REACHED` remains a server result.
 - Third Preview validation confirms exact Testing Clinic and Draft UUID routes, selected side-preview routes, `3 / 3` catalog quota behavior, seven-day detail mapping, provider refresh, hard refresh, and logout protection. Existing-branch lifecycle controls are disabled/read-only; create-form Save Draft remains supported.
 - Phase 2E.3B.2A backend remains verified and unchanged. Zero-hours legacy branch behavior is regression-tested but was not destructively reproduced in the linked tenant because every current clinic has seven persisted hour rows. **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.** Lifecycle mutations remain deferred.
+
+## Phase 2E.3C.1 Clinic Owner Associate Dentists - August 31, 2026
+
+- Status: Locally Implemented — Live Browser Validation Required
+- Scope: `/clinic/dentists` and `/clinic/dentists/view/:membershipId` now read real Associate memberships, safe profiles/professional fields, real membership account status, and same-subscriber clinic assignments through the authenticated Clinic Owner provider. Directory summaries use real loaded memberships and the provider’s normalized Associate quota.
+- Boundary: Add, Edit, account provisioning, credentials, assignment changes, bulk actions, and lifecycle actions are visibly unavailable. No mock directory/detail service, email tenant lookup, localStorage authority, or plaintext password flow participates in this runtime path.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**

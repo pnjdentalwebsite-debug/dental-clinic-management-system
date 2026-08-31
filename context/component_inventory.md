@@ -629,3 +629,11 @@
 - `ClinicBranchActionMenu.tsx`, `ClinicBranchRow.tsx`, and `ClinicBranchTable.tsx`: third Preview validation confirmed exact Testing Clinic/Draft and selected-preview UUID routing. Persisted-branch lifecycle controls and bulk lifecycle controls remain visibly disabled without callbacks.
 - `ClinicBranchCreatePage.tsx` / `clinicOwnerApi.ts`: authenticated create/update RPC use, seven-day mapping, exact RLS detail reads, and authoritative refresh remain live-validated. No migration, RLS, RPC, fixture, or remote data modification was required.
 - Zero-hours legacy detail behavior remains automated coverage only because no current linked-tenant clinic safely supplies that condition for browser re-validation. **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3C.1 Associate Dentist Read Components
+
+- `clinicOwnerAssociateApi.ts`: typed safe directory/detail DTOs and error contract; it accepts only the authenticated Clinic Owner bootstrap, fetches Associate memberships by authoritative subscriber/role, and maps only same-subscriber clinic assignments.
+- `AssociateDentistsPage.tsx`, `DentistDirectoryTable.tsx`, `DentistTableRow.tsx`, `DentistProfilePreview.tsx`, and `DentistActionMenu.tsx`: preserve the existing directory/preview structure while rendering real membership IDs/statuses, real clinic assignment labels, provider quota, and disabled write/lifecycle controls.
+- `AssociateDentistFormPage.tsx` and `App.tsx`: direct view routes read one exact Associate membership ID through RLS; Add/Edit routes present controlled unavailable screens rather than legacy form/provisioning flows.
+- `clinicOwnerAssociateApi.test.ts` and `AssociateDentistsPage.realData.test.tsx`: cover bounded tenant-scoped reads, exact detail identity, RLS-hidden not-found, assignment isolation, real membership routing, empty/error behavior, and no mock/localStorage write fallback.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**

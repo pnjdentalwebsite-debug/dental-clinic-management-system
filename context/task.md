@@ -671,3 +671,13 @@
 - [x] Confirm authenticated create/update RPC wiring, seven-day mapping, provider refresh, no mock/browser-storage authority, unchanged Phase 2E.3B.2A backend contract, and zero remote fixture/data mutation.
 - [x] Record zero-hours legacy behavior as automated regression only; no destructive tenant fixture is authorized or required.
 - **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
+
+## Phase 2E.3C.1 Associate Dentist Directory / Detail Real-Data Read Cutover - August 31, 2026
+
+- [x] Add authenticated, typed, bounded Associate membership/profile/assignment read adapters using only the Clinic Owner bootstrap subscriber authority.
+- [x] Replace the targeted directory/detail runtime mock authority and route views by exact `subscriber_memberships.id`; leave missing/RLS-hidden records as controlled not-found states.
+- [x] Map real status, safe professional fields, clinics, and provider quota without fabricated fallback values; leave unavailable legacy fields truthful.
+- [x] Keep Add/Edit/provisioning/password/assignment/lifecycle and bulk status operations non-mutating and visibly unavailable.
+- [x] Pass focused local adapter, detail, routing, tenant-isolation, empty/error, no-localStorage, disabled-control, and existing Clinic Owner read regressions.
+- [ ] Run live browser validation for directory load, direct detail refresh, tenant-scoped clinic assignments, empty/error behavior, disabled write controls, and logout protection. Do not start Phase 2E.3C.2.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**

@@ -4506,34 +4506,21 @@ export default function App() {
               />
             ) : currentRoute === '/clinic/dentists' ? (
               <AssociateDentistsPage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
                 showToast={showToast}
-                onAddDentist={() => setCurrentRoute('/clinic/dentists/new')}
                 onViewDentist={(dentistId) => setCurrentRoute(`/clinic/dentists/view/${dentistId}`)}
-                onEditDentist={(dentistId) => setCurrentRoute(`/clinic/dentists/edit/${dentistId}`)}
               />
             ) : currentRoute === '/clinic/dentists/new' ? (
               <AssociateDentistFormPage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
-                showToast={showToast}
                 onBack={() => setCurrentRoute('/clinic/dentists')}
               />
             ) : currentRoute.startsWith('/clinic/dentists/view/') ? (
               <AssociateDentistFormPage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
-                showToast={showToast}
                 mode="view"
                 dentistId={currentRoute.replace('/clinic/dentists/view/', '')}
                 onBack={() => setCurrentRoute('/clinic/dentists')}
               />
             ) : currentRoute.startsWith('/clinic/dentists/edit/') ? (
               <AssociateDentistFormPage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
-                showToast={showToast}
                 mode="edit"
                 dentistId={currentRoute.replace('/clinic/dentists/edit/', '')}
                 onBack={() => setCurrentRoute('/clinic/dentists')}

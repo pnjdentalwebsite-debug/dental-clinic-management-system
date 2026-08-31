@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { Phone } from 'lucide-react';
 import { DentistStatusBadge } from './DentistStatusBadge';
 import { DentistActionMenu } from './DentistActionMenu';
-import type { AssociateDentistRecord } from '../types/associateDentists';
+import type { ClinicOwnerAssociateDirectoryItem } from '../../../infrastructure/supabase/clinicOwnerAssociateApi';
 
 interface Props {
-  dentist: AssociateDentistRecord;
+  dentist: ClinicOwnerAssociateDirectoryItem;
   isSelected?: boolean;
   onSelect: () => void;
   isChecked?: boolean;
   onToggleCheck?: (e: React.MouseEvent) => void;
-  onAction: (action: string, dentist: AssociateDentistRecord) => void;
+  onAction: (action: string, dentist: ClinicOwnerAssociateDirectoryItem) => void;
+  readOnly?: boolean;
 }
 
 export function DentistTableRow({
@@ -19,16 +20,19 @@ export function DentistTableRow({
   onSelect,
   isChecked = false,
   onToggleCheck,
-  onAction
+  onAction,
+  readOnly = false,
 }: Props) {
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Format as LAST NAME, FIRST NAME (excluding middle name)
-  const nameFormatted = `${dentist.lastName || ''}, ${dentist.firstName || ''}${
-    dentist.extensionName ? ` ${dentist.extensionName}` : ''
-  }`;
-
-  const initials = `${dentist.firstName?.charAt(0) || ''}${dentist.lastName?.charAt(0) || ''}`.toUpperCase() || 'DR';
+  const nameFormatted = dentist.displayName;
+  const initials = dentist.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join('')
+    .toUpperCase() || 'DR';
 
   return (
     <tr
@@ -99,11 +103,11 @@ export function DentistTableRow({
             whiteSpace: 'nowrap'
           }}
         >
-          {dentist.specialization || 'General Dentistry'}
+          {dentist.specialization || 'Not configured'}
         </span>
       </td>
       <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', minWidth: '130px', whiteSpace: 'nowrap' }}>
-        {dentist.designation || 'Associate'}
+        {dentist.designation || 'Not configured'}
       </td>
       <td style={{ padding: '0.85rem 1rem', minWidth: '160px', whiteSpace: 'nowrap' }}>
         <div
@@ -120,10 +124,10 @@ export function DentistTableRow({
           onMouseLeave={() => setShowTooltip(false)}
         >
           <Phone size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-          <span>{dentist.mobileNumber || '—'}</span>
+          <span>{dentist.mobile || 'Unavailable'}</span>
 
           {/* Hover popup modal blip */}
-          {showTooltip && dentist.mobileNumber && (
+          {showTooltip && dentist.mobile && (
             <div
               style={{
                 position: 'absolute',
@@ -146,7 +150,7 @@ export function DentistTableRow({
               }}
             >
               <Phone size={12} style={{ color: '#38bdf8' }} />
-              <span>{dentist.mobileNumber}</span>
+              <span>{dentist.mobile}</span>
               <span style={{ fontSize: '0.68rem', opacity: 0.75, borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: '0.35rem' }}>
                 Primary Line
               </span>
@@ -155,7 +159,7 @@ export function DentistTableRow({
         </div>
       </td>
       <td style={{ padding: '0.85rem 1rem', minWidth: '110px' }}>
-        <DentistStatusBadge status={dentist.status} />
+        <DentistStatusBadge status={dentist.accountStatus} />
       </td>
       <td
         style={{ padding: '0.85rem 1rem', textAlign: 'right', minWidth: '80px' }}
@@ -163,7 +167,7 @@ export function DentistTableRow({
           event.stopPropagation();
         }}
       >
-        <DentistActionMenu status={dentist.status} onAction={(action) => onAction(action, dentist)} />
+        <DentistActionMenu status={dentist.accountStatus} readOnly={readOnly} onAction={(action) => onAction(action, dentist)} />
       </td>
     </tr>
   );

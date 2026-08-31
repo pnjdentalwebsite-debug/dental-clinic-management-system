@@ -1655,3 +1655,12 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 6. Active Clinics remained `2`, Total Branches `3`, and catalog-driven quota `3 / 3`; Add Branch was safely blocked. Direct/hard-refresh routes and logout protection passed, with no tenant, lifecycle, or primary-clinic mutation and no Vercel runtime error.
 7. Zero-hours legacy branch behavior is regression-tested but was not destructively reproduced in the linked tenant because all current clinics have seven persisted business-hour rows.
 8. **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
+
+## Phase 2E.3C.1 Local Associate Dentist Read Validation - August 31, 2026
+
+1. `/clinic/dentists` now uses the authenticated Clinic Owner bootstrap to query only current-subscriber `associate` memberships, safe profile/professional fields, and their same-subscriber clinic assignments. It does not resolve tenant scope from email, storage, clinic name, or a selected/mock record.
+2. Directory and preview View actions route by the real `subscriber_memberships.id`. A direct `/clinic/dentists/view/:membershipId` read requires the exact ID, Associate role, and authoritative subscriber scope; an absent or RLS-hidden membership renders `Associate Dentist not found`.
+3. Real account statuses and provider-normalized Associate quota drive the directory cards. Empty, loading, and service-failure states are distinct and never substitute sample rows or raw backend errors.
+4. Add, Edit, bulk/status, account provisioning, credential, and password flows remain disabled or controlled unavailable until a secure write contract exists. No directory/detail mock/localStorage authority is retained.
+5. Focused local tests pass for the adapter, routing, exact detail, tenant/clinic isolation, empty/error states, disabled controls, and existing owner-read provider. Live browser validation is still required before this subphase can close.
+6. **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**

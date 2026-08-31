@@ -1,12 +1,13 @@
 import { CheckSquare, ChevronLeft, ChevronRight, Power, PowerOff, X } from 'lucide-react';
 import { DentistTableRow } from './DentistTableRow';
-import type { AssociateDentistRecord } from '../types/associateDentists';
+import type { ClinicOwnerAssociateDirectoryItem } from '../../../infrastructure/supabase/clinicOwnerAssociateApi';
 
 interface Props {
-  dentists: AssociateDentistRecord[];
+  dentists: ClinicOwnerAssociateDirectoryItem[];
   selectedDentistId?: string;
   onSelectDentist: (dentistId: string) => void;
-  onAction: (action: string, dentist: AssociateDentistRecord) => void;
+  onAction: (action: string, dentist: ClinicOwnerAssociateDirectoryItem) => void;
+  readOnly?: boolean;
   // Bulk selection props
   selectedIds?: string[];
   onToggleSelectAll?: (checked: boolean) => void;
@@ -35,9 +36,10 @@ export function DentistDirectoryTable({
   currentPage = 1,
   pageSize = 10,
   totalCount = 0,
-  onPageChange
+  onPageChange,
+  readOnly = false,
 }: Props) {
-  const isAllSelected = dentists.length > 0 && dentists.every((d) => selectedIds.includes(d.id));
+  const isAllSelected = dentists.length > 0 && dentists.every((d) => selectedIds.includes(d.membershipId));
   const isPartiallySelected = selectedIds.length > 0 && !isAllSelected;
 
   const totalPages = Math.max(1, Math.ceil((totalCount || dentists.length) / pageSize));
@@ -209,21 +211,22 @@ export function DentistDirectoryTable({
             {dentists.length > 0 ? (
               dentists.map((dentist) => (
                 <DentistTableRow
-                  key={dentist.id}
+                  key={dentist.membershipId}
                   dentist={dentist}
-                  isSelected={selectedDentistId === dentist.id}
-                  isChecked={selectedIds.includes(dentist.id)}
-                  onSelect={() => onSelectDentist(dentist.id)}
-                  onToggleCheck={() => onToggleSelectId?.(dentist.id, !selectedIds.includes(dentist.id))}
+                  isSelected={selectedDentistId === dentist.membershipId}
+                  isChecked={selectedIds.includes(dentist.membershipId)}
+                  onSelect={() => onSelectDentist(dentist.membershipId)}
+                  onToggleCheck={() => onToggleSelectId?.(dentist.membershipId, !selectedIds.includes(dentist.membershipId))}
                   onAction={onAction}
+                  readOnly={readOnly}
                 />
               ))
             ) : (
               <tr>
                 <td colSpan={7} style={{ padding: '4rem 1.25rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   <div style={{ display: 'grid', gap: '0.4rem', justifyItems: 'center' }}>
-                    <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>No associate dentists found</strong>
-                    <span style={{ fontSize: '0.84rem' }}>Try adjusting your search query or filter criteria.</span>
+                    <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>No Associate Dentists yet</strong>
+                    <span style={{ fontSize: '0.84rem' }}>No real Associate Dentist memberships are available for this subscriber.</span>
                   </div>
                 </td>
               </tr>

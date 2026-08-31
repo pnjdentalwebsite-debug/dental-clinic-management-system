@@ -825,3 +825,12 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
     - Authenticated `create_my_clinic_branch` / `update_my_clinic_branch`, seven-day mapping, provider refresh, disabled persisted lifecycle controls, and no mock/browser-storage authority remain verified. No migration, RLS, deployed RPC, or remote fixture/data change was required.
     - Zero-hours legacy branch behavior is regression-tested but was not destructively reproduced in the linked tenant because all current clinics have seven persisted business-hour rows.
     - **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.** Lifecycle mutations remain deferred.
+
+## Phase 2E.3C.1 Associate Dentist Directory / Detail Real-Data Read Cutover - August 31, 2026
+
+- [x] Replace the Clinic Owner Associate Dentist directory/detail mock authority with typed authenticated Supabase reads scoped by the existing authoritative Clinic Owner bootstrap.
+- [x] Route View actions and direct details by exact real Associate `subscriber_memberships.id`; render only safe profile, professional, status, and same-subscriber clinic-assignment fields with controlled loading, empty, unavailable, and not-found states.
+- [x] Derive summary statuses and Associate quota usage from real records and normalized provider quota data; disable Add/Edit/bulk/lifecycle actions pending a secure write/provisioning contract.
+- [x] Pass focused adapter, route, detail, tenant-isolation, assignment, error/empty, provider, and write-boundary regressions locally.
+- [ ] Complete live browser validation of the authenticated Clinic Owner Associate Dentist directory/detail routes. Do not start Associate provisioning, edits, assignments, or lifecycle writes in this subphase.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**

@@ -5,9 +5,10 @@ import { Portal } from '../../../components/overlays/Portal';
 interface Props {
   status?: string;
   onAction: (action: string) => void;
+  readOnly?: boolean;
 }
 
-export function DentistActionMenu({ status, onAction }: Props) {
+export function DentistActionMenu({ status, onAction, readOnly = false }: Props) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -114,6 +115,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
 
             <button
               type="button"
+              disabled={readOnly}
+              title={readOnly ? 'Available after secure provisioning cutover' : undefined}
               onClick={() => {
                 onAction('Edit Associate Dentist');
                 setOpen(false);
@@ -124,7 +127,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
                 textAlign: 'left',
                 border: 'none',
                 background: 'none',
-                cursor: 'pointer',
+                cursor: readOnly ? 'not-allowed' : 'pointer',
+                opacity: readOnly ? 0.55 : 1,
                 color: 'var(--text-primary)',
                 display: 'flex',
                 alignItems: 'center',
@@ -138,6 +142,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
             {normalizedStatus !== 'draft' && (
               <button
                 type="button"
+                disabled
+                title="Available after secure provisioning cutover"
                 onClick={() => {
                   onAction('Save As Draft');
                   setOpen(false);
@@ -148,7 +154,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
                   textAlign: 'left',
                   border: 'none',
                   background: 'none',
-                  cursor: 'pointer',
+                  cursor: 'not-allowed',
+                  opacity: 0.55,
                   color: 'var(--text-primary)',
                   display: 'flex',
                   alignItems: 'center',
@@ -165,6 +172,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
             {!isActive ? (
               <button
                 type="button"
+                disabled
+                title="Available after secure provisioning cutover"
                 onClick={() => {
                   onAction('Activate Associate Dentist');
                   setOpen(false);
@@ -175,7 +184,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
                   textAlign: 'left',
                   border: 'none',
                   background: 'none',
-                  cursor: 'pointer',
+                  cursor: 'not-allowed',
+                  opacity: 0.55,
                   color: '#059669',
                   display: 'flex',
                   alignItems: 'center',
@@ -188,6 +198,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
             ) : (
               <button
                 type="button"
+                disabled
+                title="Available after secure provisioning cutover"
                 onClick={() => {
                   onAction('Set Associate Dentist Inactive');
                   setOpen(false);
@@ -198,7 +210,8 @@ export function DentistActionMenu({ status, onAction }: Props) {
                   textAlign: 'left',
                   border: 'none',
                   background: 'none',
-                  cursor: 'pointer',
+                  cursor: 'not-allowed',
+                  opacity: 0.55,
                   color: '#dc2626',
                   display: 'flex',
                   alignItems: 'center',
@@ -215,4 +228,3 @@ export function DentistActionMenu({ status, onAction }: Props) {
     </>
   );
 }
-
