@@ -667,6 +667,7 @@
 - [x] Refresh the authoritative Clinic Owner provider after successful active or draft create and after update; leave all lifecycle operations disabled.
 - [x] Add focused adapter, stepper, directory, and existing owner-read regressions; run focused tests, production build, and diff check before live validation.
 - [ ] Run live browser validation against the already deployed branch RPCs. Do not mark 2E.3B.2 complete until it passes.
-- [x] Repair second live-validation blockers: action-menu and side-preview routes use exact row UUIDs; persisted-branch lifecycle controls are visibly disabled; create-form Save Draft remains separate and validated.
-- [ ] Perform browser re-validation for primary/testing/draft exact routes, disabled lifecycle controls, `3 / 3` quota, refresh, and logout protection. Zero-hours behavior remains automated-only because no destructive fixture is authorized.
-- **PHASE 2E.3B.2B = SECOND LIVE BROWSER VALIDATION BLOCKERS FIXED LOCALLY / LIVE BROWSER RE-VALIDATION REQUIRED.**
+- [x] Complete third Preview validation: primary/Testing/Draft exact routes, selected-preview routing, disabled lifecycle controls, active-only `2`, total `3`, quota `3 / 3`, Add Branch boundary, hard refresh, and logout protection all passed.
+- [x] Confirm authenticated create/update RPC wiring, seven-day mapping, provider refresh, no mock/browser-storage authority, unchanged Phase 2E.3B.2A backend contract, and zero remote fixture/data mutation.
+- [x] Record zero-hours legacy behavior as automated regression only; no destructive tenant fixture is authorized or required.
+- **PHASE 2E.3B.2B = CLINIC BRANCH ADD/EDIT FRONTEND REAL-DATA CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
