@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireSupabaseClient } from './client';
+import type { BusinessHours, ClinicBranchType, ClinicFormData, ClinicVisibility } from '../../features/clinics/types';
 
 export type ClinicOwnerQuotaLimit =
   | { kind: 'number'; value: number }
@@ -77,6 +78,7 @@ export interface ClinicOwnerBootstrap {
   }>;
   resourceCounts: {
     activeClinics: number;
+    quotaConsumingClinics: number;
     activeLaboratories: number;
     activeAssociates: number;
     activeStaff: number;
@@ -97,6 +99,15 @@ export type ClinicOwnerApiErrorCode =
   | 'SUBSCRIBER_NOT_FOUND'
   | 'SUBSCRIPTION_NOT_FOUND'
   | 'PLAN_NOT_FOUND'
+  | 'OWNER_MEMBERSHIP_REQUIRED'
+  | 'OWNER_MEMBERSHIP_CONFLICT'
+  | 'SUBSCRIBER_UNAVAILABLE'
+  | 'SUBSCRIPTION_UNAVAILABLE'
+  | 'PLAN_UNAVAILABLE'
+  | 'CLINIC_QUOTA_REACHED'
+  | 'INVALID_BRANCH_INPUT'
+  | 'CLINIC_NOT_FOUND'
+  | 'PRIMARY_CLINIC_CONFLICT'
   | 'DATA_UNAVAILABLE';
 
 const safeMessages: Record<ClinicOwnerApiErrorCode, string> = {
@@ -107,6 +118,15 @@ const safeMessages: Record<ClinicOwnerApiErrorCode, string> = {
   SUBSCRIBER_NOT_FOUND: 'Your Clinic Owner organization record is unavailable. Please contact platform support.',
   SUBSCRIPTION_NOT_FOUND: 'Your current subscription is unavailable. Please contact platform support.',
   PLAN_NOT_FOUND: 'Your subscription plan is unavailable. Please contact platform support.',
+  OWNER_MEMBERSHIP_REQUIRED: 'Clinic Owner access is unavailable for this account.',
+  OWNER_MEMBERSHIP_CONFLICT: 'Your organization access has a conflict. Please contact platform support.',
+  SUBSCRIBER_UNAVAILABLE: 'Your organization is currently unavailable.',
+  SUBSCRIPTION_UNAVAILABLE: 'An active subscription is required to manage clinic branches.',
+  PLAN_UNAVAILABLE: 'Your plan quota is currently unavailable. Please try again later.',
+  CLINIC_QUOTA_REACHED: 'The clinic limit for your current plan has been reached.',
+  INVALID_BRANCH_INPUT: 'Please review the branch information and try again.',
+  CLINIC_NOT_FOUND: 'The requested clinic branch was not found.',
+  PRIMARY_CLINIC_CONFLICT: 'The primary clinic configuration requires attention before another branch can be added.',
   DATA_UNAVAILABLE: 'Clinic Owner data could not be loaded. No mock data was substituted.',
 };
 
@@ -286,6 +306,7 @@ export async function getClinicOwnerBootstrap(
   });
   const resourceCounts = {
     activeClinics: clinics.filter((clinic) => clinic.status === 'active').length,
+    quotaConsumingClinics: clinics.filter((clinic) => ['draft', 'pending', 'active', 'inactive'].includes(clinic.status)).length,
     activeLaboratories: laboratoryCountResult.count ?? 0,
     activeAssociates: associateCountResult.count ?? 0,
     activeStaff: staffCountResult.count ?? 0,
@@ -332,10 +353,331 @@ export async function getClinicOwnerBootstrap(
     auditEvents,
     resourceCounts,
     quotas: {
-      clinics: { key: 'clinics', limit: quotaLimits.clinics, activeUsage: resourceCounts.activeClinics },
+      clinics: { key: 'clinics', limit: quotaLimits.clinics, activeUsage: resourceCounts.quotaConsumingClinics },
       laboratories: { key: 'laboratories', limit: quotaLimits.laboratories, activeUsage: resourceCounts.activeLaboratories },
       associates: { key: 'associates', limit: quotaLimits.associates, activeUsage: resourceCounts.activeAssociates },
       staff: { key: 'staff', limit: quotaLimits.staff, activeUsage: resourceCounts.activeStaff },
     },
   };
+}
+
+/** The form deliberately uses labels while the branch contract uses Postgres weekday numbers. */
+export const clinicBranchWeekdays = [
+  ['Monday', 1],
+  ['Tuesday', 2],
+  ['Wednesday', 3],
+  ['Thursday', 4],
+  ['Friday', 5],
+  ['Saturday', 6],
+  ['Sunday', 0],
+] as const;
+
+type ClinicBranchWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface ClinicBranchBusinessHours {
+  dayOfWeek: ClinicBranchWeekday;
+  isOpen: boolean;
+  openingTime: string | null;
+  closingTime: string | null;
+  breakStart: string | null;
+  breakEnd: string | null;
+}
+
+export interface ClinicBranchInput {
+  branchType: ClinicBranchType;
+  name: string;
+  legalBusinessName: string;
+  email: string;
+  contactNumber: string;
+  alternativeContactNumber: string;
+  addressLine1: string;
+  addressLine2: string;
+  barangay: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  country: string;
+  timezone: string;
+  description: string;
+  visibility: ClinicVisibility;
+  businessHours: ClinicBranchBusinessHours[];
+}
+
+export interface ClinicBranchCreateInput extends ClinicBranchInput {
+  saveMode: 'draft' | 'active';
+}
+
+export interface ClinicOwnerClinicBranch {
+  id: string;
+  clinicNumber: string;
+  branchType: ClinicBranchType;
+  name: string;
+  legalBusinessName: string | null;
+  email: string;
+  contactNumber: string;
+  alternativeContactNumber: string | null;
+  addressLine1: string;
+  addressLine2: string | null;
+  barangay: string | null;
+  city: string;
+  province: string;
+  postalCode: string | null;
+  country: string;
+  timezone: string;
+  description: string | null;
+  visibility: ClinicVisibility;
+  status: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+  businessHours: ClinicBranchBusinessHours[];
+  /** False only when a legacy clinic has no persisted business-hours rows. */
+  businessHoursConfigured: boolean;
+}
+
+function nullableInput(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+/**
+ * Produces the precise public RPC allowlist. Legacy ClinicFormData fields are
+ * intentionally omitted so neither browser state nor local mock metadata can
+ * become tenant or lifecycle authority.
+ */
+export function clinicBranchInputFromForm(data: ClinicFormData): ClinicBranchInput {
+  return {
+    branchType: data.branchType,
+    name: data.name.trim(),
+    legalBusinessName: data.legalBusinessName.trim(),
+    email: data.email.trim(),
+    contactNumber: data.contactNumber.trim(),
+    alternativeContactNumber: data.alternativeContactNumber.trim(),
+    addressLine1: data.addressLine1.trim(),
+    addressLine2: data.addressLine2.trim(),
+    barangay: data.barangay.trim(),
+    city: data.city.trim(),
+    province: data.province.trim(),
+    postalCode: data.postalCode.trim(),
+    country: data.country.trim(),
+    timezone: data.timezone.trim(),
+    description: data.description.trim(),
+    visibility: data.visibility,
+    businessHours: clinicBranchHoursFromForm(data.businessHours),
+  };
+}
+
+export function clinicBranchHoursFromForm(hours: BusinessHours): ClinicBranchBusinessHours[] {
+  return clinicBranchWeekdays.map(([day, dayOfWeek]) => {
+    const value = hours[day];
+    const isOpen = value?.enabled === true;
+    return {
+      dayOfWeek,
+      isOpen,
+      openingTime: isOpen ? nullableInput(value?.openingTime ?? '') : null,
+      closingTime: isOpen ? nullableInput(value?.closingTime ?? '') : null,
+      breakStart: isOpen && value?.breakEnabled ? nullableInput(value.breakStart) : null,
+      breakEnd: isOpen && value?.breakEnabled ? nullableInput(value.breakEnd) : null,
+    };
+  });
+}
+
+export function clinicBranchHoursToForm(rows: ClinicBranchBusinessHours[]): BusinessHours {
+  const byDay = new Map(rows.map((row) => [row.dayOfWeek, row]));
+  return Object.fromEntries(clinicBranchWeekdays.map(([day, dayOfWeek]) => {
+    const row = byDay.get(dayOfWeek);
+    const enabled = row?.isOpen === true;
+    const breakEnabled = enabled && Boolean(row?.breakStart && row?.breakEnd);
+    return [day, {
+      enabled,
+      openingTime: enabled ? row?.openingTime ?? '' : '',
+      closingTime: enabled ? row?.closingTime ?? '' : '',
+      breakEnabled,
+      breakStart: breakEnabled ? row?.breakStart ?? '' : '',
+      breakEnd: breakEnabled ? row?.breakEnd ?? '' : '',
+    }];
+  }));
+}
+
+function rpcPayload(input: ClinicBranchInput, saveMode?: ClinicBranchCreateInput['saveMode']) {
+  const payload = {
+    branchType: input.branchType,
+    name: input.name,
+    legalBusinessName: input.legalBusinessName,
+    email: input.email,
+    contactNumber: input.contactNumber,
+    alternativeContactNumber: input.alternativeContactNumber,
+    addressLine1: input.addressLine1,
+    addressLine2: input.addressLine2,
+    barangay: input.barangay,
+    city: input.city,
+    province: input.province,
+    postalCode: input.postalCode,
+    country: input.country,
+    timezone: input.timezone,
+    description: input.description,
+    visibility: input.visibility,
+    businessHours: input.businessHours,
+  };
+  return saveMode ? { saveMode, ...payload } : payload;
+}
+
+function normalizedBranchHours(value: unknown): ClinicBranchBusinessHours[] {
+  if (!Array.isArray(value) || value.length !== 7) throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+  const hours = value.map((item) => {
+    const row = record(item);
+    const dayOfWeek = row.dayOfWeek;
+    if (typeof dayOfWeek !== 'number' || !Number.isFinite(dayOfWeek)
+      || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || typeof row.isOpen !== 'boolean') {
+      throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+    }
+    return {
+      dayOfWeek: dayOfWeek as ClinicBranchWeekday,
+      isOpen: row.isOpen,
+      openingTime: nullableString(row.openingTime),
+      closingTime: nullableString(row.closingTime),
+      breakStart: nullableString(row.breakStart),
+      breakEnd: nullableString(row.breakEnd),
+    };
+  });
+  if (new Set(hours.map((row) => row.dayOfWeek)).size !== 7) throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+  return hours.sort((left, right) => left.dayOfWeek - right.dayOfWeek);
+}
+
+function branchFromDto(value: unknown, businessHours = normalizedBranchHours(record(value).businessHours), businessHoursConfigured = true): ClinicOwnerClinicBranch {
+  const branch = record(value);
+  const branchType = string(branch.branchType);
+  const visibility = string(branch.visibility);
+  if (!string(branch.id) || !string(branch.clinicNumber)
+    || (branchType !== 'main' && branchType !== 'satellite')
+    || (visibility !== 'visible' && visibility !== 'hidden')
+    || !string(branch.name) || !string(branch.email) || !string(branch.contactNumber)
+    || !string(branch.addressLine1) || !string(branch.city) || !string(branch.province)
+    || !string(branch.country) || !string(branch.timezone) || !string(branch.status)
+    || typeof branch.isPrimary !== 'boolean' || !string(branch.createdAt) || !string(branch.updatedAt)) {
+    throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+  }
+  return {
+    id: string(branch.id),
+    clinicNumber: string(branch.clinicNumber),
+    branchType,
+    name: string(branch.name),
+    legalBusinessName: nullableString(branch.legalBusinessName),
+    email: string(branch.email),
+    contactNumber: string(branch.contactNumber),
+    alternativeContactNumber: nullableString(branch.alternativeContactNumber),
+    addressLine1: string(branch.addressLine1),
+    addressLine2: nullableString(branch.addressLine2),
+    barangay: nullableString(branch.barangay),
+    city: string(branch.city),
+    province: string(branch.province),
+    postalCode: nullableString(branch.postalCode),
+    country: string(branch.country),
+    timezone: string(branch.timezone),
+    description: nullableString(branch.description),
+    visibility,
+    status: string(branch.status),
+    isPrimary: branch.isPrimary,
+    createdAt: string(branch.createdAt),
+    updatedAt: string(branch.updatedAt),
+    businessHours,
+    businessHoursConfigured,
+  };
+}
+
+function safeBranchError(error: unknown): ClinicOwnerApiError {
+  const errorRecord = record(error);
+  const serialized = [errorRecord.message, errorRecord.details, errorRecord.hint]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ');
+  const codes: ClinicOwnerApiErrorCode[] = [
+    'UNAUTHENTICATED', 'OWNER_MEMBERSHIP_REQUIRED', 'OWNER_MEMBERSHIP_CONFLICT',
+    'PASSWORD_CHANGE_REQUIRED', 'SUBSCRIBER_UNAVAILABLE', 'SUBSCRIPTION_UNAVAILABLE',
+    'PLAN_UNAVAILABLE', 'CLINIC_QUOTA_REACHED', 'INVALID_BRANCH_INPUT', 'CLINIC_NOT_FOUND',
+    'PRIMARY_CLINIC_CONFLICT', 'DATA_UNAVAILABLE',
+  ];
+  const code = codes.find((candidate) => serialized.includes(candidate));
+  return new ClinicOwnerApiError(code ?? 'DATA_UNAVAILABLE');
+}
+
+export async function createClinicBranch(
+  input: ClinicBranchCreateInput,
+  client: SupabaseClient = requireSupabaseClient(),
+): Promise<ClinicOwnerClinicBranch> {
+  const { data, error } = await client.rpc('create_my_clinic_branch', { p_input: rpcPayload(input, input.saveMode) });
+  if (error) throw safeBranchError(error);
+  return branchFromDto(data);
+}
+
+export async function updateClinicBranch(
+  clinicId: string,
+  input: ClinicBranchInput,
+  client: SupabaseClient = requireSupabaseClient(),
+): Promise<ClinicOwnerClinicBranch> {
+  const { data, error } = await client.rpc('update_my_clinic_branch', { p_clinic_id: clinicId, p_input: rpcPayload(input) });
+  if (error) throw safeBranchError(error);
+  return branchFromDto(data);
+}
+
+/** RLS determines tenant access; this read is deliberately scoped only by the requested clinic UUID. */
+export async function getClinicBranchDetail(
+  clinicId: string,
+  client: SupabaseClient = requireSupabaseClient(),
+): Promise<ClinicOwnerClinicBranch> {
+  const { data: clinicData, error: clinicError } = await client
+    .from('clinics')
+    .select('id, clinic_number, branch_type, name, legal_business_name, email, contact_number, alternative_contact_number, address_line_1, address_line_2, barangay, city, province, postal_code, country, timezone, description, visibility, status, is_primary, created_at, updated_at')
+    .eq('id', clinicId)
+    .maybeSingle();
+  if (clinicError) throw safeBranchError(clinicError);
+  const clinic = record(clinicData);
+  if (!string(clinic.id)) throw new ClinicOwnerApiError('CLINIC_NOT_FOUND');
+
+  const { data: hoursData, error: hoursError } = await client
+    .from('clinic_business_hours')
+    .select('day_of_week, is_open, opening_time, closing_time, break_start, break_end')
+    .eq('clinic_id', clinicId)
+    .order('day_of_week', { ascending: true });
+  if (hoursError || !Array.isArray(hoursData)) throw safeBranchError(hoursError);
+  const rawBusinessHours = hoursData.map((value) => {
+    const row = record(value);
+    return {
+      dayOfWeek: row.day_of_week,
+      isOpen: row.is_open,
+      openingTime: row.opening_time,
+      closingTime: row.closing_time,
+      breakStart: row.break_start,
+      breakEnd: row.break_end,
+    };
+  });
+  // Provisioned clinics predating branch mutations may intentionally have no rows.
+  // A partial schedule is still an unavailable/corrupt detail response and remains rejected.
+  const businessHoursConfigured = rawBusinessHours.length > 0;
+  const businessHours = businessHoursConfigured ? normalizedBranchHours(rawBusinessHours) : [];
+
+  return branchFromDto({
+    id: clinic.id,
+    clinicNumber: clinic.clinic_number,
+    branchType: clinic.branch_type,
+    name: clinic.name,
+    legalBusinessName: clinic.legal_business_name,
+    email: clinic.email,
+    contactNumber: clinic.contact_number,
+    alternativeContactNumber: clinic.alternative_contact_number,
+    addressLine1: clinic.address_line_1,
+    addressLine2: clinic.address_line_2,
+    barangay: clinic.barangay,
+    city: clinic.city,
+    province: clinic.province,
+    postalCode: clinic.postal_code,
+    country: clinic.country,
+    timezone: clinic.timezone,
+    description: clinic.description,
+    visibility: clinic.visibility,
+    status: clinic.status,
+    isPrimary: clinic.is_primary,
+    createdAt: clinic.created_at,
+    updatedAt: clinic.updated_at,
+    businessHours,
+  }, businessHours, businessHoursConfigured);
 }

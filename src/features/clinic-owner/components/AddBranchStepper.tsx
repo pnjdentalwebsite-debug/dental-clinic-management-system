@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Clock3, Mail, MapPinned, Phone, UserRound, X } from 'lucide-react';
 import { ConfirmationDialog } from '../../../components/overlays/ConfirmationDialog';
-import type { PlatformUser } from '../../platformManagement/types';
 import type { ClinicBranchType, ClinicFormData } from '../../clinics/types';
-import { defaultBusinessHours, mockClinicService } from '../../clinics/services/mockClinicService';
 
 interface Props {
-  subscriberId: string;
-  users: PlatformUser[];
-  existingBranchCount: number;
+  ownerDisplayName: string;
   mode?: 'create' | 'edit' | 'view';
   initialData?: ClinicFormData | null;
+  businessHoursConfigured?: boolean;
   branchNumberPreview?: string;
   saving?: boolean;
   renderMode?: 'modal' | 'page';
@@ -29,29 +26,28 @@ const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 
 type StepIndex = 0 | 1 | 2 | 3;
 
-const buildInitialData = (subscriberId: string, users: PlatformUser[]): ClinicFormData => {
-  const base = mockClinicService.toFormData();
-  const owner = users.find((user) => user.role === 'clinic_owner' && user.accountStatus === 'active');
-
-  return {
-    ...base,
-    subscriberId,
-    primaryOwnerUserId: owner?.id || '',
+const buildInitialData = (): ClinicFormData => ({
+    subscriberId: '',
+    primaryOwnerUserId: '',
     branchType: 'satellite',
     isPrimaryClinic: false,
     visibility: 'visible',
     country: 'Philippines',
     timezone: 'Asia/Manila',
-    businessHours: defaultBusinessHours()
-  };
-};
+    businessHours: Object.fromEntries(weekDays.map((day) => [day, {
+      enabled: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day),
+      openingTime: '09:00', closingTime: '17:00', breakEnabled: false, breakStart: '', breakEnd: '',
+    }])),
+    name: '', legalBusinessName: '', email: '', contactNumber: '', alternativeContactNumber: '',
+    addressLine1: '', addressLine2: '', barangay: '', city: '', province: '', postalCode: '',
+    description: '', logoFileName: '', logoFileType: '', dentistUserIds: [], staffUserIds: [],
+  });
 
 export function AddBranchStepper({
-  subscriberId,
-  users,
-  existingBranchCount,
+  ownerDisplayName,
   mode = 'create',
   initialData = null,
+  businessHoursConfigured = true,
   branchNumberPreview,
   saving = false,
   renderMode = 'modal',
@@ -59,8 +55,8 @@ export function AddBranchStepper({
   onSave
 }: Props) {
   const baseData = useMemo(
-    () => initialData ?? buildInitialData(subscriberId, users),
-    [initialData, subscriberId, users]
+    () => initialData ?? buildInitialData(),
+    [initialData]
   );
   const [step, setStep] = useState<StepIndex>(0);
   const [data, setData] = useState<ClinicFormData>(() => baseData);
@@ -77,20 +73,7 @@ export function AddBranchStepper({
     setLeaveDialogOpen(false);
   }, [baseData]);
 
-  const owners = useMemo(
-    () => users.filter((user) => user.role === 'clinic_owner' && user.accountStatus === 'active'),
-    [users]
-  );
-  const associates = useMemo(
-    () => users.filter((user) => user.role === 'associate' && user.accountStatus === 'active'),
-    [users]
-  );
-  const staff = useMemo(
-    () => users.filter((user) => user.role === 'staff' && user.accountStatus === 'active'),
-    [users]
-  );
-
-  const branchPreview = branchNumberPreview || `CLN-${String(existingBranchCount + 1).padStart(6, '0')}`;
+  const branchPreview = branchNumberPreview || 'Generated on save';
   const isDirty = !isViewMode && JSON.stringify(data) !== JSON.stringify(baseData);
 
   useEffect(() => {
@@ -108,9 +91,10 @@ export function AddBranchStepper({
   const setField = <K extends keyof ClinicFormData>(key: K, value: ClinicFormData[K]) => {
     setData((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => {
-      if (!prev[key as string]) return prev;
+      if (!prev[key as string] && !prev.submission) return prev;
       const next = { ...prev };
       delete next[key as string];
+      delete next.submission;
       return next;
     });
   };
@@ -126,15 +110,13 @@ export function AddBranchStepper({
         }
       }
     }));
-  };
-
-  const toggleUser = (key: 'dentistUserIds' | 'staffUserIds', userId: string) => {
-    setData((prev) => ({
-      ...prev,
-      [key]: prev[key].includes(userId)
-        ? prev[key].filter((id) => id !== userId)
-        : [...prev[key], userId]
-    }));
+    setErrors((prev) => {
+      if (!prev.businessHours && !prev.submission) return prev;
+      const next = { ...prev };
+      delete next.businessHours;
+      delete next.submission;
+      return next;
+    });
   };
 
   const validateStep = (targetStep: StepIndex) => {
@@ -142,7 +124,6 @@ export function AddBranchStepper({
 
     if (targetStep === 0) {
       if (!data.name.trim()) nextErrors.name = 'Branch name is required.';
-      if (!data.primaryOwnerUserId.trim()) nextErrors.primaryOwnerUserId = 'Primary clinic owner is required.';
       if (!data.branchType) nextErrors.branchType = 'Branch type is required.';
     }
 
@@ -171,6 +152,28 @@ export function AddBranchStepper({
     setStep((prev) => Math.min(prev + 1, branchSteps.length - 1) as StepIndex);
   };
 
+  const validateSubmission = (requireWorkingHours: boolean) => {
+    const nextErrors: Record<string, string> = {};
+    if (!data.name.trim()) nextErrors.name = 'Branch name is required.';
+    if (!data.branchType) nextErrors.branchType = 'Branch type is required.';
+    if (!data.addressLine1.trim()) nextErrors.addressLine1 = 'Complete street address is required.';
+    if (!data.city.trim()) nextErrors.city = 'City or municipality is required.';
+    if (!data.province.trim()) nextErrors.province = 'Province is required.';
+    if (!data.contactNumber.trim()) nextErrors.contactNumber = 'Branch phone number is required.';
+    if (!data.email.trim()) nextErrors.email = 'Branch email is required.';
+    if (requireWorkingHours && !weekDays.some((day) => data.businessHours[day]?.enabled)) {
+      nextErrors.businessHours = 'Enable at least one working day.';
+    }
+    const valid = Object.keys(nextErrors).length === 0;
+    if (!valid) {
+      nextErrors.submission = requireWorkingHours
+        ? 'Complete the required branch profile and schedule before saving.'
+        : 'Save Draft requires branch name, location, phone number, and email.';
+    }
+    setErrors(nextErrors);
+    return valid;
+  };
+
   const previousStep = () => setStep((prev) => Math.max(prev - 1, 0) as StepIndex);
 
   const requestClose = () => {
@@ -188,7 +191,7 @@ export function AddBranchStepper({
       onClose();
       return;
     }
-    if (!draft && !validateStep(step)) return;
+    if (!validateSubmission(!draft)) return;
     onSave(data, draft);
     if (draft) {
       setLeaveDialogOpen(false);
@@ -207,10 +210,10 @@ export function AddBranchStepper({
   const isModal = renderMode === 'modal';
   const headerTitle = isViewMode ? 'View Branch' : isEditMode ? 'Edit Branch' : 'Add New Branch';
   const headerSubtitle = isViewMode
-    ? 'Review the branch profile, location, contact details, and assignments in the same guided workflow.'
+    ? 'Review the branch profile, location, contact details, and schedule in the same guided workflow.'
     : isEditMode
-      ? 'Update the branch profile, location, contact details, and assignments using the same guided workflow.'
-      : 'Create a new clinic branch with the required branch profile, hours, and assignments.';
+      ? 'Update the branch profile, location, contact details, and schedule using the same guided workflow.'
+      : 'Create a new clinic branch with the required branch profile and hours.';
   const branchIdHelpText = isViewMode
     ? 'Branch ID is shown for reference.'
     : isEditMode
@@ -347,15 +350,8 @@ export function AddBranchStepper({
               </label>
               <label style={fieldLabelStyle}>
                 <span>Primary Clinic Owner</span>
-                <select className="form-input" value={data.primaryOwnerUserId} onChange={(event) => setField('primaryOwnerUserId', event.target.value)}>
-                  <option value="">Select clinic owner</option>
-                  {owners.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.fullName}
-                    </option>
-                  ))}
-                </select>
-                {renderFieldError('primaryOwnerUserId')}
+                <input className="form-input" value={ownerDisplayName || 'Organization owner'} readOnly disabled />
+                <small style={{ color: 'var(--text-secondary)' }}>Ownership is inherited from the organization and cannot be changed here.</small>
               </label>
               <label style={{ ...fieldLabelStyle, justifyContent: 'end' }}>
                 <span>Branch Visibility</span>
@@ -381,10 +377,10 @@ export function AddBranchStepper({
                   <div style={{ display: 'grid', gap: '0.2rem' }}>
                     <strong style={{ fontSize: '0.94rem' }}>Set as subscriber primary branch</strong>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
-                      Use this only if the new location should become the main operational branch.
+                      Primary branch changes will be available in the branch lifecycle phase.
                     </span>
                   </div>
-                  <input type="checkbox" checked={data.isPrimaryClinic} onChange={(event) => setField('isPrimaryClinic', event.target.checked)} />
+                  <input type="checkbox" checked={data.isPrimaryClinic} disabled aria-label="Primary branch setting is read-only" />
                 </div>
               </label>
             </div>
@@ -473,6 +469,11 @@ export function AddBranchStepper({
                   <Clock3 size={18} color="var(--primary)" />
                   <strong style={{ fontSize: '0.95rem' }}>Operating Hours</strong>
                 </div>
+                {!businessHoursConfigured && (
+                  <p style={{ margin: '0 0 0.8rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                    Operating hours are not configured for this legacy branch. Select the hours to include when saving changes.
+                  </p>
+                )}
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {weekDays.map((day) => {
                     const hours = data.businessHours[day];
@@ -508,39 +509,18 @@ export function AddBranchStepper({
                   </div>
                   <label style={fieldLabelStyle}>
                     <span>Primary Owner Assignment</span>
-                    <select className="form-input" value={data.primaryOwnerUserId} onChange={(event) => setField('primaryOwnerUserId', event.target.value)}>
-                      <option value="">Select clinic owner</option>
-                      {owners.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.fullName}
-                        </option>
-                      ))}
-                    </select>
+                    <input className="form-input" value={ownerDisplayName || 'Organization owner'} readOnly disabled />
                   </label>
                 </div>
 
                 <div className="patient-record__card" style={{ padding: '1rem' }}>
                   <strong style={{ display: 'block', marginBottom: '0.8rem' }}>Associate Dentists</strong>
-                  <div style={{ display: 'grid', gap: '0.6rem' }}>
-                    {associates.length ? associates.map((user) => (
-                      <label key={user.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: '0.85rem' }}>
-                        <input type="checkbox" checked={data.dentistUserIds.includes(user.id)} onChange={() => toggleUser('dentistUserIds', user.id)} />
-                        {user.fullName}
-                      </label>
-                    )) : <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No active associates available.</span>}
-                  </div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Real personnel assignments will be available after personnel real-data cutover.</span>
                 </div>
 
                 <div className="patient-record__card" style={{ padding: '1rem' }}>
                   <strong style={{ display: 'block', marginBottom: '0.8rem' }}>Staff Members</strong>
-                  <div style={{ display: 'grid', gap: '0.6rem' }}>
-                    {staff.length ? staff.map((user) => (
-                      <label key={user.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', fontSize: '0.85rem' }}>
-                        <input type="checkbox" checked={data.staffUserIds.includes(user.id)} onChange={() => toggleUser('staffUserIds', user.id)} />
-                        {user.fullName}
-                      </label>
-                    )) : <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No active staff available.</span>}
-                  </div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Real personnel assignments will be available after personnel real-data cutover.</span>
                 </div>
               </div>
             </div>
@@ -552,7 +532,8 @@ export function AddBranchStepper({
       <div className="patient-record__modal-footer" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
           <MapPinned size={16} />
-          Subscriber-linked branch setup for `{subscriberId}`.
+          <span>Organization-linked branch setup.</span>
+          {errors.submission && <span role="alert" style={{ color: '#b91c1c', fontWeight: 700 }}>{errors.submission}</span>}
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button type="button" className="patient-record__modal-btn patient-record__modal-btn--secondary" onClick={requestClose} disabled={saving}>
@@ -563,7 +544,7 @@ export function AddBranchStepper({
               Back
             </button>
           )}
-          {!isViewMode && (
+          {isCreateMode && (
             <button type="button" className="patient-record__modal-btn patient-record__modal-btn--secondary" onClick={() => saveRecord(true)} disabled={saving}>
               Save as Draft
             </button>
@@ -601,7 +582,7 @@ export function AddBranchStepper({
             onClose();
           }}
           onCancel={() => setLeaveDialogOpen(false)}
-          footerPrefix={!isViewMode ? (
+          footerPrefix={isCreateMode ? (
             <button
               className="btn btn-outline"
               style={{ width: 'auto' }}
@@ -637,7 +618,7 @@ export function AddBranchStepper({
           onClose();
         }}
         onCancel={() => setLeaveDialogOpen(false)}
-        footerPrefix={!isViewMode ? (
+        footerPrefix={isCreateMode ? (
           <button
             className="btn btn-outline"
             style={{ width: 'auto' }}

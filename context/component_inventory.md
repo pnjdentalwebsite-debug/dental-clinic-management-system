@@ -619,3 +619,12 @@
 - No React component, route, page, form, or browser adapter changed; Add/Edit Branch controls remain read-only.
 - Remote inventory verification confirms one deployed copy of each RPC/helper, authenticated-only public execution, browser-inaccessible private helpers, one business-hours constraint/trigger, and the intended owner-read/Platform-write policy split. Transaction-scoped validation left zero fixtures.
 - **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3B.2B Add/Edit Branch Frontend Inventory
+
+- `clinicOwnerApi.ts`: typed RPC allowlist adapters, safe response/error normalization, exact RLS clinic detail read, and explicit seven-day UI/Postgres mapping.
+- `ClinicBranchesPage.tsx` and `App.tsx`: existing branch routes now navigate to real Add/View/Edit flows using the real clinic UUID; lifecycle actions remain controlled unavailable.
+- `ClinicBranchCreatePage.tsx` and `AddBranchStepper.tsx`: real provider identity/detail/refresh integration while preserving the existing stepper UI; no mock identity, fake branch ID, local persistence, browser audit, primary switch, owner reassignment, or personnel persistence.
+- `clinicOwnerBranchApi.test.ts` and `AddBranchStepper.realData.test.tsx`: targeted RPC allowlist/hour/detail/error and UI-boundary regressions.
+- Local repair inventory: provider quota usage now counts `draft`/`pending`/`active`/`inactive` branches separately from active KPIs; branch details distinguish an empty legacy-hours result from true query failure; the stepper truthfully validates the backend-required core profile for Save Draft.
+- **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.**

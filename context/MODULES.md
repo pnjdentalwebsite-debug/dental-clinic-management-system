@@ -413,3 +413,11 @@
 - Clinic/business-hours RLS now keeps owner reads while routing owner mutations exclusively through the RPCs. Platform Admin and service-role behavior is retained through explicit policies/privileges.
 - The linked development database now contains the migration and both RPCs. Remote isolated validation passed for grants, RLS bypass prevention, safe create/update behavior, quota parsing, tenant isolation, audit authority, and zero persistent fixtures; real owner reads remain healthy.
 - **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.** No Edge Function or lifecycle RPC was added.
+
+## Phase 2E.3B.2B Clinic Owner Add/Edit Branch Frontend Cutover - August 31, 2026
+
+- `clinicOwnerApi.ts` now exposes typed create, update, exact-ID detail, safe DTO, error, and weekday-mapping adapters for the verified branch RPC contract. The create adapter alone includes `saveMode`; update excludes it and all protected fields.
+- `ClinicBranchesPage.tsx`, `ClinicBranchCreatePage.tsx`, and `AddBranchStepper.tsx` now route Add/View/Edit through the real branch boundary, read detail through RLS, refresh the owner provider after save, and remove mock clinic/platform/tenant/settings/audit authority from this runtime path.
+- The form preserves the approved stepper while making organization ownership, primary changes, and personnel assignment truthful deferred/read-only states. Quota display is catalog/provider UX only; `CLINIC_QUOTA_REACHED` remains a server result.
+- Local validation repair separates active branch counts from quota-consuming statuses and accepts zero persisted hours for legacy branch details without fabricating a schedule. Directory hours remain `Unavailable` because the safe directory DTO does not load hours per row.
+- **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.** Lifecycle mutations remain deferred.

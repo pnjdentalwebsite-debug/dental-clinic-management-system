@@ -8,6 +8,9 @@ import type { ClinicOwnerQuotaUsage } from '../../../infrastructure/supabase/cli
 
 interface Props {
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
+  onAddBranch?: () => void;
+  onViewBranch?: (clinicId: string) => void;
+  onEditBranch?: (clinicId: string) => void;
 }
 
 type BranchRow = {
@@ -50,7 +53,7 @@ function formatClinicQuota(quota: ClinicOwnerQuotaUsage) {
   return 'Unavailable';
 }
 
-export function ClinicBranchesPage({ showToast }: Props) {
+export function ClinicBranchesPage({ showToast, onAddBranch, onViewBranch, onEditBranch }: Props) {
   const ownerRead = useClinicOwnerRead();
   const bootstrap = ownerRead.bootstrap;
   const [searchTerm, setSearchTerm] = useState('');
@@ -132,27 +135,32 @@ export function ClinicBranchesPage({ showToast }: Props) {
   };
 
   const handleBulkActivate = () => {
-    showToast('Branch activation is read-only until Phase 2E.3B.2.', 'info');
+    showToast('Branch lifecycle changes are unavailable until the dedicated lifecycle phase.', 'info');
   };
 
   const handleBulkDeactivate = () => {
-    showToast('Branch deactivation is read-only until Phase 2E.3B.2.', 'info');
+    showToast('Branch lifecycle changes are unavailable until the dedicated lifecycle phase.', 'info');
   };
 
   const handleAction = (action: string, branch: BranchRow) => {
     if (action === 'Enter Clinic') {
       showToast(`Opening ${branch.name} is unavailable until its real-data workspace cutover.`, 'info');
     } else if (action === 'View Details') {
-      showToast(`Real branch details for ${branch.name} are read-only here until Phase 2E.3B.2.`, 'info');
+      onViewBranch?.(branch.id);
     } else if (action === 'Edit Branch') {
-      showToast(`Editing ${branch.name} is read-only until Phase 2E.3B.2.`, 'info');
+      onEditBranch?.(branch.id);
     } else {
-      showToast(`Branch action "${action}" is read-only until Phase 2E.3B.2.`, 'info');
+      showToast(`Branch action "${action}" is read-only until the dedicated lifecycle phase.`, 'info');
     }
   };
 
   const handleAddBranch = () => {
-    showToast('Branch creation is read-only until Phase 2E.3B.2.', 'info');
+    const quota = bootstrap?.quotas.clinics;
+    if (quota?.limit.kind === 'not_included' || (quota?.limit.kind === 'number' && quota.activeUsage >= quota.limit.value)) {
+      showToast('The current plan clinic limit has been reached. The server remains authoritative for branch eligibility.', 'warning');
+      return;
+    }
+    onAddBranch?.();
   };
 
   if (ownerRead.status !== 'ready' || !bootstrap) {

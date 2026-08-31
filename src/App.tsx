@@ -4433,18 +4433,17 @@ export default function App() {
             ) : currentRoute === '/clinic/branches' ? (
               <ClinicBranchesPage
                 showToast={showToast}
+                onAddBranch={() => setCurrentRoute('/clinic/branches/new')}
+                onViewBranch={(clinicId) => setCurrentRoute(`/clinic/branches/view/${clinicId}`)}
+                onEditBranch={(clinicId) => setCurrentRoute(`/clinic/branches/edit/${clinicId}`)}
               />
             ) : currentRoute === '/clinic/branches/new' ? (
               <ClinicBranchCreatePage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
                 showToast={showToast}
                 onBack={() => setCurrentRoute('/clinic/branches')}
               />
             ) : currentRoute.startsWith('/clinic/branches/view/') ? (
               <ClinicBranchCreatePage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
                 showToast={showToast}
                 mode="view"
                 branchId={currentRoute.replace('/clinic/branches/view/', '')}
@@ -4452,8 +4451,6 @@ export default function App() {
               />
             ) : currentRoute.startsWith('/clinic/branches/edit/') ? (
               <ClinicBranchCreatePage
-                loggedClinicName={loggedClinicName}
-                loggedUserEmail={loggedUserEmail}
                 showToast={showToast}
                 mode="edit"
                 branchId={currentRoute.replace('/clinic/branches/edit/', '')}

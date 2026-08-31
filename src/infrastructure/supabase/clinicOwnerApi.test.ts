@@ -19,6 +19,7 @@ type QueryLog = { table: string; filters: Array<[string, unknown]>; head: boolea
 function clientFixture(options: {
   memberships?: unknown[];
   subscriptionRows?: unknown[];
+  clinicRows?: unknown[];
   plan?: Record<string, unknown> | null;
   failTable?: string;
 } = {}) {
@@ -43,7 +44,7 @@ function clientFixture(options: {
   };
   const lists: Record<string, unknown[]> = {
     subscriptions: options.subscriptionRows ?? [{ id: 'subscription-1', subscriber_id: 'subscriber-authoritative', plan_id: 'plan-plus', status: 'active', billing_cycle: 'monthly', amount_centavos: 850000, starts_at: '2026-08-01T00:00:00Z', expires_at: '2026-09-01T00:00:00Z' }],
-    clinics: [
+    clinics: options.clinicRows ?? [
       { id: 'clinic-1', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-001', branch_type: 'main', name: 'Main Clinic', is_primary: true, status: 'active', email: 'clinic@example.com', contact_number: '0917', address_line_1: 'One Street', address_line_2: null, barangay: null, city: 'Bacoor', province: 'Cavite', postal_code: null, created_at: '2026-08-02T00:00:00Z' },
       { id: 'clinic-2', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-002', branch_type: 'satellite', name: 'Inactive Clinic', is_primary: false, status: 'inactive', email: null, contact_number: null, address_line_1: 'Two Street', address_line_2: null, barangay: null, city: 'Imus', province: 'Cavite', postal_code: null, created_at: '2026-08-03T00:00:00Z' },
     ],
@@ -123,8 +124,23 @@ describe('Clinic Owner authoritative read adapter', () => {
     expect(result.auditEvents).toEqual([
       expect.objectContaining({ id: 'audit-1', eventType: 'platform.registration.approved', clinicId: 'clinic-1' }),
     ]);
-    expect(result.resourceCounts).toEqual({ activeClinics: 1, activeLaboratories: 1, activeAssociates: 2, activeStaff: 4 });
+    expect(result.resourceCounts).toEqual({ activeClinics: 1, quotaConsumingClinics: 2, activeLaboratories: 1, activeAssociates: 2, activeStaff: 4 });
+    expect(result.quotas.clinics).toEqual({ key: 'clinics', limit: { kind: 'number', value: 3 }, activeUsage: 2 });
     expect(result.quotas.associates).toEqual({ key: 'associates', limit: { kind: 'number', value: 6 }, activeUsage: 2 });
+  });
+
+  it('keeps active-clinic KPIs separate from quota-consuming clinic statuses and excludes archived clinics', async () => {
+    const clinic = (id: string, status: string) => ({
+      id, subscriber_id: 'subscriber-authoritative', clinic_number: `CLN-${id}`, branch_type: id === '1' ? 'main' : 'satellite',
+      name: `Clinic ${id}`, is_primary: id === '1', status, email: 'clinic@example.com', contact_number: '0917',
+      address_line_1: 'One Street', address_line_2: null, barangay: null, city: 'Bacoor', province: 'Cavite', postal_code: null, created_at: '2026-08-02T00:00:00Z',
+    });
+    const { client } = clientFixture({ clinicRows: [clinic('1', 'active'), clinic('2', 'active'), clinic('3', 'draft'), clinic('4', 'archived')] });
+    const result = await getClinicOwnerBootstrap(client);
+
+    expect(result.resourceCounts.activeClinics).toBe(2);
+    expect(result.resourceCounts.quotaConsumingClinics).toBe(3);
+    expect(result.quotas.clinics.activeUsage).toBe(3);
   });
 
   it('does not silently select a first subscription', async () => {

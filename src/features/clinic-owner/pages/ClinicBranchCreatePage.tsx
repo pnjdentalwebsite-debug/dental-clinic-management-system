@@ -1,248 +1,135 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { AddBranchStepper } from '../components/AddBranchStepper';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
-import { resolveClinicOwnerContext } from '../services/tenantScope';
-import { branchSettingsStore } from '../../clinic-subsystem/settings/services/branchSettingsStore';
-import { mockAuditService } from '../../audit/services/mockAuditService';
+import { useClinicOwnerRead } from '../realData/ClinicOwnerReadProvider';
+import {
+  ClinicOwnerApiError,
+  clinicBranchHoursToForm,
+  clinicBranchInputFromForm,
+  createClinicBranch,
+  getClinicBranchDetail,
+  updateClinicBranch,
+  type ClinicOwnerClinicBranch,
+  type ClinicOwnerQuotaLimit,
+} from '../../../infrastructure/supabase/clinicOwnerApi';
 import type { ClinicFormData } from '../../clinics/types';
 
-
 interface Props {
-  loggedClinicName: string;
-  loggedUserEmail: string;
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onBack: () => void;
   mode?: 'create' | 'edit' | 'view';
   branchId?: string;
 }
 
-export function ClinicBranchCreatePage({
-  loggedClinicName,
-  loggedUserEmail,
-  showToast,
-  onBack,
-  mode = 'create',
-  branchId
-}: Props) {
+type DetailStatus = 'idle' | 'loading' | 'ready' | 'not_found' | 'unavailable';
+
+function detailToFormData(branch: ClinicOwnerClinicBranch): ClinicFormData {
+  return {
+    subscriberId: '', primaryOwnerUserId: '', branchType: branch.branchType, isPrimaryClinic: branch.isPrimary,
+    name: branch.name, legalBusinessName: branch.legalBusinessName ?? '', email: branch.email,
+    contactNumber: branch.contactNumber, alternativeContactNumber: branch.alternativeContactNumber ?? '',
+    addressLine1: branch.addressLine1, addressLine2: branch.addressLine2 ?? '', barangay: branch.barangay ?? '',
+    city: branch.city, province: branch.province, postalCode: branch.postalCode ?? '', country: branch.country,
+    timezone: branch.timezone, description: branch.description ?? '', logoFileName: '', logoFileType: '',
+    visibility: branch.visibility, businessHours: clinicBranchHoursToForm(branch.businessHours),
+    dentistUserIds: [], staffUserIds: [],
+  };
+}
+
+function quotaMessage(activeUsage: number, limit: ClinicOwnerQuotaLimit | undefined) {
+  if (!limit) return null;
+  if (limit.kind === 'number') return `${activeUsage} / ${limit.value}`;
+  if (limit.kind === 'unlimited') return `${activeUsage} / Unlimited`;
+  if (limit.kind === 'not_included') return `${activeUsage} / Not included`;
+  return 'Unavailable';
+}
+
+export function ClinicBranchCreatePage({ showToast, onBack, mode = 'create', branchId }: Props) {
+  const ownerRead = useClinicOwnerRead();
+  const bootstrap = ownerRead.bootstrap;
   const [savingBranch, setSavingBranch] = useState(false);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>(mode === 'create' ? 'ready' : 'idle');
+  const [detail, setDetail] = useState<ClinicOwnerClinicBranch | null>(null);
 
-  const ownerContext = useMemo(
-    () => resolveClinicOwnerContext(loggedUserEmail, loggedClinicName),
-    [loggedUserEmail, loggedClinicName]
-  );
-  const subscriberId = ownerContext.subscriberId;
-  const subscriber = ownerContext.subscriber;
-
-  const planCode = useMemo(() => {
-    const raw = subscriber?.planId || 'Max';
-    if (/max/i.test(raw)) return 'max';
-    if (/plus/i.test(raw)) return 'plus';
-    return 'basic';
-  }, [subscriber]);
-
-  const maxAllowedBranches = planCode === 'max' ? Infinity : planCode === 'plus' ? 3 : 1;
-
-  const subscriberUsers = useMemo(
-    () => (subscriberId ? mockPlatformManagementService.getUsersBySubscriberId(subscriberId) : []),
-    [subscriberId]
-  );
-  const existingClinic = useMemo(
-    () => (branchId ? mockClinicService.getClinicById(branchId) : null),
-    [branchId]
-  );
-  const existingBranchCount = useMemo(
-    () => (subscriberId ? mockClinicService.getClinicsBySubscriberId(subscriberId).length : mockClinicService.listClinics().length),
-    [subscriberId]
-  );
-
-  const isBranchQuotaReached = mode === 'create' && existingBranchCount >= maxAllowedBranches;
-
-  const initialData = useMemo(
-    () => (existingClinic ? mockClinicService.toFormData(existingClinic) : null),
-    [existingClinic]
-  );
-
-  const handleSaveBranch = (data: ClinicFormData, draft = false) => {
-    if (mode === 'view') {
-      onBack();
-      return;
+  useEffect(() => {
+    if (mode === 'create') {
+      setDetail(null);
+      setDetailStatus('ready');
+      return undefined;
     }
-
-    if (mode === 'create' && isBranchQuotaReached) {
-      showToast(`Branch creation blocked: Your ${planCode.toUpperCase()} Plan limit of ${maxAllowedBranches} branches has been reached. Please upgrade to Max Plan.`, 'warning');
-      return;
-    }
-
-    if (mode === 'edit' && existingClinic) {
-      const currentSnapshot = JSON.stringify(mockClinicService.toFormData(existingClinic));
-      const incomingSnapshot = JSON.stringify(data);
-      if (currentSnapshot === incomingSnapshot) {
-        showToast(`No branch changes detected for ${existingClinic.clinicNumber}.`, 'info');
-        return;
-      }
-    }
-
-    setSavingBranch(true);
-    const result =
-      mode === 'edit' && existingClinic
-        ? mockClinicService.updateClinic(existingClinic.id, data)
-        : mockClinicService.createClinic(data, draft, false);
-
-    if (!result.ok || !result.data) {
-      setSavingBranch(false);
-      showToast(
-        result.error || (mode === 'edit' ? 'Branch update failed. Please review the branch fields and try again.' : 'Branch creation failed. Please review the branch fields and try again.'),
-        'error'
-      );
-      return;
-    }
-
-    setSavingBranch(false);
-
-    // Eagerly initialize branch settings storage for new branches so defaults are
-    // persisted before the workspace is first opened (triggers safeRead → writes defaults).
-    if (mode === 'create' && !draft && result.data.id) {
-      branchSettingsStore.getSettings(result.data.id);
-      mockAuditService.appendAuditEvent({
-        action: 'branch.settings_initialized',
-        category: 'clinic',
-        module: 'clinic_branches',
-        targetType: 'clinic',
-        targetId: result.data.id,
-        targetLabel: result.data.clinicNumber,
-        result: 'success',
-        severity: 'low',
-        summary: `Branch settings storage initialized with defaults for ${result.data.clinicNumber}.`
+    if (ownerRead.status !== 'ready' || !branchId) return undefined;
+    let current = true;
+    setDetail(null);
+    setDetailStatus('loading');
+    void getClinicBranchDetail(branchId)
+      .then((next) => {
+        if (!current) return;
+        setDetail(next);
+        setDetailStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (!current) return;
+        setDetailStatus(error instanceof ClinicOwnerApiError && error.code === 'CLINIC_NOT_FOUND' ? 'not_found' : 'unavailable');
       });
-    }
+    return () => { current = false; };
+  }, [branchId, mode, ownerRead.status]);
 
-    showToast(
-      mode === 'edit'
-        ? `Branch ${result.data.clinicNumber} updated successfully.`
-        : draft
-          ? `Branch draft ${result.data.clinicNumber} saved successfully. You can continue editing later.`
-          : `Branch ${result.data.clinicNumber} created successfully.`,
-      mode === 'edit' ? 'success' : draft ? 'info' : 'success'
-    );
-    onBack();
+  const initialData = useMemo(() => detail ? detailToFormData(detail) : null, [detail]);
+  const clinicQuota = bootstrap?.quotas.clinics;
+  const quotaDisplay = quotaMessage(clinicQuota?.activeUsage ?? 0, clinicQuota?.limit);
+  const quotaReached = mode === 'create' && (clinicQuota?.limit.kind === 'not_included'
+    || (clinicQuota?.limit.kind === 'number' && clinicQuota.activeUsage >= clinicQuota.limit.value));
+
+  const handleSaveBranch = async (data: ClinicFormData, draft = false) => {
+    if (mode === 'view') return onBack();
+    const branchToUpdate = mode === 'edit' ? detail : null;
+    if (mode === 'edit' && !branchToUpdate) return;
+    setSavingBranch(true);
+    try {
+      const input = clinicBranchInputFromForm(data);
+      const saved = branchToUpdate
+        ? await updateClinicBranch(branchToUpdate.id, input)
+        : await createClinicBranch({ ...input, saveMode: draft ? 'draft' : 'active' });
+      await ownerRead.refresh();
+      showToast(mode === 'edit'
+        ? `Branch ${saved.clinicNumber} updated successfully.`
+        : draft ? `Branch draft ${saved.clinicNumber} saved successfully.` : `Branch ${saved.clinicNumber} created successfully.`, draft ? 'info' : 'success');
+      onBack();
+    } catch (error) {
+      showToast(error instanceof ClinicOwnerApiError ? error.message : 'Branch service is temporarily unavailable. Please try again.', 'error');
+    } finally {
+      setSavingBranch(false);
+    }
   };
 
+  const pageEyebrow = mode === 'view' ? 'Branch Details' : mode === 'edit' ? 'Edit Branch' : 'Clinic Branches';
+  const pageTitle = mode === 'view' ? 'View Branch' : mode === 'edit' ? 'Edit Branch' : 'Add New Branch';
+  const organizationName = bootstrap?.subscriber.businessName || 'your organization';
+  const pageDescription = mode === 'view' ? 'Review this RLS-protected branch using the existing guided workflow.'
+    : mode === 'edit' ? `Update the operational branch profile for ${detail?.name || organizationName}.`
+      : `Create a new operational branch under ${organizationName}.`;
 
-  const pageEyebrow =
-    mode === 'view' ? 'Branch Details' : mode === 'edit' ? 'Edit Branch' : 'Clinic Branches';
-  const pageTitle =
-    mode === 'view' ? 'View Branch' : mode === 'edit' ? 'Edit Branch' : 'Add New Branch';
-  const pageDescription =
-    mode === 'view'
-      ? 'Review this branch using the same guided workflow as branch creation.'
-      : mode === 'edit'
-        ? `Update the operational branch profile for ${existingClinic?.name || loggedClinicName}.`
-        : `Create a new operational branch under ${loggedClinicName}.`;
-
-  return (
-    <div style={{ display: 'grid', gap: '1.25rem' }}>
-      <div
-        className="dashboard-panel"
-        style={{
-          margin: 0,
-          padding: 'var(--card-pad)',
-          borderRadius: 'var(--radius-lg)',
-          display: 'grid',
-          gap: '1rem'
-        }}
-      >
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={onBack}
-          style={{ width: 'fit-content', padding: '0.5rem 1rem' }}
-        >
-          <ArrowLeft size={16} />
-          Back to Clinic Branches
-        </button>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'start', flexWrap: 'wrap' }}>
-          <div style={{ display: 'grid', gap: '0.35rem' }}>
-            <span
-              style={{
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--primary)'
-              }}
-            >
-              {pageEyebrow}
-            </span>
-            <h1 style={{ margin: 0, fontSize: '1.9rem', fontWeight: 800 }}>{pageTitle}</h1>
-            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>{pageDescription}</p>
-          </div>
-        </div>
+  return <div style={{ display: 'grid', gap: '1.25rem' }}>
+    <div className="dashboard-panel" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)', display: 'grid', gap: '1rem' }}>
+      <button type="button" className="btn btn-outline" onClick={onBack} style={{ width: 'fit-content', padding: '0.5rem 1rem' }}><ArrowLeft size={16} /> Back to Clinic Branches</button>
+      <div style={{ display: 'grid', gap: '0.35rem' }}>
+        <span style={{ fontSize: '0.74rem', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--primary)' }}>{pageEyebrow}</span>
+        <h1 style={{ margin: 0, fontSize: '1.9rem', fontWeight: 800 }}>{pageTitle}</h1>
+        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>{pageDescription}</p>
       </div>
-
-      {isBranchQuotaReached && (
-        <div style={{
-          backgroundColor: '#fffbeb',
-          border: '1px solid #fde68a',
-          borderRadius: '12px',
-          padding: '1.25rem 1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          color: '#92400e'
-        }}>
-          <ShieldAlert size={28} style={{ color: '#d97706', flexShrink: 0 }} />
-          <div>
-            <strong style={{ fontSize: '0.95rem', display: 'block', color: '#78350f', marginBottom: '0.2rem' }}>
-              Plan Branch Limit Reached ({existingBranchCount} / {maxAllowedBranches})
-            </strong>
-            <span style={{ fontSize: '0.85rem' }}>
-              Your current <strong>{planCode.toUpperCase()} Plan</strong> tier supports up to <strong>{maxAllowedBranches} clinic {maxAllowedBranches === 1 ? 'branch' : 'branches'}</strong>. You have reached your allocated quota. Please upgrade to the <strong>Max Plan</strong> to provision unlimited clinic locations.
-            </span>
-          </div>
-        </div>
-      )}
-
-      {!subscriberId ? (
-        <div className="dashboard-panel" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ marginTop: 0 }}>
-            {ownerContext.status === 'pending_approval' ? 'Account approval in progress' : 'No subscriber context found'}
-          </h3>
-          <p style={{ marginBottom: 0, color: 'var(--text-secondary)' }}>
-            {ownerContext.message ||
-              'This clinic owner account is missing subscriber linkage, so branch creation cannot continue yet.'}
-          </p>
-        </div>
-      ) : (mode === 'edit' || mode === 'view') && !existingClinic ? (
-        <div className="dashboard-panel" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ marginTop: 0 }}>Branch record not found</h3>
-          <p style={{ marginBottom: 0, color: 'var(--text-secondary)' }}>
-            The requested branch could not be loaded, so this workflow cannot continue.
-          </p>
-          <div style={{ marginTop: '1rem' }}>
-            <button type="button" className="btn btn-outline" style={{ width: 'auto' }} onClick={onBack}>
-              Return to Branch List
-            </button>
-          </div>
-        </div>
-      ) : (
-        <section className="clinic-dashboard-panel" aria-label="Branch registration stepper">
-          <AddBranchStepper
-            subscriberId={subscriberId}
-            users={subscriberUsers}
-            existingBranchCount={existingBranchCount}
-            mode={mode}
-            initialData={initialData}
-            branchNumberPreview={existingClinic?.clinicNumber}
-            saving={savingBranch}
-            renderMode="page"
-            onClose={onBack}
-            onSave={handleSaveBranch}
-          />
-        </section>
-      )}
     </div>
-  );
+
+    {quotaReached && <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', color: '#92400e' }}>
+      <ShieldAlert size={28} style={{ color: '#d97706', flexShrink: 0 }} />
+      <div><strong style={{ display: 'block', color: '#78350f' }}>Current plan clinic limit reached ({quotaDisplay})</strong><span style={{ fontSize: '0.85rem' }}>The server will confirm current plan eligibility when you save a branch.</span></div>
+    </div>}
+
+    {ownerRead.status !== 'ready' || !bootstrap ? <div className="dashboard-panel" role={ownerRead.loading ? 'status' : 'alert'} style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}>
+      <h3 style={{ marginTop: 0 }}>{ownerRead.loading ? 'Loading branch access…' : 'Branch access unavailable'}</h3>
+      <p style={{ marginBottom: 0, color: 'var(--text-secondary)' }}>{ownerRead.loading ? 'Loading your RLS-protected Clinic Owner context.' : ownerRead.error}</p>
+    </div> : detailStatus === 'loading' || detailStatus === 'idle' ? <div className="dashboard-panel" role="status" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}>Loading the current branch record…</div>
+      : detailStatus === 'not_found' ? <div className="dashboard-panel" role="alert" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}><h3 style={{ marginTop: 0 }}>Branch record not found</h3><p style={{ marginBottom: 0, color: 'var(--text-secondary)' }}>This branch is unavailable in your authorized Clinic Owner scope.</p></div>
+        : detailStatus === 'unavailable' ? <div className="dashboard-panel" role="alert" style={{ margin: 0, padding: 'var(--card-pad)', borderRadius: 'var(--radius-lg)' }}><h3 style={{ marginTop: 0 }}>Branch service unavailable</h3><p style={{ marginBottom: 0, color: 'var(--text-secondary)' }}>The branch could not be loaded. No local data was substituted.</p></div>
+          : <section className="clinic-dashboard-panel" aria-label="Branch registration stepper"><AddBranchStepper ownerDisplayName={bootstrap.owner.displayName} mode={mode} initialData={initialData} businessHoursConfigured={detail?.businessHoursConfigured ?? true} branchNumberPreview={detail?.clinicNumber} saving={savingBranch} renderMode="page" onClose={onBack} onSave={handleSaveBranch} /></section>}
+  </div>;
 }

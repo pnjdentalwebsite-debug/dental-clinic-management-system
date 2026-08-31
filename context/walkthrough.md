@@ -1644,3 +1644,12 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 8. Remote concurrency and late rollback injection were not run for safety; passed local two-connection and forced-late-failure proofs remain the validation evidence. Remote lint has no schema errors and advisors have no security error; intentional RPC and pre-existing project warnings are recorded.
 9. Add/Edit Branch remains unwired/read-only, and activate/deactivate/delete/set-primary/archive/restore remain outside this subphase.
 10. **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.** Phase 2E.3B.2 remains incomplete.
+
+## Phase 2E.3B.2B Local Frontend Validation - August 31, 2026
+
+1. Add Branch now enters the existing real route, and View/Edit enter the existing UUID routes. The Branch page reads the current record and seven hours through owner RLS rather than using the directory cache or mock storage.
+2. Active create uses the deployed create RPC; Save as Draft sends `saveMode: draft`; edit uses the deployed update RPC without `saveMode` or protected identity/tenant/lifecycle fields. A successful response refreshes the Clinic Owner provider before returning to the directory.
+3. The stepper preserves its approved structure. The authenticated owner is read-only, unsaved identity says `Generated on save`, primary branching is read-only/deferred, and associate/staff assignment is deferred pending its own real-data cutover.
+4. Focused local tests cover RPC names/allowlist, seven-day mapping, safe errors, exact-ID detail reads, real route navigation, deferred controls, no mock imports, and existing Clinic Owner read regressions. Browser validation is still required; lifecycle mutations remain out of scope.
+5. Local regression repair now counts quota-consuming clinic statuses separately from active dashboard usage, accepts an empty legacy-hours detail without defaults or a generic error, and blocks unsupported blank Draft saves. Directory hours remain `Unavailable` without N+1 detail reads; View/Edit still require the second live browser validation.
+6. **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.**

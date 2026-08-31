@@ -658,3 +658,15 @@
 - [x] Pass remote schema lint/security error gates; record intentional SECURITY DEFINER advisor warnings and retain local concurrency/rollback proofs where remote injection was skipped for safety.
 - [ ] Wire the existing Add/Edit Branch UI in Phase 2E.3B.2B only after remote backend validation.
 - **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.** Do not mark Phase 2E.3B.2 complete.
+
+## Phase 2E.3B.2B Clinic Owner Add/Edit Branch Frontend Cutover - August 31, 2026
+
+- [x] Replace the targeted Add/Edit/View Branch mock/local workflow with typed adapters for the already deployed authenticated RPC contract.
+- [x] Read current branch detail by exact UUID through owner RLS; map all seven UI business-hour days explicitly and submit only the server-approved create/update allowlist.
+- [x] Navigate Add/View/Edit through the existing branch routes; preserve the stepper UI; make owner/primary/personnel controls truthful read-only/deferred; remove fake unsaved branch identity and targeted mock side effects.
+- [x] Refresh the authoritative Clinic Owner provider after successful active or draft create and after update; leave all lifecycle operations disabled.
+- [x] Add focused adapter, stepper, directory, and existing owner-read regressions; run focused tests, production build, and diff check before live validation.
+- [ ] Run live browser validation against the already deployed branch RPCs. Do not mark 2E.3B.2 complete until it passes.
+- [x] Repair local validation defects: quota-consuming clinic usage is distinct from active-only KPI usage; empty legacy business-hours details load truthfully; Save Draft requires the backend-required core identity/contact/address fields; lifecycle actions remain controlled/non-mutating.
+- [ ] Perform the second live browser validation for quota-boundary, legacy-hours, and new-branch View/Edit routes.
+- **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.**

@@ -70,6 +70,7 @@ const bootstrap: ClinicOwnerBootstrap = {
   }],
   resourceCounts: {
     activeClinics: 1,
+    quotaConsumingClinics: 1,
     activeLaboratories: 0,
     activeAssociates: 6,
     activeStaff: 12,
@@ -105,7 +106,7 @@ describe('Phase 2E.3B.1 Clinic Owner Dashboard real-data cutover', () => {
     expect(screen.getAllByText('Angelo Dental Clinic').length).toBeGreaterThan(0);
     expect(screen.getByText('Plus Subscription')).toBeInTheDocument();
 
-    const clinicsCard = screen.getByText('Total Clinics').closest('.metric-card') as HTMLElement;
+    const clinicsCard = screen.getByText('Active Clinics').closest('.metric-card') as HTMLElement;
     const associatesCard = screen.getByText('Associate Dentists').closest('.metric-card') as HTMLElement;
     const staffCard = screen.getByText('Staff Members').closest('.metric-card') as HTMLElement;
     expect(within(clinicsCard).getByText('1')).toBeInTheDocument();
@@ -153,21 +154,55 @@ describe('Phase 2E.3B.1 Clinic Branch Directory real-data cutover', () => {
     expect(screen.getByText('Clinic quota: 1 / 3')).toBeInTheDocument();
   });
 
-  it('keeps branch writes controlled-unavailable and leaves mock storage unchanged', async () => {
+  it('uses real-route navigation for branch add/edit while lifecycle actions remain unavailable', async () => {
     const user = userEvent.setup();
     const showToast = vi.fn();
+    const onAddBranch = vi.fn();
+    const onEditBranch = vi.fn();
     const stored = JSON.stringify([{ id: 'fake', name: 'Do Not Mutate' }]);
     localStorage.setItem('pnj_mock_clinics', stored);
-    renderWithOwnerRead(<ClinicBranchesPage showToast={showToast} />);
+    renderWithOwnerRead(<ClinicBranchesPage showToast={showToast} onAddBranch={onAddBranch} onEditBranch={onEditBranch} />);
     await screen.findAllByText('Angelo Dental Clinic');
 
     await user.click(screen.getByRole('button', { name: '+ Add Branch' }));
-    expect(showToast).toHaveBeenCalledWith('Branch creation is read-only until Phase 2E.3B.2.', 'info');
+    expect(onAddBranch).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Branch actions' }));
+    await user.click(screen.getByRole('button', { name: 'Edit Branch' }));
+    expect(onEditBranch).toHaveBeenCalledWith('clinic-real-uuid');
 
     await user.click(screen.getByRole('button', { name: 'Branch actions' }));
     await user.click(screen.getByRole('button', { name: 'Deactivate Branch' }));
-    expect(showToast).toHaveBeenCalledWith('Branch action "Deactivate" is read-only until Phase 2E.3B.2.', 'info');
+    expect(showToast).toHaveBeenCalledWith('Branch action "Deactivate" is read-only until the dedicated lifecycle phase.', 'info');
     expect(localStorage.getItem('pnj_mock_clinics')).toBe(stored);
+  });
+
+  it('shows quota-consuming usage at 3 / 3 while active branch count remains 2, and keeps Draft Activate non-mutating', async () => {
+    const user = userEvent.setup();
+    const showToast = vi.fn();
+    const quotaBootstrap: ClinicOwnerBootstrap = {
+      ...bootstrap,
+      clinics: [
+        bootstrap.clinics[0],
+        { ...bootstrap.clinics[0], id: 'clinic-active-2', clinicNumber: 'CLN-REAL-002', name: 'Testing Clinic', isPrimary: false },
+        { ...bootstrap.clinics[0], id: 'clinic-draft', clinicNumber: 'CLN-REAL-003', name: 'testdraft', isPrimary: false, status: 'draft' },
+      ],
+      resourceCounts: { ...bootstrap.resourceCounts, activeClinics: 2, quotaConsumingClinics: 3 },
+      quotas: { ...bootstrap.quotas, clinics: { key: 'clinics', limit: { kind: 'number', value: 3 }, activeUsage: 3 } },
+    };
+    const { loadBootstrap } = renderWithOwnerRead(<ClinicBranchesPage showToast={showToast} onAddBranch={vi.fn()} />, quotaBootstrap);
+    await screen.findByText('Clinic quota: 3 / 3');
+    expect(screen.getByText('Active Branches').closest('.metric-card')).toHaveTextContent('2');
+
+    await user.click(screen.getByRole('button', { name: '+ Add Branch' }));
+    expect(showToast).toHaveBeenCalledWith('The current plan clinic limit has been reached. The server remains authoritative for branch eligibility.', 'warning');
+
+    const actionButtons = screen.getAllByRole('button', { name: 'Branch actions' });
+    await user.click(actionButtons[2]);
+    await user.click(screen.getByRole('button', { name: 'Activate Branch' }));
+    expect(showToast).toHaveBeenCalledWith('Branch action "Activate" is read-only until the dedicated lifecycle phase.', 'info');
+    expect(loadBootstrap).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('testdraft')).toBeInTheDocument();
   });
 
   it('restores the same provider directory after a page remount/direct-refresh equivalent', async () => {
@@ -180,14 +215,18 @@ describe('Phase 2E.3B.1 Clinic Branch Directory real-data cutover', () => {
     expect(second.loadBootstrap).toHaveBeenCalledTimes(1);
   });
 
-  it('contains no legacy tenant or mock-storage authority in the two pages', () => {
+  it('contains no legacy tenant or mock-storage authority in the branch runtime path', () => {
     const dashboardSource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/pages/ClinicOwnerDashboardPage.tsx'), 'utf8');
     const branchesSource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/pages/ClinicBranchesPage.tsx'), 'utf8');
+    const branchFormSource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/pages/ClinicBranchCreatePage.tsx'), 'utf8');
+    const stepperSource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/components/AddBranchStepper.tsx'), 'utf8');
     const activitySource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/components/ActivityFeed.tsx'), 'utf8');
     const headerSource = readFileSync(resolve(process.cwd(), 'src/features/clinic-owner/components/ClinicOwnerHeader.tsx'), 'utf8');
 
-    for (const source of [dashboardSource, branchesSource]) {
-      expect(source).not.toMatch(/tenantScope|mockClinicService|mockPlatformManagementService|localStorage|sessionStorage/);
+    for (const source of [dashboardSource, branchesSource, branchFormSource, stepperSource]) {
+      expect(source).not.toMatch(/tenantScope|mockClinicService|mockPlatformManagementService|branchSettingsStore|mockAuditService|localStorage|sessionStorage/);
+    }
+    for (const source of [dashboardSource, branchesSource, branchFormSource]) {
       expect(source).toContain('useClinicOwnerRead');
     }
     expect(activitySource).not.toMatch(/mockClinicService|loadPatientDirectoryRecords|aggregateClinicFinancials|Clinic Branch Active|Clinical Master Files Synced/);
