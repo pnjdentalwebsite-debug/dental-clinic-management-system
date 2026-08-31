@@ -78,7 +78,7 @@ export function ClinicOwnerDashboardPage({ showToast }: Props) {
       </div>
 
       <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--card-gap)', margin: 0 }}>
-        <DashboardSummaryCard label="Total Clinics" value={String(bootstrap.resourceCounts.activeClinics)} icon={Building2} trend="Active branches" status="info" />
+        <DashboardSummaryCard label="Active Clinics" value={String(bootstrap.resourceCounts.activeClinics)} icon={Building2} trend="Active branches" status="info" />
         <DashboardSummaryCard label="Associate Dentists" value={String(bootstrap.resourceCounts.activeAssociates)} icon={UserSquare2} trend="Active associates" status="success" />
         <DashboardSummaryCard label="Staff Members" value={String(bootstrap.resourceCounts.activeStaff)} icon={Users} trend="Active staff" status="neutral" />
         <DashboardSummaryCard label="Total Patients" value="Unavailable" icon={Users} trend="Pending patient real-data cutover" status="warning" />
