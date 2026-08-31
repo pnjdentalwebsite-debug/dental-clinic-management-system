@@ -411,4 +411,5 @@
 - `public.update_my_clinic_branch(p_clinic_id uuid, p_input jsonb)`: same-tenant editable-profile/hours boundary that preserves subscriber, clinic number, status, primary state, and lifecycle timestamps; cross-tenant UUIDs return safe not-found behavior.
 - `app_private` branch helpers: private owner mutation context, normalized clinic/hour input, fail-closed current-plan clinic quota parsing, and safe DTO construction. Browser roles have no helper execution privilege.
 - Clinic/business-hours RLS now keeps owner reads while routing owner mutations exclusively through the RPCs. Platform Admin and service-role behavior is retained through explicit policies/privileges.
-- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** No Edge Function or lifecycle RPC was added.
+- The linked development database now contains the migration and both RPCs. Remote isolated validation passed for grants, RLS bypass prevention, safe create/update behavior, quota parsing, tenant isolation, audit authority, and zero persistent fixtures; real owner reads remain healthy.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.** No Edge Function or lifecycle RPC was added.

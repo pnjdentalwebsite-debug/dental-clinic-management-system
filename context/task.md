@@ -654,6 +654,7 @@
 - [x] Make branch, seven-day business-hours, and audit changes atomic; protect current primary identity and defer all lifecycle/primary-switch APIs.
 - [x] Remove Clinic Owner direct table-write bypasses while preserving owner reads and legitimate Platform Admin/service-role access.
 - [x] Pass focused/full pgTAP database suites, genuine two-connection 2-of-3 concurrency validation, clean shadow migration/schema diff, schema lint/security error gates, production build, and diff checks.
-- [ ] Deploy the migration to the linked development project and perform authenticated remote contract validation in a separately authorized deployment pass.
+- [x] Confirm migration `20260831011234` is the latest linked-development migration and remotely validate RPC/helper grants, RLS policy behavior, create/update, quota variants, tenant isolation, safe errors, audit authority, authenticated real-owner reads, and zero fixture residue.
+- [x] Pass remote schema lint/security error gates; record intentional SECURITY DEFINER advisor warnings and retain local concurrency/rollback proofs where remote injection was skipped for safety.
 - [ ] Wire the existing Add/Edit Branch UI in Phase 2E.3B.2B only after remote backend validation.
-- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** Do not mark Phase 2E.3B.2 complete.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.** Do not mark Phase 2E.3B.2 complete.

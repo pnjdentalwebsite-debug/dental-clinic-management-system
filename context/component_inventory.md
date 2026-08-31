@@ -617,4 +617,5 @@
 - `clinic_branch_mutation_backend_contract.sql`: pgTAP authority, validation, RLS, quota, create/update, rollback, primary-invariant, audit, and safe-DTO regression suite.
 - `clinic_branch_mutation_concurrency.ps1`: real two-connection subscriber-lock/quota race validation proving one success, one quota rejection, and one committed branch/audit row at a 2-of-3 boundary.
 - No React component, route, page, form, or browser adapter changed; Add/Edit Branch controls remain read-only.
-- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.**
+- Remote inventory verification confirms one deployed copy of each RPC/helper, authenticated-only public execution, browser-inaccessible private helpers, one business-hours constraint/trigger, and the intended owner-read/Platform-write policy split. Transaction-scoped validation left zero fixtures.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT REMOTELY DEPLOYED / REMOTE CONTRACT VALIDATED / FRONTEND NOT WIRED / READY FOR CHECKPOINT.**
