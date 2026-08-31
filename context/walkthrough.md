@@ -1673,5 +1673,15 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 3. Run the Edge/Deno tests. Confirm a browser cannot supply subscriber/role/password authority, Auth failures leave no database Associate, database failures compensate the new Auth user, credential delivery failure retains safe retry state, retries rotate credentials, and no response contains a password or secret.
 4. Serve the new function locally and verify an anonymous POST is HTTP 401. This verifies the configured authenticated boundary; do not use a live tenant or real credential email during local validation.
 5. Remote deployment applied only migration `20260831133106`, `provision-associate-dentist` (JWT version 1), and `complete-initial-password` (JWT version 2). Remote inspection verified the service-only contract/RLS, anonymous HTTP 401, unchanged subscriber/clinic counts, zero Associate records, and Plus quota `0 / 6`; no credential email was sent.
-6. The browser Add/Edit flow remains controlled unavailable. Do not wire `AssociateDentistsPage`, `AssociateDentistFormPage`, or `App.tsx` until an explicit frontend-cutover subphase begins.
+6. The browser Add/Edit flow remained controlled unavailable at this backend checkpoint; its separately authorized local Phase 2E.3C.3A implementation is recorded below.
 7. **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
+
+## Phase 2E.3C.3A Local Associate Add / Edit Validation - August 31, 2026
+
+1. Confirm `/clinic/dentists` shows the truthful real empty directory and an enabled Add action when the provider reports quota capacity; it must not create a sample Associate.
+2. Confirm Add submits only the approved personal/professional fields plus selected active-clinic UUIDs to `provision-associate-dentist`. No subscriber, role, temporary password, generated number, or browser credential is present.
+3. Confirm Create success refreshes the provider/directory and only reports safe credential-delivery status; failure leaves the entered form intact and never fabricates a local row or password.
+4. Confirm Edit loads only the route’s exact `subscriber_memberships.id`, retains email read-only, replaces clinic assignments through the authenticated local `update-associate-dentist` boundary, and refreshes only after confirmed success.
+5. Confirm lifecycle actions remain disabled with later-phase messaging. The local Edge boundary and frontend are not deployed in this subphase; no live Associate/Auth/assignment/email validation was run.
+6. Local evidence: strict adapter/UI tests, four Edge logic tests, 70 focused Clinic Owner/branch tests, and production build passed.
+7. **PHASE 2E.3C.3A = ASSOCIATE DENTIST ADD / EDIT FRONTEND REAL-DATA CUTOVER / LOCALLY IMPLEMENTED / CONTROLLED LIVE MUTATION VALIDATION REQUIRED.**

@@ -645,6 +645,14 @@
 - `provision-associate-dentist/index.ts` and `logic.ts`: authenticated, fixed-role provisioning endpoint with safe response/error mapping, server-side Auth creation/compensation, and credential-delivery retry. No plaintext credential is a browser DTO field.
 - `registration-email.ts`: server-only initial Associate credential email helper using the existing endpoint/token/from secret contract.
 - `complete-initial-password/logic.ts`: first-login completion now works for the new password-gated Associate membership model as well as the existing Clinic Owner model.
-- `AssociateDentistsPage.tsx`, `AssociateDentistFormPage.tsx`, `App.tsx`, and the existing disabled Add/Edit controls are intentionally unchanged; no frontend write cutover exists in this subphase.
+- `AssociateDentistsPage.tsx`, `AssociateDentistFormPage.tsx`, and `App.tsx` remained unchanged during this backend-only subphase; their later local frontend cutover is recorded below.
 - Remote inventory confirms the backend assets are active with JWT verification and the real tenant still has zero Associate profiles/assignments; no browser mutation was enabled.
 - **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3C.3A Associate Add / Edit Frontend Inventory
+
+- `AssociateDentistsPage.tsx`: real provider quota gates Add; Add/Edit routes use no mock records and lifecycle menu actions remain disabled.
+- `AssociateDentistFormPage.tsx` and `AssociateDentistStepper.tsx`: real provider clinic UUID selection, strict supported-field form, immutable Edit email, no password/credential UI, unsaved-change confirmation, duplicate-submit prevention, and safe error rendering.
+- `clinicOwnerAssociateApi.ts`: strict create/edit browser allowlists and safe Edge result/error DTOs. Detail DTO now supplies exact real name/address fields required for Edit hydration.
+- `update-associate-dentist/`: local JWT-protected Edge boundary for `update_my_associate_dentist`; it is required because that verified RPC is intentionally service-role-only. No remote deploy occurred.
+- **PHASE 2E.3C.3A = ASSOCIATE DENTIST ADD / EDIT FRONTEND REAL-DATA CUTOVER / LOCALLY IMPLEMENTED / CONTROLLED LIVE MUTATION VALIDATION REQUIRED.**

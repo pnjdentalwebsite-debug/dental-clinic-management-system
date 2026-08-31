@@ -438,4 +438,11 @@
 - `supabase/functions/complete-initial-password/logic.ts`: accepts the established active password-gated Associate membership for initial-password completion, without changing the Clinic Owner client flow.
 - `associate_dentist_provisioning_edit_backend_contract.sql`, `associate_dentist_provisioning_concurrency.ps1`, and Edge logic tests cover local contract/RLS/audit behavior, a real final-slot race, failure compensation, credential-delivery retry, and safe outputs.
 - Remote deployment applied the migration, `provision-associate-dentist` version 1, and `complete-initial-password` version 2 with JWT verification. Remote-safe inspection confirmed zero Associate records, unchanged tenant counts, Plus `0 / 6` usage, and anonymous endpoint denial.
-- The existing Associate Dentist directory/detail UI and generic `provision-member-account` module remain unwired for writes. **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
+- The generic `provision-member-account` module remains unwired for this Associate flow. **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
+
+## Phase 2E.3C.3A Associate Dentist Add / Edit Frontend Modules - August 31, 2026
+
+- `AssociateDentistsPage.tsx` now enables Add only when the provider’s normalized Associate quota permits and routes Edit by the exact real membership ID; lifecycle actions remain disabled.
+- `AssociateDentistFormPage.tsx` and `AssociateDentistStepper.tsx` reuse the approved form presentation for only supported fields. They consume provider clinics, show immutable email for Edit, omit password/privileges/laboratory/visibility/schedule/lifecycle mock fields, and do not persist local state.
+- `clinicOwnerAssociateApi.ts` owns strict browser payload construction, safe Edge error mapping, and refresh-compatible create/edit result DTOs. `update-associate-dentist` is a new local authenticated Edge boundary for the existing service-only edit RPC and is pending deployment.
+- **PHASE 2E.3C.3A = ASSOCIATE DENTIST ADD / EDIT FRONTEND REAL-DATA CUTOVER / LOCALLY IMPLEMENTED / CONTROLLED LIVE MUTATION VALIDATION REQUIRED.**

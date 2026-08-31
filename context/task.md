@@ -693,5 +693,14 @@
 - [x] Remove direct browser owner writes for Associate memberships/profiles/assignments while preserving reads and Platform Admin/service-role operation.
 - [x] Pass local migration, pgTAP/RLS/audit, real two-session quota-race, Deno Edge/first-login, focused 2E.3C.1/branch regression, local anonymous-401, lint, and production-build checks.
 - [x] Deploy exactly migration `20260831133106`, new JWT-protected `provision-associate-dentist`, and updated JWT-protected `complete-initial-password`; verify remote SQL/RLS/grants/function inventory, anonymous denial, zero fixture residue, and retained Plus `0 / 6` read state.
-- [ ] Start the separate Associate Add/Edit frontend cutover only with explicit next-phase authorization; do not wire the existing disabled controls merely because backend deployment passed.
+- [x] Implement the separate Associate Add/Edit frontend cutover locally with explicit Phase 2E.3C.3A authorization; do not deploy or create a live Associate during implementation.
 - **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
+
+## Phase 2E.3C.3A Associate Dentist Add / Edit Frontend Cutover - August 31, 2026
+
+- [x] Wire `/clinic/dentists/new` to the authenticated Associate provisioning Edge Function with the exact approved field allowlist and no browser authority/password fields.
+- [x] Wire `/clinic/dentists/edit/:membershipId` to exact real detail loading and the local authenticated Edit boundary; retain immutable email and real clinic UUID replacement.
+- [x] Use provider clinic/quota data for UX, refresh authoritative provider state after confirmed success, preserve form data on failure, and keep lifecycle/mocks/localStorage/password UI unavailable.
+- [x] Pass focused frontend/backend boundary and Clinic Owner/branch regression tests plus production build without remote mutation.
+- [ ] Deploy the local `update-associate-dentist` Edge boundary and perform one separately authorized controlled live create/edit validation. Do not start lifecycle work.
+- **PHASE 2E.3C.3A = ASSOCIATE DENTIST ADD / EDIT FRONTEND REAL-DATA CUTOVER / LOCALLY IMPLEMENTED / CONTROLLED LIVE MUTATION VALIDATION REQUIRED.**

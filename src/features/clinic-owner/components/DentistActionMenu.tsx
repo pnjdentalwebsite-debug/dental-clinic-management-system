@@ -116,7 +116,7 @@ export function DentistActionMenu({ status, onAction, readOnly = false }: Props)
             <button
               type="button"
               disabled={readOnly}
-              title={readOnly ? 'Available after secure provisioning cutover' : undefined}
+              title={readOnly ? 'Available in a later lifecycle phase' : undefined}
               onClick={() => {
                 onAction('Edit Associate Dentist');
                 setOpen(false);
@@ -143,7 +143,7 @@ export function DentistActionMenu({ status, onAction, readOnly = false }: Props)
               <button
                 type="button"
                 disabled
-                title="Available after secure provisioning cutover"
+                title="Available in a later lifecycle phase"
                 onClick={() => {
                   onAction('Save As Draft');
                   setOpen(false);
@@ -173,7 +173,7 @@ export function DentistActionMenu({ status, onAction, readOnly = false }: Props)
               <button
                 type="button"
                 disabled
-                title="Available after secure provisioning cutover"
+                title="Available in a later lifecycle phase"
                 onClick={() => {
                   onAction('Activate Associate Dentist');
                   setOpen(false);
@@ -199,7 +199,7 @@ export function DentistActionMenu({ status, onAction, readOnly = false }: Props)
               <button
                 type="button"
                 disabled
-                title="Available after secure provisioning cutover"
+                title="Available in a later lifecycle phase"
                 onClick={() => {
                   onAction('Set Associate Dentist Inactive');
                   setOpen(false);
