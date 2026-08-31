@@ -24,6 +24,7 @@ interface Props {
   onToggleSelectId?: (id: string) => void;
   onBulkActivate?: () => void;
   onBulkDeactivate?: () => void;
+  lifecycleActionsDeferred?: boolean;
   onClearSelection?: () => void;
   currentPage?: number;
   pageSize?: number;
@@ -43,6 +44,7 @@ export function ClinicBranchTable({
   onToggleSelectId,
   onBulkActivate,
   onBulkDeactivate,
+  lifecycleActionsDeferred = false,
   onClearSelection,
   currentPage = 1,
   pageSize = 10,
@@ -93,7 +95,9 @@ export function ClinicBranchTable({
             {onBulkActivate && (
               <button
                 type="button"
-                onClick={onBulkActivate}
+                onClick={lifecycleActionsDeferred ? undefined : onBulkActivate}
+                disabled={lifecycleActionsDeferred}
+                title={lifecycleActionsDeferred ? 'Available in a later lifecycle phase' : undefined}
                 className="btn btn-outline"
                 style={{
                   fontSize: '0.78rem',
@@ -102,7 +106,7 @@ export function ClinicBranchTable({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  color: '#059669',
+                  color: lifecycleActionsDeferred ? 'var(--text-muted)' : '#059669',
                   borderColor: 'rgba(5, 150, 105, 0.3)'
                 }}
               >
@@ -112,7 +116,9 @@ export function ClinicBranchTable({
             {onBulkDeactivate && (
               <button
                 type="button"
-                onClick={onBulkDeactivate}
+                onClick={lifecycleActionsDeferred ? undefined : onBulkDeactivate}
+                disabled={lifecycleActionsDeferred}
+                title={lifecycleActionsDeferred ? 'Available in a later lifecycle phase' : undefined}
                 className="btn btn-outline"
                 style={{
                   fontSize: '0.78rem',
@@ -121,7 +127,7 @@ export function ClinicBranchTable({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  color: '#dc2626',
+                  color: lifecycleActionsDeferred ? 'var(--text-muted)' : '#dc2626',
                   borderColor: 'rgba(220, 38, 38, 0.3)'
                 }}
               >

@@ -8,6 +8,7 @@ import type { ClinicOwnerBootstrap } from '../../../infrastructure/supabase/clin
 import { ClinicOwnerReadProvider } from '../realData/ClinicOwnerReadProvider';
 import { ClinicOwnerDashboardPage } from './ClinicOwnerDashboardPage';
 import { ClinicBranchesPage } from './ClinicBranchesPage';
+import { ClinicBranchActionMenu } from '../components/ClinicBranchActionMenu';
 
 const bootstrap: ClinicOwnerBootstrap = {
   auth: { userId: 'auth-owner' },
@@ -154,7 +155,7 @@ describe('Phase 2E.3B.1 Clinic Branch Directory real-data cutover', () => {
     expect(screen.getByText('Clinic quota: 1 / 3')).toBeInTheDocument();
   });
 
-  it('uses real-route navigation for branch add/edit while lifecycle actions remain unavailable', async () => {
+  it('uses real-route navigation for branch add/edit while existing-branch lifecycle controls are visibly unavailable', async () => {
     const user = userEvent.setup();
     const showToast = vi.fn();
     const onAddBranch = vi.fn();
@@ -172,12 +173,50 @@ describe('Phase 2E.3B.1 Clinic Branch Directory real-data cutover', () => {
     expect(onEditBranch).toHaveBeenCalledWith('clinic-real-uuid');
 
     await user.click(screen.getByRole('button', { name: 'Branch actions' }));
-    await user.click(screen.getByRole('button', { name: 'Deactivate Branch' }));
-    expect(showToast).toHaveBeenCalledWith('Branch action "Deactivate" is read-only until the dedicated lifecycle phase.', 'info');
+    expect(screen.getByRole('button', { name: /Save As Draft/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Deactivate Branch/ })).toBeDisabled();
+    expect(showToast).not.toHaveBeenCalled();
     expect(localStorage.getItem('pnj_mock_clinics')).toBe(stored);
   });
 
-  it('shows quota-consuming usage at 3 / 3 while active branch count remains 2, and keeps Draft Activate non-mutating', async () => {
+  it('routes each row and the selected side preview with the exact branch UUID, never the initial primary selection', async () => {
+    const user = userEvent.setup();
+    const onViewBranch = vi.fn();
+    const onEditBranch = vi.fn();
+    const multiClinicBootstrap: ClinicOwnerBootstrap = {
+      ...bootstrap,
+      clinics: [
+        bootstrap.clinics[0],
+        { ...bootstrap.clinics[0], id: 'clinic-testing-uuid', clinicNumber: 'CLN-TESTING', name: 'Testing Clinic', isPrimary: false },
+        { ...bootstrap.clinics[0], id: 'clinic-draft-uuid', clinicNumber: 'CLN-DRAFT', name: 'testdraft', isPrimary: false, status: 'draft' },
+      ],
+    };
+    renderWithOwnerRead(<ClinicBranchesPage showToast={vi.fn()} onViewBranch={onViewBranch} onEditBranch={onEditBranch} />, multiClinicBootstrap);
+    await screen.findByText('Testing Clinic');
+
+    const menuAction = async (rowIndex: number, label: RegExp) => {
+      await user.click(screen.getAllByRole('button', { name: 'Branch actions' })[rowIndex]);
+      await user.click(screen.getByRole('button', { name: label }));
+    };
+    await menuAction(0, /View Branch Details/);
+    expect(onViewBranch).toHaveBeenLastCalledWith('clinic-real-uuid');
+    await menuAction(1, /View Branch Details/);
+    expect(onViewBranch).toHaveBeenLastCalledWith('clinic-testing-uuid');
+    await menuAction(1, /Edit Information/);
+    expect(onEditBranch).toHaveBeenLastCalledWith('clinic-testing-uuid');
+    await menuAction(2, /View Branch Details/);
+    expect(onViewBranch).toHaveBeenLastCalledWith('clinic-draft-uuid');
+    await menuAction(2, /Edit Information/);
+    expect(onEditBranch).toHaveBeenLastCalledWith('clinic-draft-uuid');
+
+    await user.click(screen.getByText('Testing Clinic'));
+    await user.click(screen.getByRole('button', { name: 'View Details' }));
+    expect(onViewBranch).toHaveBeenLastCalledWith('clinic-testing-uuid');
+    await user.click(screen.getByRole('button', { name: 'Edit Branch' }));
+    expect(onEditBranch).toHaveBeenLastCalledWith('clinic-testing-uuid');
+  });
+
+  it('shows quota-consuming usage at 3 / 3 while active branch count remains 2 and lifecycle actions are disabled', async () => {
     const user = userEvent.setup();
     const showToast = vi.fn();
     const quotaBootstrap: ClinicOwnerBootstrap = {
@@ -199,10 +238,30 @@ describe('Phase 2E.3B.1 Clinic Branch Directory real-data cutover', () => {
 
     const actionButtons = screen.getAllByRole('button', { name: 'Branch actions' });
     await user.click(actionButtons[2]);
-    await user.click(screen.getByRole('button', { name: 'Activate Branch' }));
-    expect(showToast).toHaveBeenCalledWith('Branch action "Activate" is read-only until the dedicated lifecycle phase.', 'info');
+    expect(screen.getByRole('button', { name: /Activate Branch/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Save As Draft/ })).toBeDisabled();
     expect(loadBootstrap).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('testdraft')).toBeInTheDocument();
+    expect(screen.getAllByText('testdraft')).not.toHaveLength(0);
+  });
+
+  it('keeps only View and Edit enabled in existing-branch menus without dispatching lifecycle actions', async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    const active = render(<ClinicBranchActionMenu status="active" onAction={onAction} />);
+    await user.click(screen.getByRole('button', { name: 'Branch actions' }));
+    expect(screen.getByRole('button', { name: 'View Branch Details' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Edit Information' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Save As Draft/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Deactivate Branch/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'View Branch Details' }));
+    expect(onAction).toHaveBeenCalledWith('View Details');
+    active.unmount();
+
+    const draft = render(<ClinicBranchActionMenu status="draft" onAction={onAction} />);
+    await user.click(screen.getByRole('button', { name: 'Branch actions' }));
+    expect(screen.getByRole('button', { name: /Activate Branch/ })).toBeDisabled();
+    expect(onAction).toHaveBeenCalledTimes(1);
+    draft.unmount();
   });
 
   it('restores the same provider directory after a page remount/direct-refresh equivalent', async () => {

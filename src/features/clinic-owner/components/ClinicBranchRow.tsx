@@ -186,7 +186,7 @@ export function ClinicBranchRow({
         style={{ padding: '0.9rem 1rem', textAlign: 'right' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <ClinicBranchActionMenu status={branch.status} onAction={(action) => onAction(action, branch)} />
+        <ClinicBranchActionMenu status={branch.status} onOpen={onSelect} onAction={(action) => onAction(action, branch)} />
       </td>
     </tr>
   );

@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ArrowRightCircle, Edit3, Eye, FileText, MoreVertical, Power, PowerOff } from 'lucide-react';
 import { Portal } from '../../../components/overlays/Portal';
 
 interface Props {
   status?: string;
+  onOpen?: () => void;
   onAction: (action: string) => void;
 }
 
-export function ClinicBranchActionMenu({ status, onAction }: Props) {
+export function ClinicBranchActionMenu({ status, onOpen, onAction }: Props) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,7 +32,10 @@ export function ClinicBranchActionMenu({ status, onAction }: Props) {
     };
   }, [open]);
 
-  const toggle = () => setOpen(!open);
+  const toggle = () => {
+    if (!open) onOpen?.();
+    setOpen(!open);
+  };
 
   const normalizedStatus = status?.toLowerCase() || 'inactive';
   const isActive = normalizedStatus === 'active';
@@ -46,6 +50,19 @@ export function ClinicBranchActionMenu({ status, onAction }: Props) {
   };
 
   const pos = getMenuPosition();
+  const deferredActionStyle: CSSProperties = {
+    padding: '8px 12px',
+    fontSize: '0.82rem',
+    textAlign: 'left',
+    border: 'none',
+    background: 'none',
+    cursor: 'not-allowed',
+    color: 'var(--text-muted)',
+    opacity: 0.62,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  };
 
   return (
     <>
@@ -161,84 +178,20 @@ export function ClinicBranchActionMenu({ status, onAction }: Props) {
               Edit Information
             </button>
 
-            {normalizedStatus !== 'draft' && (
-              <button
-                type="button"
-                onClick={() => {
-                  onAction('Save As Draft');
-                  setOpen(false);
-                }}
-                style={{
-                  padding: '8px 12px',
-                  fontSize: '0.82rem',
-                  textAlign: 'left',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                <FileText size={14} style={{ color: '#d97706' }} />
-                Save As Draft
-              </button>
-            )}
+            <button type="button" disabled title="Available in a later lifecycle phase" style={deferredActionStyle}>
+              <FileText size={14} />
+              Save As Draft · Available later
+            </button>
 
             <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
 
-            {!isActive ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onAction('Activate');
-                  setOpen(false);
-                }}
-                style={{
-                  padding: '8px 12px',
-                  fontSize: '0.82rem',
-                  textAlign: 'left',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  color: '#059669',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                <Power size={14} />
-                Activate Branch
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  onAction('Deactivate');
-                  setOpen(false);
-                }}
-                style={{
-                  padding: '8px 12px',
-                  fontSize: '0.82rem',
-                  textAlign: 'left',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  color: '#dc2626',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}
-              >
-                <PowerOff size={14} />
-                Deactivate Branch
-              </button>
-            )}
+            <button type="button" disabled title="Available in a later lifecycle phase" style={deferredActionStyle}>
+              {isActive ? <PowerOff size={14} /> : <Power size={14} />}
+              {isActive ? 'Deactivate Branch' : 'Activate Branch'} · Available later
+            </button>
           </div>
         </Portal>
       )}
     </>
   );
 }
-

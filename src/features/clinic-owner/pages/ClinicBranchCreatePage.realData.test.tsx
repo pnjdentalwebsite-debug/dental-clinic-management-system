@@ -54,11 +54,11 @@ const configuredBranch = {
   businessHoursConfigured: true,
 };
 
-function renderPage(mode: 'create' | 'view' | 'edit') {
+function renderPage(mode: 'create' | 'view' | 'edit', branchId = branch.id) {
   const loadBootstrap = vi.fn().mockResolvedValue(bootstrap);
   const view = render(
     <ClinicOwnerReadProvider enabled loadBootstrap={loadBootstrap}>
-      <ClinicBranchCreatePage mode={mode} branchId={branch.id} onBack={vi.fn()} showToast={vi.fn()} />
+      <ClinicBranchCreatePage mode={mode} branchId={branchId} onBack={vi.fn()} showToast={vi.fn()} />
     </ClinicOwnerReadProvider>,
   );
   return { ...view, loadBootstrap };
@@ -80,6 +80,13 @@ describe('Clinic Owner branch detail routes', () => {
     await user.click(screen.getByRole('button', { name: advance }));
     await user.click(screen.getByRole('button', { name: advance }));
     expect(screen.queryByText('Operating hours are not configured for this legacy branch. Select the hours to include when saving changes.')).not.toBeInTheDocument();
+  });
+
+  it.each(['clinic-primary-uuid', 'clinic-testing-uuid', 'clinic-draft-uuid'])('passes the route branch UUID %s to the detail reader unchanged', async (routeBranchId) => {
+    branchApi.getClinicBranchDetail.mockResolvedValue(configuredBranch);
+    renderPage('view', routeBranchId);
+    await screen.findByDisplayValue('Real Branch');
+    expect(branchApi.getClinicBranchDetail).toHaveBeenCalledWith(routeBranchId);
   });
 
   it('loads a legacy zero-hours branch with an explicit not-configured state', async () => {

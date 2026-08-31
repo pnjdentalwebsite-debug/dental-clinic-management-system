@@ -667,6 +667,6 @@
 - [x] Refresh the authoritative Clinic Owner provider after successful active or draft create and after update; leave all lifecycle operations disabled.
 - [x] Add focused adapter, stepper, directory, and existing owner-read regressions; run focused tests, production build, and diff check before live validation.
 - [ ] Run live browser validation against the already deployed branch RPCs. Do not mark 2E.3B.2 complete until it passes.
-- [x] Repair local validation defects: quota-consuming clinic usage is distinct from active-only KPI usage; empty legacy business-hours details load truthfully; Save Draft requires the backend-required core identity/contact/address fields; lifecycle actions remain controlled/non-mutating.
-- [ ] Perform the second live browser validation for quota-boundary, legacy-hours, and new-branch View/Edit routes.
-- **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.**
+- [x] Repair second live-validation blockers: action-menu and side-preview routes use exact row UUIDs; persisted-branch lifecycle controls are visibly disabled; create-form Save Draft remains separate and validated.
+- [ ] Perform browser re-validation for primary/testing/draft exact routes, disabled lifecycle controls, `3 / 3` quota, refresh, and logout protection. Zero-hours behavior remains automated-only because no destructive fixture is authorized.
+- **PHASE 2E.3B.2B = SECOND LIVE BROWSER VALIDATION BLOCKERS FIXED LOCALLY / LIVE BROWSER RE-VALIDATION REQUIRED.**

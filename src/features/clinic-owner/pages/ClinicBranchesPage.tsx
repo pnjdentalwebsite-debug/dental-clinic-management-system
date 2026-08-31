@@ -143,12 +143,13 @@ export function ClinicBranchesPage({ showToast, onAddBranch, onViewBranch, onEdi
   };
 
   const handleAction = (action: string, branch: BranchRow) => {
+    const clinicId = branch.id;
     if (action === 'Enter Clinic') {
       showToast(`Opening ${branch.name} is unavailable until its real-data workspace cutover.`, 'info');
     } else if (action === 'View Details') {
-      onViewBranch?.(branch.id);
+      onViewBranch?.(clinicId);
     } else if (action === 'Edit Branch') {
-      onEditBranch?.(branch.id);
+      onEditBranch?.(clinicId);
     } else {
       showToast(`Branch action "${action}" is read-only until the dedicated lifecycle phase.`, 'info');
     }
@@ -275,6 +276,7 @@ export function ClinicBranchesPage({ showToast, onAddBranch, onViewBranch, onEdi
           onToggleSelectId={handleToggleSelectId}
           onBulkActivate={handleBulkActivate}
           onBulkDeactivate={handleBulkDeactivate}
+          lifecycleActionsDeferred
           onClearSelection={handleClearSelection}
           currentPage={currentPage}
           pageSize={pageSize}

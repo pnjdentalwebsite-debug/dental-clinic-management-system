@@ -626,5 +626,6 @@
 - `ClinicBranchesPage.tsx` and `App.tsx`: existing branch routes now navigate to real Add/View/Edit flows using the real clinic UUID; lifecycle actions remain controlled unavailable.
 - `ClinicBranchCreatePage.tsx` and `AddBranchStepper.tsx`: real provider identity/detail/refresh integration while preserving the existing stepper UI; no mock identity, fake branch ID, local persistence, browser audit, primary switch, owner reassignment, or personnel persistence.
 - `clinicOwnerBranchApi.test.ts` and `AddBranchStepper.realData.test.tsx`: targeted RPC allowlist/hour/detail/error and UI-boundary regressions.
-- Local repair inventory: provider quota usage now counts `draft`/`pending`/`active`/`inactive` branches separately from active KPIs; branch details distinguish an empty legacy-hours result from true query failure; the stepper truthfully validates the backend-required core profile for Save Draft.
-- **PHASE 2E.3B.2B = ADD/EDIT BRANCH FRONTEND REAL-DATA CUTOVER LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION IN PROGRESS.**
+- `ClinicBranchActionMenu.tsx`, `ClinicBranchRow.tsx`, and `ClinicBranchTable.tsx`: action-menu opening selects its owning row; exact UUID View/Edit remain enabled, while persisted-branch lifecycle controls and bulk lifecycle controls are visibly disabled without callbacks.
+- Zero-hours legacy detail behavior remains automated coverage only because no current linked-tenant clinic safely supplies that condition for browser re-validation.
+- **PHASE 2E.3B.2B = SECOND LIVE BROWSER VALIDATION BLOCKERS FIXED LOCALLY / LIVE BROWSER RE-VALIDATION REQUIRED.**
