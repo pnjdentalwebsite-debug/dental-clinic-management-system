@@ -503,6 +503,12 @@ entrypoint = "./functions/provision-member-account/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/provision-member-account/*.html" ]
 
+[functions.provision-associate-dentist]
+enabled = true
+verify_jwt = true
+import_map = "./functions/provision-associate-dentist/deno.json"
+entrypoint = "./functions/provision-associate-dentist/index.ts"
+
 [functions.platform-registration-review-list]
 enabled = true
 verify_jwt = true

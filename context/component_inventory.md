@@ -638,3 +638,12 @@
 - `clinicOwnerAssociateApi.test.ts` and `AssociateDentistsPage.realData.test.tsx`: cover bounded tenant-scoped reads, exact detail identity, RLS-hidden not-found, assignment isolation, real membership routing, empty/error behavior, and no mock/localStorage write fallback.
 - Live validation confirmed the real zero-row directory, authoritative `0 / 6` Associate quota, hard refresh, disabled mutation/credential paths, and logout protection. Exact detail/routing/assignment scenarios remain covered by these focused tests only because the tenant has no Associate fixture and none was created.
 - **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3C.2A Associate Provisioning Backend Inventory
+
+- `20260831133106_associate_dentist_provisioning_edit_backend_contract.sql`: Associate-specific server ledger/RPC/RLS contract; it does not alter React routes, pages, or approved UI.
+- `provision-associate-dentist/index.ts` and `logic.ts`: authenticated, fixed-role provisioning endpoint with safe response/error mapping, server-side Auth creation/compensation, and credential-delivery retry. No plaintext credential is a browser DTO field.
+- `registration-email.ts`: server-only initial Associate credential email helper using the existing endpoint/token/from secret contract.
+- `complete-initial-password/logic.ts`: first-login completion now works for the new password-gated Associate membership model as well as the existing Clinic Owner model.
+- `AssociateDentistsPage.tsx`, `AssociateDentistFormPage.tsx`, `App.tsx`, and the existing disabled Add/Edit controls are intentionally unchanged; no frontend write cutover exists in this subphase.
+- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / LOCALLY IMPLEMENTED / REMOTE DEPLOYMENT / VERIFICATION REQUIRED.**

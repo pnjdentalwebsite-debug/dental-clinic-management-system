@@ -429,3 +429,12 @@
 - Boundary: Add, Edit, account provisioning, credentials, assignment changes, bulk actions, and lifecycle actions are visibly unavailable. No mock directory/detail service, email tenant lookup, localStorage authority, or plaintext password flow participates in this runtime path.
 - Live validation confirmed a legitimate zero-Associate/zero-assignment tenant, truthful no-row presentation, summary `0`, provider quota `0 / 6`, hard refresh, unavailable writes, and logout protection. Exact Associate detail/routing/assignment behavior remains automated-only regression coverage because no artificial live Associate was created.
 - **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
+
+## Phase 2E.3C.2A Secure Associate Provisioning / Edit Modules - August 31, 2026
+
+- `20260831133106_associate_dentist_provisioning_edit_backend_contract.sql`: local additive Associate-only ledger, private owner/input/quota/clinic helpers, service-role-only create/auth-record/complete/retry/delivery/edit RPCs, generated Associate number, audits, and narrowed owner write policies.
+- `supabase/functions/provision-associate-dentist/`: authenticated server boundary with a fixed Associate role, strict request allowlist, secure temporary credential generation, safe global-email conflict handling, Auth compensation, delivery retry/rotation, and password-free responses.
+- `supabase/functions/_shared/registration-email.ts`: adds the server-only Associate initial-credential mail message while retaining the configured provider-neutral gateway and server-held secrets.
+- `supabase/functions/complete-initial-password/logic.ts`: accepts the established active password-gated Associate membership for initial-password completion, without changing the Clinic Owner client flow.
+- `associate_dentist_provisioning_edit_backend_contract.sql`, `associate_dentist_provisioning_concurrency.ps1`, and Edge logic tests cover local contract/RLS/audit behavior, a real final-slot race, failure compensation, credential-delivery retry, and safe outputs.
+- The existing Associate Dentist directory/detail UI and generic `provision-member-account` module remain unwired for writes. **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = LOCALLY IMPLEMENTED / REMOTE DEPLOYMENT / VERIFICATION REQUIRED.**

@@ -72,6 +72,11 @@ class FakeQuery {
     return this;
   }
 
+  in(column: string, values: unknown[]): this {
+    this.filters.push([`in:${column}`, values]);
+    return this;
+  }
+
   limit(value: number): this {
     this.maximum = value;
     return this;
@@ -99,8 +104,12 @@ class FakeQuery {
         return { data: null, error: { code: "test" } };
       }
       const matches = this.admin.memberships.filter((membership) =>
-        this.filters.every(
-          ([column, value]) => membership[column as keyof Membership] === value,
+        this.filters.every(([column, value]) =>
+          column.startsWith("in:")
+            ? (value as unknown[]).includes(
+              membership[column.slice(3) as keyof Membership],
+            )
+            : membership[column as keyof Membership] === value
         )
       );
       return {
@@ -114,8 +123,12 @@ class FakeQuery {
         return { data: null, error: { code: "test" } };
       }
       const match = this.admin.memberships.find((membership) =>
-        this.filters.every(
-          ([column, value]) => membership[column as keyof Membership] === value,
+        this.filters.every(([column, value]) =>
+          column.startsWith("in:")
+            ? (value as unknown[]).includes(
+              membership[column.slice(3) as keyof Membership],
+            )
+            : membership[column as keyof Membership] === value
         )
       );
       if (!match || this.admin.finalizationReturnsNoRow) {
@@ -269,6 +282,14 @@ Deno.test("wrong membership role is rejected", async () => {
   admin.memberships = [owner({ role: "staff" })];
   const result = await invoke(admin, { newPassword: "ValidPassword123" });
   assertEquals(result.body.error.code, "NO_ACTIVE_CLINIC_OWNER_MEMBERSHIP");
+});
+
+Deno.test("an active Associate can complete the mandatory first-login password change", async () => {
+  const admin = new FakeAdmin();
+  admin.memberships = [owner({ role: "associate" })];
+  const result = await invoke(admin, { newPassword: "ValidPassword123" });
+  assertEquals(result.body, { completed: true, mustChangePassword: false });
+  assertEquals(admin.memberships[0].must_change_password, false);
 });
 
 Deno.test("already-completed state never rotates Auth password", async () => {

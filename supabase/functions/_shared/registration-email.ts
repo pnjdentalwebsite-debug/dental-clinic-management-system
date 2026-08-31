@@ -16,6 +16,11 @@ export interface InitialClinicOwnerCredentialEmail {
   temporaryPassword: string;
 }
 
+export interface InitialAssociateCredentialEmail {
+  to: string;
+  temporaryPassword: string;
+}
+
 /**
  * Provider-neutral HTTP email boundary. Configure an internal mail gateway or
  * provider adapter outside the registration domain; secrets remain server-side.
@@ -59,6 +64,20 @@ export async function sendInitialClinicOwnerCredentialEmail(
     subject: 'Your PJ Dental Clinic Owner account',
     text: [
       `Clinic Owner account: ${message.to}`,
+      `Temporary password: ${message.temporaryPassword}`,
+      'Sign in with this temporary credential and change your password immediately on first login.',
+    ].join('\n\n'),
+  });
+}
+
+export async function sendInitialAssociateCredentialEmail(
+  message: InitialAssociateCredentialEmail,
+): Promise<void> {
+  await sendRegistrationEmail({
+    to: message.to,
+    subject: 'Your PJ Dental Associate Dentist account',
+    text: [
+      `Associate Dentist account: ${message.to}`,
       `Temporary password: ${message.temporaryPassword}`,
       'Sign in with this temporary credential and change your password immediately on first login.',
     ].join('\n\n'),

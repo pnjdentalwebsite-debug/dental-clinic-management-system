@@ -7,11 +7,11 @@ type InitialPasswordContext = {
   supabaseAdmin: any;
 };
 
-type OwnerMembership = {
+type FirstLoginMembership = {
   id: string;
   subscriber_id: string;
   user_id: string;
-  role: "clinic_owner";
+  role: "clinic_owner" | "associate";
   account_status: "active";
   must_change_password: boolean;
   password_changed_at: string | null;
@@ -106,7 +106,7 @@ export function accessTokenFromRequest(request: Request): string {
 async function safeFailureAudit(
   // deno-lint-ignore no-explicit-any
   admin: any,
-  membership: OwnerMembership,
+  membership: FirstLoginMembership,
   userId: string,
   eventType: string,
   failureCode: string,
@@ -163,7 +163,7 @@ export async function handleInitialPasswordCompletion(
         "id, subscriber_id, user_id, role, account_status, must_change_password, password_changed_at",
       )
       .eq("user_id", userId)
-      .eq("role", "clinic_owner")
+      .in("role", ["clinic_owner", "associate"])
       .eq("account_status", "active")
       .limit(2);
     if (membershipError || !Array.isArray(memberships)) {
@@ -188,7 +188,7 @@ export async function handleInitialPasswordCompletion(
       );
     }
 
-    const membership = memberships[0] as OwnerMembership;
+    const membership = memberships[0] as FirstLoginMembership;
     if (!membership.must_change_password) {
       throw new InitialPasswordApiError(
         "INITIAL_PASSWORD_ALREADY_COMPLETED",
@@ -218,7 +218,7 @@ export async function handleInitialPasswordCompletion(
       })
       .eq("id", membership.id)
       .eq("user_id", userId)
-      .eq("role", "clinic_owner")
+      .in("role", ["clinic_owner", "associate"])
       .eq("account_status", "active")
       .eq("must_change_password", true)
       .select("id, subscriber_id, must_change_password, password_changed_at")
@@ -245,6 +245,7 @@ export async function handleInitialPasswordCompletion(
       entity_type: "subscriber_membership",
       entity_id: membership.id,
       metadata: {
+        role: membership.role,
         must_change_password: { from: true, to: false },
         password_changed_at: passwordChangedAt,
       },

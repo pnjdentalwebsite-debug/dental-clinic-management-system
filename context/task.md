@@ -682,3 +682,15 @@
 - [x] Complete live directory validation: legitimate zero-row state, no sample data, summary `0`, provider quota `0 / 6`, hard refresh, unavailable writes/credentials, cross-tenant observation, logout-to-login, and no runtime errors or remote data mutation.
 - [x] Retain exact detail/routing/assignment and detail-refresh/logout scenarios as focused automated regression coverage because no real Associate/assignment exists in the authenticated tenant; no artificial fixture was created.
 - **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.** Do not start Phase 2E.3C.2.
+
+## Phase 2E.3C.2A Secure Associate Dentist Provisioning / Edit Backend Contract - August 31, 2026
+
+- [x] Create the additive local migration and Associate-specific service-only provisioning/edit/credential-retry contract.
+- [x] Derive exact eligible Clinic Owner/subscriber authority server-side; require completed first-login state and never accept browser tenant/role/actor/password authority.
+- [x] Resolve the persisted subscription plan limit, lock quota-affecting work, validate all active same-subscriber clinic UUIDs, generate the Associate number server-side, and write all authoritative records/audits transactionally.
+- [x] Generate/deliver temporary credentials server-side only; fail closed for existing Auth email identities; retain safe recovery/rotation state without password persistence or response exposure.
+- [x] Support mandatory Associate first-login completion in the existing Edge helper without changing the Clinic Owner frontend flow.
+- [x] Remove direct browser owner writes for Associate memberships/profiles/assignments while preserving reads and Platform Admin/service-role operation.
+- [x] Pass local migration, pgTAP/RLS/audit, real two-session quota-race, Deno Edge/first-login, focused 2E.3C.1/branch regression, local anonymous-401, lint, and production-build checks.
+- [ ] Deploy the migration and `provision-associate-dentist` Edge Function remotely, then run controlled remote backend validation. Do not enable the Associate Add/Edit frontend before that verification.
+- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / LOCALLY IMPLEMENTED / REMOTE DEPLOYMENT / VERIFICATION REQUIRED.**
