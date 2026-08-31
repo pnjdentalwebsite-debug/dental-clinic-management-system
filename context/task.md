@@ -679,5 +679,6 @@
 - [x] Map real status, safe professional fields, clinics, and provider quota without fabricated fallback values; leave unavailable legacy fields truthful.
 - [x] Keep Add/Edit/provisioning/password/assignment/lifecycle and bulk status operations non-mutating and visibly unavailable.
 - [x] Pass focused local adapter, detail, routing, tenant-isolation, empty/error, no-localStorage, disabled-control, and existing Clinic Owner read regressions.
-- [ ] Run live browser validation for directory load, direct detail refresh, tenant-scoped clinic assignments, empty/error behavior, disabled write controls, and logout protection. Do not start Phase 2E.3C.2.
-- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**
+- [x] Complete live directory validation: legitimate zero-row state, no sample data, summary `0`, provider quota `0 / 6`, hard refresh, unavailable writes/credentials, cross-tenant observation, logout-to-login, and no runtime errors or remote data mutation.
+- [x] Retain exact detail/routing/assignment and detail-refresh/logout scenarios as focused automated regression coverage because no real Associate/assignment exists in the authenticated tenant; no artificial fixture was created.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.** Do not start Phase 2E.3C.2.

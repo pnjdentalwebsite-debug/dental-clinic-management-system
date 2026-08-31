@@ -832,5 +832,6 @@ All 5 core reporting tables feature a **`min-height: 500px` `.table-container` w
 - [x] Route View actions and direct details by exact real Associate `subscriber_memberships.id`; render only safe profile, professional, status, and same-subscriber clinic-assignment fields with controlled loading, empty, unavailable, and not-found states.
 - [x] Derive summary statuses and Associate quota usage from real records and normalized provider quota data; disable Add/Edit/bulk/lifecycle actions pending a secure write/provisioning contract.
 - [x] Pass focused adapter, route, detail, tenant-isolation, assignment, error/empty, provider, and write-boundary regressions locally.
-- [ ] Complete live browser validation of the authenticated Clinic Owner Associate Dentist directory/detail routes. Do not start Associate provisioning, edits, assignments, or lifecycle writes in this subphase.
-- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LOCALLY IMPLEMENTED / LIVE BROWSER VALIDATION REQUIRED.**
+- [x] Complete controlled live directory validation: real empty state, no sample rows, summary `0`, authoritative Plus Associate quota `0 / 6`, hard refresh, disabled write controls, no credential flow, and logout protection all passed without runtime errors or remote data mutation.
+- [x] Record exact Associate detail/routing/assignment behavior as focused automated-regression coverage only because the authenticated tenant has zero Associate records and assignments; no artificial live fixture was created.
+- **PHASE 2E.3C.1 / ASSOCIATE DENTIST DIRECTORY / DETAIL REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR VERIFIED CHECKPOINT.**
