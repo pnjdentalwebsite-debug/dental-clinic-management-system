@@ -646,4 +646,5 @@
 - `registration-email.ts`: server-only initial Associate credential email helper using the existing endpoint/token/from secret contract.
 - `complete-initial-password/logic.ts`: first-login completion now works for the new password-gated Associate membership model as well as the existing Clinic Owner model.
 - `AssociateDentistsPage.tsx`, `AssociateDentistFormPage.tsx`, `App.tsx`, and the existing disabled Add/Edit controls are intentionally unchanged; no frontend write cutover exists in this subphase.
-- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / LOCALLY IMPLEMENTED / REMOTE DEPLOYMENT / VERIFICATION REQUIRED.**
+- Remote inventory confirms the backend assets are active with JWT verification and the real tenant still has zero Associate profiles/assignments; no browser mutation was enabled.
+- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**

@@ -692,5 +692,6 @@
 - [x] Support mandatory Associate first-login completion in the existing Edge helper without changing the Clinic Owner frontend flow.
 - [x] Remove direct browser owner writes for Associate memberships/profiles/assignments while preserving reads and Platform Admin/service-role operation.
 - [x] Pass local migration, pgTAP/RLS/audit, real two-session quota-race, Deno Edge/first-login, focused 2E.3C.1/branch regression, local anonymous-401, lint, and production-build checks.
-- [ ] Deploy the migration and `provision-associate-dentist` Edge Function remotely, then run controlled remote backend validation. Do not enable the Associate Add/Edit frontend before that verification.
-- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / LOCALLY IMPLEMENTED / REMOTE DEPLOYMENT / VERIFICATION REQUIRED.**
+- [x] Deploy exactly migration `20260831133106`, new JWT-protected `provision-associate-dentist`, and updated JWT-protected `complete-initial-password`; verify remote SQL/RLS/grants/function inventory, anonymous denial, zero fixture residue, and retained Plus `0 / 6` read state.
+- [ ] Start the separate Associate Add/Edit frontend cutover only with explicit next-phase authorization; do not wire the existing disabled controls merely because backend deployment passed.
+- **PHASE 2E.3C.1 = COMPLETE / VERIFIED CHECKPOINT. PHASE 2E.3C.2A = SECURE ASSOCIATE DENTIST PROVISIONING / EDIT BACKEND CONTRACT / REMOTELY DEPLOYED AND VERIFIED / READY FOR VERIFIED BACKEND CHECKPOINT.**
