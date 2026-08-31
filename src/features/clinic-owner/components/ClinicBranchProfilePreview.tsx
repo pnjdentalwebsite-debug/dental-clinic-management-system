@@ -4,6 +4,9 @@ import { ClinicBranchStatusBadge } from './ClinicBranchStatusBadge';
 
 export interface BranchRecordDetails {
   id: string;
+  clinicNumber: string;
+  isPrimary: boolean;
+  branchType: string;
   name: string;
   location: string;
   status: string;
@@ -150,7 +153,10 @@ export function ClinicBranchProfilePreview({ branch, onClose, onView, onEdit, on
         <div style={{ textAlign: 'center', display: 'grid', gap: '0.2rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{branch.name}</h3>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-            {branch.id}
+            {branch.clinicNumber || branch.id}
+          </span>
+          <span style={{ fontSize: '0.72rem', color: branch.isPrimary ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 700 }}>
+            {branch.isPrimary ? 'Primary Clinic' : branch.branchType === 'satellite' ? 'Satellite Clinic' : 'Clinic Branch'}
           </span>
         </div>
         <ClinicBranchStatusBadge status={branch.status} />

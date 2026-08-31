@@ -1623,3 +1623,12 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 4. Logout cleared Clinic Owner protected access and provider data; refreshing or directly reopening `/clinic/dashboard` after logout did not restore the previous session/provider scope.
 5. The Dashboard page itself remains outside the real-data cutover: its welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity are legacy/non-authoritative and deferred to Phase 2E.3B. Deferred business-page cutovers remain 2E.3B-2E.3E.
 6. **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## Phase 2E.3B.1 Live Browser Validation Evidence - August 31, 2026
+1. Dashboard live validation passed with Angelo Mhyr Lagsac, Angelo Dental Clinic, Plus, no Prototype Mode badge, active usage 1 clinic / 0 associates / 0 staff, controlled Patient unavailable state, and real primary-clinic number/address/contact/email.
+2. Financial Summary remained controlled unavailable rather than `PHP 0.00`; Recent Activity displayed real RLS-visible audit events rather than synthetic activity. Hard refresh preserved the authoritative Dashboard data.
+3. Branch Directory live validation passed with the real Angelo Dental Clinic row, truthful Primary/Active state, location/contact/email, real catalog-driven `1 / 3` quota, no mock rows, and hard-refresh persistence.
+4. Add, Edit, and Deactivate/status controls returned controlled read-only feedback and did not write mock data.
+5. Logout cleared protected Clinic Owner access and provider state. Directly reopening `/clinic/dashboard` or `/clinic/branches` returned to login without restoring the previous owner scope.
+6. Phase 2E.3B.2 remains not started. Real branch create/edit/activate/deactivate/delete/set-primary mutations and the server-enforced clinic-quota transaction remain deferred.
+7. **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**

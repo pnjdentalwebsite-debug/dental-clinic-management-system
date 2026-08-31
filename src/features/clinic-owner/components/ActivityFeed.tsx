@@ -1,11 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Building, UserPlus, Users, DollarSign, FileText, FlaskConical, ChevronLeft, ChevronRight, X, Sparkles, Activity } from 'lucide-react';
-import { loadPatientDirectoryRecords } from '../../clinic-subsystem/patients/shared/patientDirectoryStore';
-import { aggregateClinicFinancials } from '../../clinic-subsystem/patients/clinical/bills-payments/billPaymentStore';
-import { mockAssociateDentistService } from '../services/mockAssociateDentistService';
-import { mockStaffService } from '../services/mockStaffService';
-import { mockLaboratoryService } from '../../laboratories/services/mockLaboratoryService';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
+import { useMemo, useState } from 'react';
+import { Activity, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
+import type { ClinicOwnerBootstrap } from '../../../infrastructure/supabase/clinicOwnerApi';
 
 export interface ActivityFeedItem {
   id: string;
@@ -17,130 +12,44 @@ export interface ActivityFeedItem {
 }
 
 interface ActivityFeedProps {
-  subscriberId?: string;
-  branchIds?: string[];
+  events: ClinicOwnerBootstrap['auditEvents'];
 }
 
-export function ActivityFeed({ subscriberId, branchIds = [] }: ActivityFeedProps) {
+function humanize(value: string) {
+  return value
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || 'Activity Recorded';
+}
+
+function formatTimestamp(value: string) {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return 'Time unavailable';
+  return new Date(parsed).toLocaleString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function ActivityFeed({ events }: ActivityFeedProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalPage, setModalPage] = useState(1);
   const itemsPerPage = 5;
 
   const activities: ActivityFeedItem[] = useMemo(() => {
-    const list: ActivityFeedItem[] = [];
-    const scopedBranches = subscriberId ? mockClinicService.getClinicsBySubscriberId(subscriberId) : [];
-    const branchNameById = new Map(scopedBranches.map((branch) => [branch.id, branch.name]));
-    const activeBranchNames = branchIds.length
-      ? branchIds.map((branchId) => branchNameById.get(branchId)).filter(Boolean)
-      : scopedBranches.map((branch) => branch.name);
-    const scopeLabel = activeBranchNames.length > 1
-      ? `${activeBranchNames.length} clinic branches`
-      : activeBranchNames[0] || 'current clinic branch';
-
-    // 1. Real Patients
-    const patients = branchIds.length > 0
-      ? branchIds.flatMap((branchId) => loadPatientDirectoryRecords(branchId))
-      : [];
-    patients.forEach((p, idx) => {
-      list.push({
-        id: `pat-${p.id || idx}`,
-        timestamp: p.firstVisit || 'Recent Registration',
-        event: 'Patient Registered',
-        details: `${p.name} was added with profile ID ${p.id}.`,
-        icon: UserPlus,
-        color: '#3b82f6'
-      });
-    });
-
-    // 2. Real Bills & Services
-    const agg = aggregateClinicFinancials(patients);
-    agg.allBills.forEach((b, idx) => {
-      list.push({
-        id: `bill-${b.id || idx}`,
-        timestamp: b.entryDate || 'Recent Treatment',
-        event: 'Treatment Billed',
-        details: `${b.patientName} billed PHP ${Number(b.payableAmount || 0).toLocaleString()} for ${b.services?.[0]?.service || b.description || 'Clinical procedure'}.`,
-        icon: DollarSign,
-        color: '#10b981'
-      });
-    });
-
-    // 3. Real Payments Recorded
-    agg.allPayments.forEach((p, idx) => {
-      list.push({
-        id: `pay-${p.id || idx}`,
-        timestamp: p.paymentDate || 'Recent Settlement',
-        event: 'Payment Received',
-        details: `Collected PHP ${Number(p.amount || 0).toLocaleString()} via ${p.paymentMethod || 'Cash'} for ${p.patientName}.`,
-        icon: DollarSign,
-        color: '#0ea5e9'
-      });
-    });
-
-    // 4. Real Dentists
-    try {
-      const dentists = subscriberId ? mockAssociateDentistService.getDentistsBySubscriberId(subscriberId) : [];
-      dentists.forEach((d: any, idx: number) => {
-        list.push({
-          id: `dent-${d.id || idx}`,
-          timestamp: 'Rostered Associate',
-          event: 'Associate Dentist Active',
-          details: `${d.firstName || ''} ${d.lastName || ''}`.trim() + ` assigned to ${scopeLabel}.`,
-          icon: UserPlus,
-          color: '#8b5cf6'
-        });
-      });
-    } catch {
-      // ignore
-    }
-
-    // 5. Real Staff
-    try {
-      const staff = subscriberId ? mockStaffService.getStaffBySubscriberId(subscriberId) : [];
-      staff.forEach((s: any, idx: number) => {
-        list.push({
-          id: `stf-${s.id || idx}`,
-          timestamp: 'Staff Member',
-          event: 'Staff Roster Assigned',
-          details: `${s.firstName || ''} ${s.lastName || ''}`.trim() + ` active as ${s.role || 'Staff Member'}.`,
-          icon: Users,
-          color: '#f59e0b'
-        });
-      });
-    } catch {
-      // ignore
-    }
-
-    // 6. Connected Laboratories
-    try {
-      const labs = subscriberId ? mockLaboratoryService.getLaboratoriesBySubscriberId(subscriberId) : [];
-      const scopedLabs = branchIds.length
-        ? labs.filter((l: any) => !l.clinicIds?.length || l.clinicIds.some((clinicId: string) => branchIds.includes(clinicId)))
-        : labs;
-      scopedLabs.forEach((l: any, idx: number) => {
-        list.push({
-          id: `lab-${l.id || idx}`,
-          timestamp: 'Connected Partner',
-          event: 'Laboratory Connected',
-          details: `Connected with ${l.name} (${l.specialties?.join(', ') || 'Dental Protheses'}).`,
-          icon: FlaskConical,
-          color: '#ec4899'
-        });
-      });
-    } catch {
-      // ignore
-    }
-
-    // Default clinic setup activity if list is still small
-    if (list.length < 4) {
-      list.push(
-        { id: 'def-1', timestamp: 'Today, 10:30 AM', event: 'Clinic Branch Active', details: `${scopeLabel} operational parameters active.`, icon: Building, color: '#3b82f6' },
-        { id: 'def-2', timestamp: 'Yesterday', event: 'Clinical Master Files Synced', details: 'Tags, dental charting items, and fee schedules verified.', icon: FileText, color: '#10b981' }
-      );
-    }
-
-    return list;
-  }, [branchIds, subscriberId]);
+    return events.map((event) => ({
+      id: event.id,
+      timestamp: formatTimestamp(event.createdAt),
+      event: humanize(event.eventType),
+      details: `${humanize(event.entityType)} event recorded in the authenticated organization scope.`,
+      icon: Activity,
+      color: '#3b82f6',
+    }));
+  }, [events]);
 
   const previewActivities = activities.slice(0, 5);
   const totalModalPages = Math.ceil(activities.length / itemsPerPage) || 1;
@@ -207,6 +116,12 @@ export function ActivityFeed({ subscriberId, branchIds = [] }: ActivityFeedProps
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {previewActivities.length === 0 && (
+              <div style={{ marginLeft: '-1.5rem', padding: '1rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                <strong style={{ display: 'block', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>No recent activity</strong>
+                No RLS-visible audit events are available for this organization.
+              </div>
+            )}
             {previewActivities.map((act, index) => {
               const Icon = act.icon;
               const isLastItem = index === previewActivities.length - 1 && activities.length > 5;

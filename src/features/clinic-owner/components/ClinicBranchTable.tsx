@@ -3,6 +3,9 @@ import { ClinicBranchRow } from './ClinicBranchRow';
 
 interface BranchItem {
   id: string;
+  clinicNumber: string;
+  isPrimary: boolean;
+  branchType: string;
   name: string;
   location: string;
   status: string;
@@ -26,6 +29,8 @@ interface Props {
   pageSize?: number;
   totalCount?: number;
   onPageChange?: (page: number) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 export function ClinicBranchTable({
@@ -42,7 +47,9 @@ export function ClinicBranchTable({
   currentPage = 1,
   pageSize = 10,
   totalCount = 0,
-  onPageChange
+  onPageChange,
+  emptyTitle = 'No clinic branches found',
+  emptyDescription = 'Try adjusting your search query or filter criteria.'
 }: Props) {
   const isAllSelected = branches.length > 0 && selectedIds.length === branches.length;
   const isSomeSelected = selectedIds.length > 0 && !isAllSelected;
@@ -172,8 +179,8 @@ export function ClinicBranchTable({
               <tr>
                 <td colSpan={8} style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div style={{ display: 'grid', gap: '0.35rem', justifyItems: 'center' }}>
-                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>No clinic branches found</strong>
-                    <span style={{ fontSize: '0.82rem' }}>Try adjusting your search query or filter criteria.</span>
+                    <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{emptyTitle}</strong>
+                    <span style={{ fontSize: '0.82rem' }}>{emptyDescription}</span>
                   </div>
                 </td>
               </tr>
@@ -274,4 +281,3 @@ export function ClinicBranchTable({
     </div>
   );
 }
-

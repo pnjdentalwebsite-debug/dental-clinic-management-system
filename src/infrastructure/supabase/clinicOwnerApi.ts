@@ -53,6 +53,7 @@ export interface ClinicOwnerBootstrap {
   clinics: Array<{
     id: string;
     clinicNumber: string;
+    branchType: string;
     name: string;
     isPrimary: boolean;
     status: string;
@@ -64,6 +65,15 @@ export interface ClinicOwnerBootstrap {
     city: string;
     province: string;
     postalCode: string | null;
+    createdAt: string;
+  }>;
+  auditEvents: Array<{
+    id: string;
+    clinicId: string | null;
+    eventType: string;
+    entityType: string;
+    entityId: string | null;
+    createdAt: string;
   }>;
   resourceCounts: {
     activeClinics: number;
@@ -226,17 +236,20 @@ export async function getClinicOwnerBootstrap(
   const plan = record(planData);
   if (!string(plan.id)) throw new ClinicOwnerApiError('PLAN_NOT_FOUND');
 
-  const [clinicsResult, laboratoryCountResult, associateCountResult, staffCountResult] = await Promise.all([
-    client.from('clinics').select('id, subscriber_id, clinic_number, name, is_primary, status, email, contact_number, address_line_1, address_line_2, barangay, city, province, postal_code').eq('subscriber_id', subscriberId).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
+  const [clinicsResult, auditEventsResult, laboratoryCountResult, associateCountResult, staffCountResult] = await Promise.all([
+    client.from('clinics').select('id, subscriber_id, clinic_number, branch_type, name, is_primary, status, email, contact_number, address_line_1, address_line_2, barangay, city, province, postal_code, created_at').eq('subscriber_id', subscriberId).order('is_primary', { ascending: false }).order('created_at', { ascending: true }),
+    client.from('audit_events').select('id, subscriber_id, clinic_id, event_type, entity_type, entity_id, created_at').eq('subscriber_id', subscriberId).order('created_at', { ascending: false }).limit(10),
     client.from('laboratories').select('id', { count: 'exact', head: true }).eq('subscriber_id', subscriberId).eq('status', 'active'),
     client.from('subscriber_memberships').select('id', { count: 'exact', head: true }).eq('subscriber_id', subscriberId).eq('role', 'associate').eq('account_status', 'active'),
     client.from('subscriber_memberships').select('id', { count: 'exact', head: true }).eq('subscriber_id', subscriberId).eq('role', 'staff').eq('account_status', 'active'),
   ]);
   queryFailed(clinicsResult.error);
+  queryFailed(auditEventsResult.error);
   queryFailed(laboratoryCountResult.error);
   queryFailed(associateCountResult.error);
   queryFailed(staffCountResult.error);
   if (!Array.isArray(clinicsResult.data)) throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+  if (!Array.isArray(auditEventsResult.data)) throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
 
   const clinics = clinicsResult.data.map((value) => {
     const clinic = record(value);
@@ -244,6 +257,7 @@ export async function getClinicOwnerBootstrap(
     return {
       id: string(clinic.id),
       clinicNumber: string(clinic.clinic_number),
+      branchType: string(clinic.branch_type),
       name: string(clinic.name),
       isPrimary: clinic.is_primary === true,
       status: string(clinic.status),
@@ -255,6 +269,19 @@ export async function getClinicOwnerBootstrap(
       city: string(clinic.city),
       province: string(clinic.province),
       postalCode: nullableString(clinic.postal_code),
+      createdAt: string(clinic.created_at),
+    };
+  });
+  const auditEvents = auditEventsResult.data.map((value) => {
+    const event = record(value);
+    if (string(event.subscriber_id) !== subscriberId) throw new ClinicOwnerApiError('DATA_UNAVAILABLE');
+    return {
+      id: string(event.id),
+      clinicId: nullableString(event.clinic_id),
+      eventType: string(event.event_type),
+      entityType: string(event.entity_type),
+      entityId: nullableString(event.entity_id),
+      createdAt: string(event.created_at),
     };
   });
   const resourceCounts = {
@@ -302,6 +329,7 @@ export async function getClinicOwnerBootstrap(
       features: plan.features,
     },
     clinics,
+    auditEvents,
     resourceCounts,
     quotas: {
       clinics: { key: 'clinics', limit: quotaLimits.clinics, activeUsage: resourceCounts.activeClinics },

@@ -5,6 +5,9 @@ import { ClinicBranchActionMenu } from './ClinicBranchActionMenu';
 
 interface BranchItem {
   id: string;
+  clinicNumber: string;
+  isPrimary: boolean;
+  branchType: string;
   name: string;
   location: string;
   status: string;
@@ -99,8 +102,11 @@ export function ClinicBranchRow({
             <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>
               {branch.name}
             </span>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-              {branch.id}
+            <span title={branch.id} style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+              {branch.clinicNumber || branch.id}
+            </span>
+            <span style={{ fontSize: '0.7rem', color: branch.isPrimary ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
+              {branch.isPrimary ? 'Primary Clinic' : branch.branchType === 'satellite' ? 'Satellite Clinic' : 'Clinic Branch'}
             </span>
           </div>
         </div>
@@ -185,4 +191,3 @@ export function ClinicBranchRow({
     </tr>
   );
 }
-

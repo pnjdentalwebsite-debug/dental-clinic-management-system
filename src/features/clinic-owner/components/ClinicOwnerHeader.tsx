@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, ShieldAlert, RefreshCw, Bell, LogOut, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Menu, RefreshCw, Bell, LogOut, ChevronDown, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   roleLabel?: string;
@@ -45,7 +45,6 @@ export function ClinicOwnerHeader({
         </div>
       </div>
       <div className="top-nav-right">
-        {!isRoleWorkspace && <span className="badge-prototype"><ShieldAlert size={12} /> Prototype Mode</span>}
         <button className="top-nav-btn" onClick={onRefresh} aria-label="Refresh application state">
           <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} style={isRefreshing ? { animation: 'spin 1s linear infinite' } : {}} />
         </button>

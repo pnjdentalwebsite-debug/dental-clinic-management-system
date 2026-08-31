@@ -1,23 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Building, Building2, Filter, Search, ShieldAlert, Store } from 'lucide-react';
 import { ClinicBranchSummaryCard } from '../components/ClinicBranchSummaryCard';
 import { ClinicBranchTable } from '../components/ClinicBranchTable';
 import { ClinicBranchProfilePreview } from '../components/ClinicBranchProfilePreview';
-import { mockClinicService } from '../../clinics/services/mockClinicService';
-import { mockPlatformManagementService } from '../../platformManagement/services/mockPlatformManagementService';
+import { useClinicOwnerRead } from '../realData/ClinicOwnerReadProvider';
+import type { ClinicOwnerQuotaUsage } from '../../../infrastructure/supabase/clinicOwnerApi';
 
 interface Props {
-  loggedClinicName: string;
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
-  onEnterBranch?: (clinicId: string, branchName: string) => void;
-  loggedUserEmail: string;
-  onAddBranch?: () => void;
-  onViewBranch?: (clinicId: string) => void;
-  onEditBranch?: (clinicId: string) => void;
 }
 
 type BranchRow = {
   id: string;
+  clinicNumber: string;
+  isPrimary: boolean;
+  branchType: string;
   name: string;
   location: string;
   status: string;
@@ -27,71 +24,64 @@ type BranchRow = {
   email?: string;
 };
 
-export function ClinicBranchesPage({
-  loggedClinicName,
-  showToast,
-  onEnterBranch,
-  loggedUserEmail,
-  onAddBranch,
-  onViewBranch,
-  onEditBranch
-}: Props) {
+function formatClinicAddress(clinic: {
+  addressLine1: string;
+  addressLine2: string | null;
+  barangay: string | null;
+  city: string;
+  province: string;
+  postalCode: string | null;
+}) {
+  return [clinic.addressLine1, clinic.addressLine2, clinic.barangay, clinic.city, clinic.province, clinic.postalCode]
+    .filter(Boolean)
+    .join(', ') || 'Address unavailable';
+}
+
+function displayStatus(status: string) {
+  if (!status) return 'Unavailable';
+  return status.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatClinicQuota(quota: ClinicOwnerQuotaUsage) {
+  const { activeUsage, limit } = quota;
+  if (limit.kind === 'number') return `${activeUsage} / ${limit.value}`;
+  if (limit.kind === 'unlimited') return `${activeUsage} / Unlimited`;
+  if (limit.kind === 'not_included') return `${activeUsage} / Not included`;
+  return 'Unavailable';
+}
+
+export function ClinicBranchesPage({ showToast }: Props) {
+  const ownerRead = useClinicOwnerRead();
+  const bootstrap = ownerRead.bootstrap;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'draft' | 'inactive'>('all');
-  const [branchRows, setBranchRows] = useState<BranchRow[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 10;
 
-  const subscriberId = useMemo(() => {
-    if (!loggedUserEmail) return '';
-    const subscribers = mockPlatformManagementService.listSubscribers();
-    const matchedSub = subscribers.find(s => s.email?.toLowerCase() === loggedUserEmail.toLowerCase());
-    if (matchedSub?.id) return matchedSub.id;
-
-    const users = mockPlatformManagementService.listUsers();
-    const matchedUser = users.find((user: any) => user.email?.toLowerCase() === loggedUserEmail?.toLowerCase());
-    if (matchedUser?.subscriberId) {
-      return matchedUser.subscriberId;
-    }
-
-    return '';
-  }, [loggedUserEmail]);
-
-  const mapBranchRows = useCallback(() => {
-    const dbClinics = subscriberId ? mockClinicService.getClinicsBySubscriberId(subscriberId) : [];
-    return dbClinics.length > 0
-      ? dbClinics.map((clinic) => ({
+  const branchRows = useMemo<BranchRow[]>(() => (
+    bootstrap?.clinics.map((clinic) => ({
           id: clinic.id,
+          clinicNumber: clinic.clinicNumber,
+          isPrimary: clinic.isPrimary,
+          branchType: clinic.branchType,
           name: clinic.name,
-          location: `${clinic.city}, ${clinic.province}`,
-          status:
-            clinic.status === 'active'
-              ? 'Active'
-              : clinic.status === 'pending'
-                ? 'Pending'
-              : clinic.status === 'inactive'
-                ? 'Inactive'
-                : clinic.status === 'draft'
-                  ? 'Draft'
-                  : 'Archived',
-          contact: clinic.contactNumber,
-          hours: 'Mon - Sat: 9:00 AM - 6:00 PM',
-          created: clinic.createdAt || '2026-01-01',
-          email: clinic.email
-        }))
-      : [];
-  }, [loggedClinicName, subscriberId]);
+          location: formatClinicAddress(clinic),
+          status: displayStatus(clinic.status),
+          contact: clinic.contactNumber || 'Not available',
+          hours: 'Unavailable',
+          created: clinic.createdAt || 'Unavailable',
+          email: clinic.email || undefined,
+        })) ?? []
+  ), [bootstrap]);
 
   useEffect(() => {
-    const rows = mapBranchRows();
-    setBranchRows(rows);
     setSelectedBranchId((current) => {
-      if (current && rows.some((r) => r.id === current)) return current;
-      return rows[0]?.id || '';
+      if (current && branchRows.some((row) => row.id === current)) return current;
+      return branchRows[0]?.id || '';
     });
-  }, [mapBranchRows]);
+  }, [branchRows]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -142,62 +132,39 @@ export function ClinicBranchesPage({
   };
 
   const handleBulkActivate = () => {
-    selectedIds.forEach((id) => {
-      mockClinicService.activateClinic(id);
-    });
-    setBranchRows(mapBranchRows());
-    showToast(`Activated ${selectedIds.length} selected clinic branches.`, 'success');
-    setSelectedIds([]);
+    showToast('Branch activation is read-only until Phase 2E.3B.2.', 'info');
   };
 
   const handleBulkDeactivate = () => {
-    selectedIds.forEach((id) => {
-      mockClinicService.deactivateClinic(id, 'Bulk deactivated from branch table');
-    });
-    setBranchRows(mapBranchRows());
-    showToast(`Deactivated ${selectedIds.length} selected clinic branches.`, 'warning');
-    setSelectedIds([]);
+    showToast('Branch deactivation is read-only until Phase 2E.3B.2.', 'info');
   };
 
   const handleAction = (action: string, branch: BranchRow) => {
     if (action === 'Enter Clinic') {
-      if (onEnterBranch) {
-        onEnterBranch(branch.id, branch.name);
-      } else {
-        showToast(`Opening ${branch.name} branch workspace.`, 'success');
-      }
+      showToast(`Opening ${branch.name} is unavailable until its real-data workspace cutover.`, 'info');
     } else if (action === 'View Details') {
-      onViewBranch?.(branch.id);
+      showToast(`Real branch details for ${branch.name} are read-only here until Phase 2E.3B.2.`, 'info');
     } else if (action === 'Edit Branch') {
-      onEditBranch?.(branch.id);
-    } else if (action === 'Deactivate') {
-      const result = mockClinicService.deactivateClinic(branch.id, 'Marked inactive from clinic branch workspace.');
-      if (!result.ok || !result.data) {
-        showToast(result.error || `Unable to set ${branch.name} inactive.`, 'error');
-        return;
-      }
-      setBranchRows(mapBranchRows());
-      showToast(`${result.data.name} is now inactive.`, 'warning');
-    } else if (action === 'Activate') {
-      const result = mockClinicService.activateClinic(branch.id);
-      if (!result.ok || !result.data) {
-        showToast(result.error || `Unable to reactivate ${branch.name}.`, 'error');
-        return;
-      }
-      setBranchRows(mapBranchRows());
-      showToast(`${result.data.name} has been reactivated.`, 'success');
+      showToast(`Editing ${branch.name} is read-only until Phase 2E.3B.2.`, 'info');
     } else {
-      showToast(`Branch action "${action}" is not available yet for ${branch.name}.`, 'info');
+      showToast(`Branch action "${action}" is read-only until Phase 2E.3B.2.`, 'info');
     }
   };
 
   const handleAddBranch = () => {
-    if (!subscriberId && !onAddBranch) {
-      showToast('This clinic owner account has no subscriber context yet, so branch creation is blocked.', 'error');
-      return;
-    }
-    onAddBranch?.();
+    showToast('Branch creation is read-only until Phase 2E.3B.2.', 'info');
   };
+
+  if (ownerRead.status !== 'ready' || !bootstrap) {
+    return (
+      <div className="dashboard-panel" role={ownerRead.loading ? 'status' : 'alert'}>
+        <h2>{ownerRead.loading ? 'Loading Clinic Branches…' : 'Clinic Branches unavailable'}</h2>
+        <p>{ownerRead.loading ? 'Loading your RLS-protected clinic directory.' : ownerRead.error}</p>
+      </div>
+    );
+  }
+
+  const clinicQuota = formatClinicQuota(bootstrap.quotas.clinics);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--section-gap)', width: '100%' }}>
@@ -219,7 +186,7 @@ export function ClinicBranchesPage({
 
       {/* Summary Cards */}
       <div style={{ display: 'flex', gap: 'var(--card-gap)', flexWrap: 'wrap' }}>
-        <ClinicBranchSummaryCard label="Total Branches" value={branchRows.length} icon={Building2} desc="Registered clinic locations" status="info" />
+        <ClinicBranchSummaryCard label="Total Branches" value={branchRows.length} icon={Building2} desc={`Clinic quota: ${clinicQuota}`} status="info" />
         <ClinicBranchSummaryCard label="Active Branches" value={branchRows.filter(b => b.status.toLowerCase() === 'active').length} icon={Building} desc="Currently operating" status="success" />
         <ClinicBranchSummaryCard label="Pending Branches" value={branchRows.filter(b => b.status.toLowerCase() === 'pending').length} icon={Store} desc="Awaiting payment approval" status="warning" />
         <ClinicBranchSummaryCard label="Inactive Branches" value={branchRows.filter(b => b.status.toLowerCase() === 'inactive').length} icon={ShieldAlert} desc="Temporarily unavailable" status="neutral" />
@@ -305,13 +272,15 @@ export function ClinicBranchesPage({
           pageSize={pageSize}
           totalCount={filteredBranches.length}
           onPageChange={setCurrentPage}
+          emptyTitle={branchRows.length === 0 ? 'No clinic branches yet' : 'No clinic branches found'}
+          emptyDescription={branchRows.length === 0 ? 'No clinic records exist in the authenticated tenant scope.' : 'Try adjusting your search query or filter criteria.'}
         />
         <ClinicBranchProfilePreview
           branch={selectedBranch}
           onClose={() => setSelectedBranchId('')}
-          onView={() => selectedBranch && onViewBranch?.(selectedBranch.id)}
-          onEdit={() => selectedBranch && onEditBranch?.(selectedBranch.id)}
-          onEnterWorkspace={() => selectedBranch && onEnterBranch?.(selectedBranch.id, selectedBranch.name)}
+          onView={() => selectedBranch && handleAction('View Details', selectedBranch)}
+          onEdit={() => selectedBranch && handleAction('Edit Branch', selectedBranch)}
+          onEnterWorkspace={() => selectedBranch && handleAction('Enter Clinic', selectedBranch)}
         />
       </div>
     </div>

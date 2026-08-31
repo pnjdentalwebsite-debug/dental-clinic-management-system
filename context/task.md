@@ -632,3 +632,17 @@
 - [x] Confirm the real shell displays Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus, while Reset Mock Data remains absent.
 - [x] Record the Phase 2E.3B boundary: legacy Dashboard welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity remain non-authoritative and deferred.
 - **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** Do not start 2E.3B automatically.
+
+## Phase 2E.3B.1 Dashboard + Branch Directory Read Cutover - August 31, 2026
+- [x] Replace Dashboard owner/organization/plan and active clinic/associate/staff authority with the Phase 2E.3A provider.
+- [x] Keep Patients, clinical financial totals, and setup progress explicitly unavailable rather than reading browser storage or fabricating zero/completion values.
+- [x] Render real provider clinics in Dashboard overview and Branch Directory with real clinic identity, primary/branch state, status, address, contact, email, and creation time.
+- [x] Read safe recent activity from subscriber-filtered owner-RLS-visible `audit_events`; render a truthful empty state and no synthetic events.
+- [x] Display normalized clinic quota and keep all branch writes plus mock-backed detail/workspace destinations controlled unavailable until Phase 2E.3B.2.
+- [x] Remove `tenantScope.ts`, mock platform-user resolution, mock clinic storage, and arbitrary browser tenant authority from these two pages only.
+- [x] Remove Prototype Mode from the authenticated Clinic Owner header without redesign.
+- [x] Add focused regressions; run the focused Phase 2E set and production build. Leave the unrelated Phase 2C.2A CRLF-sensitive config assertion unchanged.
+- [x] Complete live browser validation: real Dashboard identity/usage/branch/audit data, controlled Patient/Financial states, real Branch Directory and `1 / 3` quota, hard refresh, read-only mutation safety, and logout protected-route clearing all passed.
+- [x] Confirm no mock clinic rows/persistence or Prototype Mode remain in the authenticated runtime.
+- [x] Record the explicit Phase 2E.3B.2 boundary: real branch create/edit/activate/deactivate/delete/set-primary operations and the server-enforced clinic-quota transaction remain unimplemented.
+- **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** Do not start Phase 2E.3B.2 automatically.

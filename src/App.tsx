@@ -4422,15 +4422,7 @@ export default function App() {
           >
             {currentRoute === '/clinic/dashboard' ? (
               <ClinicOwnerDashboardPage
-                loggedUserName={loggedUserName}
-                loggedClinicName={loggedClinicName}
-                loggedPlanName={loggedPlanName}
                 showToast={showToast}
-                onEnterBranch={(clinicId, branchName) => {
-                  showToast(`Entering ${branchName} operational workspace...`, 'success');
-                  setCurrentRoute(`/clinic/${clinicId}/dashboard`);
-                }}
-                loggedUserEmail={loggedUserEmail}
               />
             ) : currentRoute === '/clinic/profile' ? (
               <ClinicProfilePage
@@ -4440,16 +4432,7 @@ export default function App() {
               />
             ) : currentRoute === '/clinic/branches' ? (
               <ClinicBranchesPage
-                loggedClinicName={loggedClinicName}
                 showToast={showToast}
-                loggedUserEmail={loggedUserEmail}
-                onAddBranch={() => setCurrentRoute('/clinic/branches/new')}
-                onViewBranch={(clinicId) => setCurrentRoute(`/clinic/branches/view/${clinicId}`)}
-                onEditBranch={(clinicId) => setCurrentRoute(`/clinic/branches/edit/${clinicId}`)}
-                onEnterBranch={(clinicId, branchName) => {
-                  showToast(`Entering ${branchName} operational workspace...`, 'success');
-                  setCurrentRoute(`/clinic/${clinicId}/dashboard`);
-                }}
               />
             ) : currentRoute === '/clinic/branches/new' ? (
               <ClinicBranchCreatePage

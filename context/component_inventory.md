@@ -599,3 +599,15 @@
 - Live browser validation confirms the shell reads Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus through the real active `clinic_owner` membership; RLS-scoped reads, direct dashboard refresh, logout clearing, and post-logout route protection passed without visible runtime/RLS failure.
 - Dashboard content itself is not catalogued as authoritative in this subphase: welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity are deferred to Phase 2E.3B.
 - **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3B.1 Components
+- `ClinicOwnerDashboardPage.tsx`: provider-only identity, active resource KPIs, real tenant clinic overview, controlled patient/financial/setup deferrals, and RLS audit activity.
+- `ClinicBranchesPage.tsx`: provider-only branch directory with real search/filter data, normalized clinic quota, distinct unavailable/empty states, and read-only write controls.
+- `ActivityFeed.tsx`: safe audit-event rendering with no patient-directory, billing-store, mock roster, mock laboratory, mock clinic, or synthetic-default activity source.
+- `ClinicBranchCard.tsx`, `ClinicBranchRow.tsx`, `ClinicBranchTable.tsx`, and `ClinicBranchProfilePreview.tsx`: existing layouts extended minimally for real clinic number, primary/main/satellite state, UUID-backed selection, and truthful empty descriptions.
+- `FinancialSummaryCard.tsx` and `SetupProgressCard.tsx`: controlled unavailable presentation when authoritative clinical totals/progress are outside the current contract.
+- `ClinicOwnerHeader.tsx`: development Prototype Mode badge removed from the authenticated owner runtime; plan badge and layout remain unchanged.
+- `ClinicOwnerDashboardAndBranches.realData.test.tsx`: focused identity/KPI/branch/quota/read-only/error/refresh/no-fallback regressions.
+- Live browser validation confirms the provider-backed components render Angelo Mhyr Lagsac, Angelo Dental Clinic, Plus, active 1/0/0 usage, the real primary clinic and `1 / 3` quota without mock rows, fabricated values, or Prototype Mode. Dashboard and directory hard refreshes preserve authoritative data; logout clears access/provider state.
+- The action controls remain intentionally read-only. No component implements real branch create/edit/status/delete/set-primary behavior or a server-enforced quota transaction; those belong to Phase 2E.3B.2.
+- **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**

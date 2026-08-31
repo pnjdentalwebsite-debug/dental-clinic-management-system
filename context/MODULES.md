@@ -396,3 +396,12 @@
 - Live validation confirmed the provisioned owner reads Angelo Mhyr Lagsac, Angelo Dental Clinic, and Plus from real membership-scoped data; all bootstrap reads, direct dashboard refresh, logout clearing, and post-logout protected-route behavior passed without a visible runtime/RLS failure. Reset Mock Data is absent from the authenticated shell.
 - The existing Dashboard's welcome email text, blank Clinic field, generic Subscription label, counts, branch overview, financial summary, and recent activity are legacy/non-authoritative and explicitly deferred to Phase 2E.3B.
 - **PHASE 2E.3A = COMPLETE / FRONTEND-RLS READ FOUNDATION / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## Phase 2E.3B.1 Dashboard and Branch Directory Read Cutover - August 31, 2026
+- `ClinicOwnerDashboardPage.tsx` uses `ClinicOwnerReadProvider` for owner/organization/plan identity, active usage KPIs, tenant clinics, and RLS-visible audit activity. Patients, clinical financials, and setup progress remain truthful unavailable/deferred states.
+- `ClinicBranchesPage.tsx` maps provider clinics directly into the existing search/filter/table/preview layout. Clinic UUID and number, branch/primary state, status, address, contact, email, creation time, and normalized clinic quota are real read data; provider error is not treated as an empty directory.
+- `clinicOwnerApi.ts` adds only safe clinic display fields and a subscriber-filtered `audit_events` read already permitted by owner RLS. It accepts no caller tenant identifier and exposes no audit metadata.
+- Branch create/edit/activate/deactivate/bulk actions and legacy detail/workspace routes are controlled unavailable until Phase 2E.3B.2. The authenticated header no longer shows Prototype Mode.
+- Live validation passed for Dashboard and Branches: real owner/organization/Plus identity, active 1/0/0 clinic/associate/staff usage, real primary clinic fields, `1 / 3` quota, controlled unavailable Patient/Financial states, RLS audit activity, hard refresh, and logout route protection.
+- Read-only branch controls were validated to avoid mock persistence. Phase 2E.3B.2 remains not started: real create/edit/activate/deactivate/delete/set-primary and server-enforced quota transactions are not implemented.
+- **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**

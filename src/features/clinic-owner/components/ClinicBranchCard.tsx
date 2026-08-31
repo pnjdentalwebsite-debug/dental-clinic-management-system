@@ -1,15 +1,18 @@
 import { Building, ArrowRight } from 'lucide-react';
 
 interface BranchProps {
+  clinicNumber: string;
   name: string;
+  isPrimary: boolean;
   location: string;
   status: string;
   contact: string;
+  email?: string | null;
   hours: string;
   onEnter: () => void;
 }
 
-export function ClinicBranchCard({ name, location, status, contact, hours, onEnter }: BranchProps) {
+export function ClinicBranchCard({ clinicNumber, name, isPrimary, location, status, contact, email, hours, onEnter }: BranchProps) {
   const isActive = status.toLowerCase() === 'active';
 
   return (
@@ -42,6 +45,9 @@ export function ClinicBranchCard({ name, location, status, contact, hours, onEnt
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 600 }}>{name}</strong>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isPrimary ? 'var(--primary)' : 'var(--text-muted)' }}>
+              {isPrimary ? 'Primary Clinic' : 'Satellite Clinic'}
+            </span>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -57,8 +63,10 @@ export function ClinicBranchCard({ name, location, status, contact, hours, onEnt
               {status}
             </span>
           </div>
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{clinicNumber}</span>
           <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>Location: {location}</span>
           <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Phone: {contact} | Hours: {hours}</span>
+          {email && <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Email: {email}</span>}
         </div>
       </div>
       <button

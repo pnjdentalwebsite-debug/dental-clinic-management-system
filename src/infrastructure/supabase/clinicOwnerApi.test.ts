@@ -44,8 +44,11 @@ function clientFixture(options: {
   const lists: Record<string, unknown[]> = {
     subscriptions: options.subscriptionRows ?? [{ id: 'subscription-1', subscriber_id: 'subscriber-authoritative', plan_id: 'plan-plus', status: 'active', billing_cycle: 'monthly', amount_centavos: 850000, starts_at: '2026-08-01T00:00:00Z', expires_at: '2026-09-01T00:00:00Z' }],
     clinics: [
-      { id: 'clinic-1', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-001', name: 'Main Clinic', is_primary: true, status: 'active', email: 'clinic@example.com', contact_number: '0917', address_line_1: 'One Street', address_line_2: null, barangay: null, city: 'Bacoor', province: 'Cavite', postal_code: null },
-      { id: 'clinic-2', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-002', name: 'Inactive Clinic', is_primary: false, status: 'inactive', email: null, contact_number: null, address_line_1: 'Two Street', address_line_2: null, barangay: null, city: 'Imus', province: 'Cavite', postal_code: null },
+      { id: 'clinic-1', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-001', branch_type: 'main', name: 'Main Clinic', is_primary: true, status: 'active', email: 'clinic@example.com', contact_number: '0917', address_line_1: 'One Street', address_line_2: null, barangay: null, city: 'Bacoor', province: 'Cavite', postal_code: null, created_at: '2026-08-02T00:00:00Z' },
+      { id: 'clinic-2', subscriber_id: 'subscriber-authoritative', clinic_number: 'CLN-002', branch_type: 'satellite', name: 'Inactive Clinic', is_primary: false, status: 'inactive', email: null, contact_number: null, address_line_1: 'Two Street', address_line_2: null, barangay: null, city: 'Imus', province: 'Cavite', postal_code: null, created_at: '2026-08-03T00:00:00Z' },
+    ],
+    audit_events: [
+      { id: 'audit-1', subscriber_id: 'subscriber-authoritative', clinic_id: 'clinic-1', event_type: 'platform.registration.approved', entity_type: 'registration', entity_id: 'registration-1', created_at: '2026-08-02T00:00:00Z' },
     ],
   };
   const counts: Record<string, number> = { laboratories: 1, associate: 2, staff: 4 };
@@ -58,6 +61,7 @@ function clientFixture(options: {
       eq: vi.fn((column: string, value: unknown) => { log.filters.push([column, value]); return builder; }),
       in: vi.fn((column: string, value: unknown) => { log.filters.push([column, value]); return builder; }),
       order: vi.fn(() => builder),
+      limit: vi.fn(() => builder),
       maybeSingle: vi.fn(async () => ({ data: rows[table] ?? null, error: options.failTable === table ? { message: 'failed' } : null })),
       then: (resolve: (value: unknown) => unknown) => {
         let data: unknown = lists[table] ?? [];
@@ -115,6 +119,10 @@ describe('Clinic Owner authoritative read adapter', () => {
     expect(result.subscription).toMatchObject({ id: 'subscription-1', amountCentavos: 850000, status: 'active' });
     expect(result.plan).toMatchObject({ code: 'plus', name: 'Plus', monthlyAmountCentavos: 850000 });
     expect(result.clinics).toHaveLength(2);
+    expect(result.clinics[0]).toMatchObject({ clinicNumber: 'CLN-001', branchType: 'main', isPrimary: true });
+    expect(result.auditEvents).toEqual([
+      expect.objectContaining({ id: 'audit-1', eventType: 'platform.registration.approved', clinicId: 'clinic-1' }),
+    ]);
     expect(result.resourceCounts).toEqual({ activeClinics: 1, activeLaboratories: 1, activeAssociates: 2, activeStaff: 4 });
     expect(result.quotas.associates).toEqual({ key: 'associates', limit: { kind: 'number', value: 6 }, activeUsage: 2 });
   });
