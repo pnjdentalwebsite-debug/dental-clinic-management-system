@@ -25,6 +25,10 @@ export interface ClinicOwnerAssociateDirectoryItem {
 }
 
 export interface ClinicOwnerAssociateDetail extends ClinicOwnerAssociateDirectoryItem {
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  address: string | null;
   licenseNumber: string | null;
   ptrNumber: string | null;
   s2LicenseNumber: string | null;
@@ -36,12 +40,34 @@ export interface ClinicOwnerAssociateDetail extends ClinicOwnerAssociateDirector
 export type ClinicOwnerAssociateApiErrorCode =
   | 'OWNER_CONTEXT_UNAVAILABLE'
   | 'ASSOCIATE_NOT_FOUND'
-  | 'DATA_UNAVAILABLE';
+  | 'DATA_UNAVAILABLE'
+  | 'AUTH_REQUIRED'
+  | 'CLINIC_OWNER_ACCESS_REQUIRED'
+  | 'CLINIC_OWNER_CONTEXT_AMBIGUOUS'
+  | 'FIRST_LOGIN_REQUIRED'
+  | 'SUBSCRIPTION_NOT_ELIGIBLE'
+  | 'ASSOCIATE_QUOTA_REACHED'
+  | 'ASSOCIATE_EMAIL_UNAVAILABLE'
+  | 'INVALID_CLINIC_ASSIGNMENT'
+  | 'ASSOCIATE_PROVISIONING_FAILED'
+  | 'CREDENTIAL_DELIVERY_FAILED'
+  | 'ASSOCIATE_UPDATE_FAILED';
 
 const safeMessages: Record<ClinicOwnerAssociateApiErrorCode, string> = {
   OWNER_CONTEXT_UNAVAILABLE: 'Clinic Owner access is unavailable. Please sign in again.',
   ASSOCIATE_NOT_FOUND: 'Associate Dentist not found.',
   DATA_UNAVAILABLE: 'Associate Dentist service unavailable. Please try again later.',
+  AUTH_REQUIRED: 'Please sign in again to manage Associate Dentists.',
+  CLINIC_OWNER_ACCESS_REQUIRED: 'An eligible Clinic Owner membership is required.',
+  CLINIC_OWNER_CONTEXT_AMBIGUOUS: 'Clinic Owner access requires administrative review.',
+  FIRST_LOGIN_REQUIRED: 'Complete your initial password change before managing Associate Dentists.',
+  SUBSCRIPTION_NOT_ELIGIBLE: 'The current subscription is not eligible for Associate Dentists.',
+  ASSOCIATE_QUOTA_REACHED: 'The Associate Dentist plan quota has been reached.',
+  ASSOCIATE_EMAIL_UNAVAILABLE: 'This email is unavailable for an Associate Dentist.',
+  INVALID_CLINIC_ASSIGNMENT: 'Select one or more active clinics from your organization.',
+  ASSOCIATE_PROVISIONING_FAILED: 'The Associate Dentist could not be created. Please try again.',
+  CREDENTIAL_DELIVERY_FAILED: 'The Associate was created, but initial sign-in instructions could not be delivered. Do not create another Associate; contact support to retry delivery.',
+  ASSOCIATE_UPDATE_FAILED: 'The Associate Dentist changes could not be saved. Please try again.',
 };
 
 export class ClinicOwnerAssociateApiError extends Error {
@@ -169,7 +195,7 @@ async function loadAssignments(
 
 const associateMembershipSelect = `
   id, subscriber_id, user_id, role, account_status, created_at, updated_at,
-  profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number),
+  profiles(id, email, display_name, first_name, middle_name, last_name, mobile_number, address),
   associate_dentist_profiles(
     associate_number, license_number, ptr_number, s2_license_number,
     designation, specialization, calendar_color, certificates_and_qualifications,
@@ -215,10 +241,15 @@ export async function getClinicOwnerAssociateDetail(
 
   const assignments = await loadAssignments(client, subscriberId, [membershipId]);
   const row = record(data);
+  const profile = profileFor(row);
   const professional = professionalFor(row);
   const base = baseItem(row, subscriberId, assignments);
   return {
     ...base,
+    firstName: string(profile.first_name),
+    middleName: nullableString(profile.middle_name),
+    lastName: string(profile.last_name),
+    address: nullableString(profile.address),
     licenseNumber: nullableString(professional.license_number),
     ptrNumber: nullableString(professional.ptr_number),
     s2LicenseNumber: nullableString(professional.s2_license_number),
@@ -226,4 +257,87 @@ export async function getClinicOwnerAssociateDetail(
     alternateAssociateIds: list(professional.alternate_associate_ids).map(string).filter(Boolean),
     deviceRestrictionEnabled: professional.device_restriction_enabled === true,
   };
+}
+
+export interface ClinicOwnerAssociateMutationInput {
+  email?: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  mobileNumber?: string;
+  address?: string;
+  licenseNumber: string;
+  ptrNumber: string;
+  s2LicenseNumber: string;
+  designation: string;
+  specialization: string;
+  calendarColor?: string;
+  certificatesAndQualifications?: string;
+  clinicIds: string[];
+}
+
+export interface ClinicOwnerAssociateProvisioningResult {
+  provisioningStatus: 'completed';
+  membershipId: string;
+  associateNumber?: string;
+  credentialDelivery: { status: 'sent' | 'pending' | 'failed' };
+}
+
+export interface ClinicOwnerAssociateUpdateResult {
+  updated: true;
+  membershipId: string;
+}
+
+const mutationKeys = [
+  'email', 'firstName', 'middleName', 'lastName', 'mobileNumber', 'address',
+  'licenseNumber', 'ptrNumber', 's2LicenseNumber', 'designation',
+  'specialization', 'calendarColor', 'certificatesAndQualifications', 'clinicIds',
+] as const;
+
+function mutationPayload(input: ClinicOwnerAssociateMutationInput, includeEmail: boolean): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const key of mutationKeys) {
+    if (!includeEmail && key === 'email') continue;
+    const value = input[key];
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+async function edgeErrorCode(error: unknown): Promise<ClinicOwnerAssociateApiErrorCode> {
+  const response = (error as { context?: Response } | null)?.context;
+  const body = response
+    ? await response.clone().json().catch(() => null) as { error?: { code?: unknown } } | null
+    : null;
+  const code = typeof body?.error?.code === 'string' ? body.error.code : '';
+  return Object.prototype.hasOwnProperty.call(safeMessages, code)
+    ? code as ClinicOwnerAssociateApiErrorCode
+    : 'DATA_UNAVAILABLE';
+}
+
+async function invokeAssociateMutation<T>(functionName: string, body: Record<string, unknown>, client: SupabaseClient): Promise<T> {
+  const { data, error } = await client.functions.invoke<T>(functionName, { body });
+  if (error) throw new ClinicOwnerAssociateApiError(await edgeErrorCode(error));
+  if (data === null) throw new ClinicOwnerAssociateApiError('DATA_UNAVAILABLE');
+  return data;
+}
+
+/** Browser payload is deliberately limited to the deployed create contract. */
+export function provisionClinicOwnerAssociate(
+  input: ClinicOwnerAssociateMutationInput,
+  client: SupabaseClient = requireSupabaseClient(),
+): Promise<ClinicOwnerAssociateProvisioningResult> {
+  return invokeAssociateMutation('provision-associate-dentist', mutationPayload(input, true), client);
+}
+
+/** Uses an authenticated Edge boundary; the underlying RPC remains service-role-only. */
+export function updateClinicOwnerAssociate(
+  membershipId: string,
+  input: ClinicOwnerAssociateMutationInput,
+  client: SupabaseClient = requireSupabaseClient(),
+): Promise<ClinicOwnerAssociateUpdateResult> {
+  return invokeAssociateMutation('update-associate-dentist', {
+    membershipId,
+    ...mutationPayload(input, false),
+  }, client);
 }

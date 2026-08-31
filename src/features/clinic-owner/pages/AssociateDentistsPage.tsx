@@ -13,6 +13,8 @@ import type { ClinicOwnerQuotaUsage } from '../../../infrastructure/supabase/cli
 interface Props {
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   onViewDentist?: (membershipId: string) => void;
+  onAddDentist?: () => void;
+  onEditDentist?: (membershipId: string) => void;
 }
 
 type DirectoryState = 'loading' | 'ready' | 'error';
@@ -25,7 +27,7 @@ function formatAssociateQuota(quota: ClinicOwnerQuotaUsage | undefined) {
   return 'Unavailable';
 }
 
-export function AssociateDentistsPage({ showToast, onViewDentist }: Props) {
+export function AssociateDentistsPage({ showToast, onViewDentist, onAddDentist, onEditDentist }: Props) {
   const ownerRead = useClinicOwnerRead();
   const bootstrap = ownerRead.bootstrap;
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,13 +98,20 @@ export function AssociateDentistsPage({ showToast, onViewDentist }: Props) {
 
   const selectedDentist = dentists.find((dentist) => dentist.membershipId === selectedDentistId) || null;
   const associateQuota = formatAssociateQuota(bootstrap?.quotas.associates);
+  const quota = bootstrap?.quotas.associates;
+  const canAddAssociate = quota?.limit.kind === 'unlimited'
+    || (quota?.limit.kind === 'number' && quota.activeUsage < quota.limit.value);
 
   const handleAction = (action: string, dentist: ClinicOwnerAssociateDirectoryItem) => {
     if (action === 'View Associate Dentist') {
       onViewDentist?.(dentist.membershipId);
       return;
     }
-    showToast('Available after secure provisioning cutover.', 'info');
+    if (action === 'Edit Associate Dentist') {
+      onEditDentist?.(dentist.membershipId);
+      return;
+    }
+    showToast('Available in a later lifecycle phase.', 'info');
   };
 
   if (ownerRead.status !== 'ready' || !bootstrap || directoryState === 'loading') {
@@ -135,7 +144,7 @@ export function AssociateDentistsPage({ showToast, onViewDentist }: Props) {
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Associate Dentists</h1>
           <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>View licensed dentists, clinical specialties, and real clinic assignments.</p>
         </div>
-        <button type="button" className="btn btn-primary" disabled title="Available after secure provisioning cutover" style={{ width: 'auto', padding: '0.5rem 1.25rem', height: '38px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: 0.6, cursor: 'not-allowed' }}>
+        <button type="button" className="btn btn-primary" disabled={!canAddAssociate} title={!canAddAssociate ? 'The authoritative Associate Dentist quota has been reached.' : undefined} onClick={onAddDentist} style={{ width: 'auto', padding: '0.5rem 1.25rem', height: '38px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: canAddAssociate ? 1 : 0.6, cursor: canAddAssociate ? 'pointer' : 'not-allowed' }}>
           <Plus size={16} /> Add Dentist
         </button>
       </div>
@@ -171,7 +180,7 @@ export function AssociateDentistsPage({ showToast, onViewDentist }: Props) {
           selectedDentistId={selectedDentistId}
           onSelectDentist={setSelectedDentistId}
           onAction={handleAction}
-          readOnly
+          readOnly={false}
           selectedIds={selectedIds}
           onToggleSelectAll={(checked) => setSelectedIds(checked ? paginatedDentists.map((dentist) => dentist.membershipId) : [])}
           onToggleSelectId={(membershipId, checked) => setSelectedIds((current) => checked ? [...current, membershipId] : current.filter((id) => id !== membershipId))}
@@ -185,7 +194,8 @@ export function AssociateDentistsPage({ showToast, onViewDentist }: Props) {
           dentist={selectedDentist}
           onClose={() => setSelectedDentistId('')}
           onView={() => selectedDentist && onViewDentist?.(selectedDentist.membershipId)}
-          readOnly
+          onEdit={() => selectedDentist && onEditDentist?.(selectedDentist.membershipId)}
+          readOnly={false}
         />
       </div>
     </div>

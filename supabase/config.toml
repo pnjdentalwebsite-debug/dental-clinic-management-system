@@ -509,6 +509,12 @@ verify_jwt = true
 import_map = "./functions/provision-associate-dentist/deno.json"
 entrypoint = "./functions/provision-associate-dentist/index.ts"
 
+[functions.update-associate-dentist]
+enabled = true
+verify_jwt = true
+import_map = "./functions/update-associate-dentist/deno.json"
+entrypoint = "./functions/update-associate-dentist/index.ts"
+
 [functions.platform-registration-review-list]
 enabled = true
 verify_jwt = true

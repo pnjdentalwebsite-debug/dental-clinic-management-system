@@ -4508,22 +4508,30 @@ export default function App() {
               <AssociateDentistsPage
                 showToast={showToast}
                 onViewDentist={(dentistId) => setCurrentRoute(`/clinic/dentists/view/${dentistId}`)}
+                onAddDentist={() => setCurrentRoute('/clinic/dentists/new')}
+                onEditDentist={(dentistId) => setCurrentRoute(`/clinic/dentists/edit/${dentistId}`)}
               />
             ) : currentRoute === '/clinic/dentists/new' ? (
               <AssociateDentistFormPage
                 onBack={() => setCurrentRoute('/clinic/dentists')}
+                onEdit={(dentistId) => setCurrentRoute(`/clinic/dentists/view/${dentistId}`)}
+                showToast={showToast}
               />
             ) : currentRoute.startsWith('/clinic/dentists/view/') ? (
               <AssociateDentistFormPage
                 mode="view"
                 dentistId={currentRoute.replace('/clinic/dentists/view/', '')}
                 onBack={() => setCurrentRoute('/clinic/dentists')}
+                onEdit={(dentistId) => setCurrentRoute(`/clinic/dentists/edit/${dentistId}`)}
+                showToast={showToast}
               />
             ) : currentRoute.startsWith('/clinic/dentists/edit/') ? (
               <AssociateDentistFormPage
                 mode="edit"
                 dentistId={currentRoute.replace('/clinic/dentists/edit/', '')}
                 onBack={() => setCurrentRoute('/clinic/dentists')}
+                onEdit={(dentistId) => setCurrentRoute(`/clinic/dentists/view/${dentistId}`)}
+                showToast={showToast}
               />
             ) : currentRoute === '/clinic/staff' ? (
               <StaffManagementPage
