@@ -611,3 +611,10 @@
 - Live browser validation confirms the provider-backed components render Angelo Mhyr Lagsac, Angelo Dental Clinic, Plus, active 1/0/0 usage, the real primary clinic and `1 / 3` quota without mock rows, fabricated values, or Prototype Mode. Dashboard and directory hard refreshes preserve authoritative data; logout clears access/provider state.
 - The action controls remain intentionally read-only. No component implements real branch create/edit/status/delete/set-primary behavior or a server-enforced quota transaction; those belong to Phase 2E.3B.2.
 - **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## August 31, 2026 Phase 2E.3B.2A Backend Contract Inventory
+- `20260831011234_clinic_branch_mutation_backend_contract.sql`: additive clinic branch mutation RPCs, private caller/normalization/quota/DTO helpers, business-hours integrity/updated-at support, audit writes, execution grants, and owner direct-write RLS hardening.
+- `clinic_branch_mutation_backend_contract.sql`: pgTAP authority, validation, RLS, quota, create/update, rollback, primary-invariant, audit, and safe-DTO regression suite.
+- `clinic_branch_mutation_concurrency.ps1`: real two-connection subscriber-lock/quota race validation proving one success, one quota rejection, and one committed branch/audit row at a 2-of-3 boundary.
+- No React component, route, page, form, or browser adapter changed; Add/Edit Branch controls remain read-only.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.**

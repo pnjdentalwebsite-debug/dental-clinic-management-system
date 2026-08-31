@@ -405,3 +405,10 @@
 - Live validation passed for Dashboard and Branches: real owner/organization/Plus identity, active 1/0/0 clinic/associate/staff usage, real primary clinic fields, `1 / 3` quota, controlled unavailable Patient/Financial states, RLS audit activity, hard refresh, and logout route protection.
 - Read-only branch controls were validated to avoid mock persistence. Phase 2E.3B.2 remains not started: real create/edit/activate/deactivate/delete/set-primary and server-enforced quota transactions are not implemented.
 - **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## Phase 2E.3B.2A Clinic Branch Mutation Backend Contract - August 31, 2026
+- `public.create_my_clinic_branch(p_input jsonb)`: authenticated Clinic Owner create boundary with authoritative membership/subscriber resolution, subscriber-row quota serialization, strict input validation, server clinic identity, seven-day hours, safe audit, and safe DTO.
+- `public.update_my_clinic_branch(p_clinic_id uuid, p_input jsonb)`: same-tenant editable-profile/hours boundary that preserves subscriber, clinic number, status, primary state, and lifecycle timestamps; cross-tenant UUIDs return safe not-found behavior.
+- `app_private` branch helpers: private owner mutation context, normalized clinic/hour input, fail-closed current-plan clinic quota parsing, and safe DTO construction. Browser roles have no helper execution privilege.
+- Clinic/business-hours RLS now keeps owner reads while routing owner mutations exclusively through the RPCs. Platform Admin and service-role behavior is retained through explicit policies/privileges.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** No Edge Function or lifecycle RPC was added.

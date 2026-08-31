@@ -646,3 +646,14 @@
 - [x] Confirm no mock clinic rows/persistence or Prototype Mode remain in the authenticated runtime.
 - [x] Record the explicit Phase 2E.3B.2 boundary: real branch create/edit/activate/deactivate/delete/set-primary operations and the server-enforced clinic-quota transaction remain unimplemented.
 - **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** Do not start Phase 2E.3B.2 automatically.
+
+## Phase 2E.3B.2A Clinic Branch Mutation Backend Contract - August 31, 2026
+- [x] Generate one additive migration through the Supabase CLI workflow; reuse the existing clinics, clinic_business_hours, subscription/plan, audit, UUID, and clinic-number schema.
+- [x] Add private exact-owner scope resolution and authenticated-only SECURITY DEFINER create/update RPCs with strict input, safe DTO, and stable safe errors.
+- [x] Serialize quota-affecting creates on the subscriber row and parse the active plan's `clinics` limit without hardcoded plan quotas or fail-open behavior.
+- [x] Make branch, seven-day business-hours, and audit changes atomic; protect current primary identity and defer all lifecycle/primary-switch APIs.
+- [x] Remove Clinic Owner direct table-write bypasses while preserving owner reads and legitimate Platform Admin/service-role access.
+- [x] Pass focused/full pgTAP database suites, genuine two-connection 2-of-3 concurrency validation, clean shadow migration/schema diff, schema lint/security error gates, production build, and diff checks.
+- [ ] Deploy the migration to the linked development project and perform authenticated remote contract validation in a separately authorized deployment pass.
+- [ ] Wire the existing Add/Edit Branch UI in Phase 2E.3B.2B only after remote backend validation.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** Do not mark Phase 2E.3B.2 complete.

@@ -532,3 +532,11 @@ flowchart TD
 - Patients, Financial Summary, and setup progress remain controlled unavailable/deferred rather than fabricated values. Recent Activity renders real RLS-visible audit events, and the Clinic Owner Prototype Mode badge remains absent.
 - Logout clears protected access and provider state: direct `/clinic/dashboard` or `/clinic/branches` reopening returns to login. No mock clinic rows or persistence are involved.
 - **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.** Real branch mutations and server-enforced quota transactions remain deferred to Phase 2E.3B.2.
+
+## Phase 2E.3B.2A Clinic Branch Mutation Backend Boundary - August 31, 2026
+- Clinic Owner branch writes are now designed as `authenticated caller -> private exact-owner resolution -> subscriber row lock -> operational subscription/active plan quota resolution -> SECURITY DEFINER RPC -> clinics + seven business-hours rows + audit event in one transaction`.
+- `create_my_clinic_branch(jsonb)` derives the subscriber and actor, serializes quota-affecting work on the subscriber row, generates the UUID/`CLN-XXXXXXXXXX` identity server-side, creates only a non-primary branch, and returns a safe clinic DTO. `update_my_clinic_branch(uuid, jsonb)` locks the same tenant boundary and target clinic, preserves identity/lifecycle/primary fields, and uses the same DTO/error contract.
+- Clinic quota authority remains the current subscription's active `plans.limits` `clinics` entry. Number, unlimited, and not-included semantics are explicit; pending, missing, duplicate, malformed, and unknown values fail closed. Draft, pending, active, and inactive clinics consume quota; archived clinics do not.
+- Broad Clinic Owner table-write policies on clinics/business hours are replaced by RPC-only owner mutation authority while owner reads and legitimate Platform Admin/service-role behavior remain available. Private helpers are not executable by browser roles; public RPC execution is authenticated-only.
+- Primary switching and lifecycle mutations are intentionally absent. The frontend remains read-only and is not wired to these RPCs.
+- **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** Phase 2E.3B.2 is not complete.

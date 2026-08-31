@@ -1632,3 +1632,11 @@ Resolved the issue where the temporary password was getting stuck at `'Temp-PjD-
 5. Logout cleared protected Clinic Owner access and provider state. Directly reopening `/clinic/dashboard` or `/clinic/branches` returned to login without restoring the previous owner scope.
 6. Phase 2E.3B.2 remains not started. Real branch create/edit/activate/deactivate/delete/set-primary mutations and the server-enforced clinic-quota transaction remain deferred.
 7. **PHASE 2E.3B.1 = COMPLETE / REAL-DATA READ CUTOVER / LIVE BROWSER VALIDATED / READY FOR CHECKPOINT.**
+
+## Phase 2E.3B.2A Local Backend Contract Validation - August 31, 2026
+1. The additive migration applies cleanly to the current local stack and from the full ordered migration history; a shadow schema comparison reports no untracked schema drift or duplicate object conflict.
+2. The database contract tests cover caller authority, password gating, subscriber derivation, protected input rejection, owner direct-write denial/read preservation, Platform Admin writes, create/update/hours/audit behavior, quota variants, rollback, and primary-invariant protection.
+3. A genuine two-connection test begins at Plus usage `2 / 3`: both create RPCs overlap, the subscriber-row lock permits one create, the waiting request observes usage `3` and receives `CLINIC_QUOTA_REACHED`, and the final state contains exactly three quota-consuming clinics with one new branch/audit event.
+4. Schema lint and security-advisor error gates pass. The only security advisor information entries are existing server-only registration tables outside this migration. The production frontend build also passes despite no frontend changes.
+5. The migration has not been pushed remotely. Add/Edit Branch remains unwired/read-only, and activate/deactivate/delete/set-primary/archive/restore remain outside this subphase.
+6. **PHASE 2E.3B.2A = BACKEND CONTRACT LOCALLY IMPLEMENTED / NOT DEPLOYED / FRONTEND NOT WIRED / REMOTE VALIDATION PENDING.** Phase 2E.3B.2 remains incomplete.
